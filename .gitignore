@@ -1,0 +1,85 @@
+# Build output
+bin/
+obj/
+out/
+[Bb]uild/
+# ...but /build/ is OURS: the repo's build scripts (gen-ai-context.ps1, gen-trusted-plugins.ps1) live
+# there and CI runs them. The rule above swallowed the directory, so the scripts were never committed
+# and the template-smoke drift check ran against a script that didn't exist.
+!/build/
+[Pp]ublish/
+installer/Output/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# .NET
+*.dll
+*.pdb
+*.exe
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.tmp
+
+# Test output
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+# Logs (project)
+logs/
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Environment overrides
+appsettings.local.json
+appsettings.*.local.json
+
+# IB binaries (user must drop these locally)
+lib/IBApi.dll
+lib/IBApi.pdb
+lib/CSharpAPI.dll
+lib/CSharpAPI.pdb
+lib/NTDirect.dll
+
+# Don't ignore the lib placeholder
+!lib/.gitkeep
+
+# Claude local settings (project-level overrides)
+.claude/settings.local.json
+
+# Backtest scratch output (synthetic parquet datasets, run outputs)
+*.parquet
+bt-results/
+bt-data*/
+
+# Local demo/screenshot assets (not tracked)
+test/
+
+# Python compiled
+__pycache__/
+*.pyc
+
+# Claude agent worktrees (temporary)
+.claude/worktrees/
