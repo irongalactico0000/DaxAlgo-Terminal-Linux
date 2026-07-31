@@ -27,6 +27,19 @@ public enum MarketDataProvider
     SqlitePerBroker = 3,
 }
 
+/// <summary>How the macOS app obtains the local QuestDB endpoint.</summary>
+public enum QuestDbLaunchMode
+{
+    /// <summary>
+    /// App-managed local mode. The name is retained for configuration compatibility with the
+    /// Windows product; on macOS the runtime is an isolated Docker container, not a Windows binary.
+    /// </summary>
+    Native = 0,
+
+    /// <summary>Only connect to a loopback endpoint managed outside the app.</summary>
+    External = 1,
+}
+
 /// <summary>
 /// Settings for the local market-data pipeline (canonical store + ingest). Two backends:
 /// embedded SQLite (default, zero-config) and PostgreSQL/TimescaleDB (the docker-compose service).
@@ -96,27 +109,26 @@ public sealed class MarketDataStoreOptions
     /// the highest-volume stream, so the default trims it hardest.</summary>
     public int DepthRetentionDays { get; set; } = 14;
 
-    // ── QuestDB Docker auto-start (Provider == QuestDb) ──────────────────────────────────────────
-    // QuestDB is a standalone server with no embedded fallback for ticks, so when it's configured but
-    // not running we try to start its Docker container at launch rather than just disabling persistence.
+    // ── QuestDB startup (Provider == QuestDb) ─────────────────────────────────────────────────────
+    // Managed mode starts a loopback-only Docker container and is independent of a source checkout or
+    // docker-compose file. External mode probes a loopback endpoint without starting local processes.
 
-    /// <summary>When QuestDB is selected but not reachable at startup, attempt to start its Docker
-    /// container automatically (the docker-compose <see cref="DockerComposeService"/> service).
-    /// Best-effort — skipped and logged if Docker isn't installed or the daemon is down. Set false to
-    /// manage QuestDB yourself.</summary>
-    public bool AutoStartDocker { get; set; } = true;
+    /// <summary>Choose the app-managed local container or an externally managed loopback endpoint.</summary>
+    public QuestDbLaunchMode QuestDbLaunchMode { get; set; } = QuestDbLaunchMode.Native;
 
-    /// <summary>docker-compose service name started when <see cref="AutoStartDocker"/> kicks in.</summary>
-    public string DockerComposeService { get; set; } = "questdb";
+    /// <summary>When managed mode is selected and QuestDB is unreachable, start Docker and the local
+    /// container automatically. Set false to require the explicit File → Start QuestDB action.</summary>
+    public bool AutoStartQuestDb { get; set; } = true;
 
-    /// <summary>Container name used as a fallback (<c>docker start</c>) when the compose file isn't found
-    /// next to a published build.</summary>
-    public string DockerContainerName { get; set; } = "daxalgo-questdb";
+    /// <summary>Versioned image used when the app-managed container does not yet exist.</summary>
+    public string QuestDbContainerImage { get; set; } = "questdb/questdb:8.2.1";
+
+    /// <summary>Name of the app-managed QuestDB container.</summary>
+    public string QuestDbContainerName { get; set; } = "daxalgo-questdb";
+
+    /// <summary>Named Docker volume that retains the local QuestDB data directory.</summary>
+    public string QuestDbVolumeName { get; set; } = "daxalgo-questdb";
 
     /// <summary>How long to wait for QuestDB to accept connections after its container starts, in seconds.</summary>
-    public int DockerStartupTimeoutSeconds { get; set; } = 40;
-
-    /// <summary>Optional explicit path to <c>Docker Desktop.exe</c>, used by File → Start QuestDB when the
-    /// daemon is down. Empty → probe the usual install locations under Program Files / LocalAppData.</summary>
-    public string DockerDesktopPath { get; set; } = string.Empty;
+    public int QuestDbStartupTimeoutSeconds { get; set; } = 40;
 }

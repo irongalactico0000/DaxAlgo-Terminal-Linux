@@ -1,6 +1,6 @@
-# TradingTerminal.Ai.BacktestAnalysis — public API surface (Linux/Avalonia)
+# TradingTerminal.Ai.BacktestAnalysis — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/AI/TradingTerminal.Ai.BacktestAnalysis/AvaloniaUi/BacktestAnalysisAvaloniaWindow.axaml.cs
@@ -24,8 +24,8 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 ## src/linux/AI/TradingTerminal.Ai.BacktestAnalysis/BacktestAnalysisViewModel.cs
 ```cs
    22: public sealed partial class BacktestAnalysisViewModel : ViewModelBase
-   26: public BacktestAnalysisViewModel(ILogger<BacktestAnalysisViewModel> logger)
-   33: public IReadOnlyList<string> StrategyChoices { get; }
-   34: public ObservableCollection<WalkForwardRow> WalkForwardRows { get; } = new();
-  279: public sealed record WalkForwardRow(
+   27: public BacktestAnalysisViewModel(
+   37: public ObservableCollection<string> StrategyChoices { get; } = new();
+   38: public ObservableCollection<WalkForwardRow> WalkForwardRows { get; } = new();
+  305: public sealed record WalkForwardRow(
 ```

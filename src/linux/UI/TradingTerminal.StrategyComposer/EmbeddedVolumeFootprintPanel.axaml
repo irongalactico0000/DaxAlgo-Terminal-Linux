@@ -1,0 +1,124 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TradingTerminal.StrategyComposer.EmbeddedVolumeFootprintPanel"
+             Background="{DynamicResource Background.Primary}"
+             Foreground="{DynamicResource Text.Primary}">
+  <UserControl.Styles>
+    <Style Selector="TextBlock.metric-caption">
+      <Setter Property="FontSize" Value="9" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+    <Style Selector="TextBlock.metric-value">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontFamily" Value="{DynamicResource Font.Data}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- Copied from the native Avalonia Volume Footprint surface, retaining its live stats and bar
+       models while removing selectors and overlays that belong to the standalone tool. -->
+  <Grid>
+  <Grid RowDefinitions="Auto,*">
+    <Border Grid.Row="0" Padding="8,6"
+            Background="{DynamicResource Background.Elevated}"
+            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
+      <UniformGrid Columns="4">
+        <StackPanel Margin="0,0,10,0">
+          <TextBlock Text="POC" Classes="metric-caption" />
+          <TextBlock Text="{Binding CurrentPocText}" Classes="metric-value" />
+        </StackPanel>
+        <StackPanel Margin="0,0,10,0">
+          <TextBlock Text="POC SLOPE" Classes="metric-caption" />
+          <TextBlock Text="{Binding PocSlopeText}" Classes="metric-value" />
+        </StackPanel>
+        <StackPanel Margin="0,0,10,0">
+          <TextBlock Text="BUY / SELL" Classes="metric-caption" />
+          <TextBlock Text="{Binding BuySellText}" Classes="metric-value" />
+        </StackPanel>
+        <StackPanel>
+          <TextBlock Text="SESSION Δ" Classes="metric-caption" />
+          <TextBlock Text="{Binding SessionDelta}" Classes="metric-value" />
+        </StackPanel>
+        <StackPanel Margin="0,5,10,0">
+          <TextBlock Text="VISIBLE VOLUME" Classes="metric-caption" />
+          <TextBlock Text="{Binding VisibleVolumeText}" Classes="metric-value" />
+        </StackPanel>
+        <StackPanel Margin="0,5,10,0">
+          <TextBlock Text="STACKED BUY / SELL" Classes="metric-caption" />
+          <TextBlock Text="{Binding StackedText}" Classes="metric-value" />
+        </StackPanel>
+        <StackPanel Margin="0,5,10,0">
+          <TextBlock Text="TICKS / SEC" Classes="metric-caption" />
+          <TextBlock Text="{Binding TicksPerSecondText}" Classes="metric-value" />
+        </StackPanel>
+        <StackPanel Margin="0,5,0,0">
+          <TextBlock Text="TRADES" Classes="metric-caption" />
+          <TextBlock Text="{Binding TradesSeen}" Classes="metric-value" />
+        </StackPanel>
+      </UniformGrid>
+    </Border>
+
+    <Grid Grid.Row="1">
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="8">
+        <ItemsControl ItemsSource="{Binding Bars}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="6" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Width="116" MinHeight="190" Padding="8" CornerRadius="3"
+                      Background="{DynamicResource Background.Surface}"
+                      BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                <Grid RowDefinitions="Auto,Auto,*,Auto">
+                  <TextBlock Grid.Row="0" Text="{Binding StartUtc, StringFormat='{}{0:HH:mm:ss}'}"
+                             FontFamily="{DynamicResource Font.Data}" FontSize="10"
+                             Foreground="{DynamicResource Text.Secondary}" />
+                  <Border Grid.Row="1" Height="2" Margin="0,5,0,8" Background="{DynamicResource Accent.Brush}" />
+                  <StackPanel Grid.Row="2" Spacing="8" VerticalAlignment="Center">
+                    <StackPanel>
+                      <TextBlock Text="POC" Classes="metric-caption" HorizontalAlignment="Center" />
+                      <TextBlock Text="{Binding PointOfControl, StringFormat='{}{0:0.#####}'}"
+                                 Classes="metric-value" FontSize="15" HorizontalAlignment="Center" />
+                    </StackPanel>
+                    <Grid ColumnDefinitions="*,*">
+                      <StackPanel Grid.Column="0">
+                        <TextBlock Text="BUY POC" Classes="metric-caption" HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding BuyPointOfControl, StringFormat='{}{0:0.#####}'}"
+                                   Classes="metric-value" Foreground="{DynamicResource Bullish.Brush}"
+                                   HorizontalAlignment="Center" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1">
+                        <TextBlock Text="SELL POC" Classes="metric-caption" HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding SellPointOfControl, StringFormat='{}{0:0.#####}'}"
+                                   Classes="metric-value" Foreground="{DynamicResource Bearish.Brush}"
+                                   HorizontalAlignment="Center" />
+                      </StackPanel>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,*">
+                      <StackPanel Grid.Column="0">
+                        <TextBlock Text="VOLUME" Classes="metric-caption" HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding TotalVolume}" Classes="metric-value" HorizontalAlignment="Center" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1">
+                        <TextBlock Text="DELTA" Classes="metric-caption" HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding Delta}" Classes="metric-value" HorizontalAlignment="Center" />
+                      </StackPanel>
+                    </Grid>
+                  </StackPanel>
+                  <TextBlock Grid.Row="3" Text="{Binding Quality}" HorizontalAlignment="Center" FontSize="9"
+                             Foreground="{DynamicResource Text.Secondary}" Margin="0,8,0,0" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+    </Grid>
+  </Grid>
+  <Image x:Name="FreezeImage" IsVisible="False" Stretch="Fill" IsHitTestVisible="False" />
+  </Grid>
+</UserControl>

@@ -41,16 +41,15 @@ public sealed class DockerSandboxRunnerTests
         new Dictionary<string, string>());
 
     [Fact]
-    public void When_docker_absent_runner_reports_unavailable_and_never_throws()
+    public async Task When_docker_absent_runner_reports_unavailable_and_never_throws()
     {
         var runner = MakeRunner();
         if (runner.IsAvailable) return; // Docker present — covered by the integration test below.
 
         // The contract: even with no Docker, RunAsync folds into a Failed result rather than throwing.
-        var result = runner
-            .RunAsync(MakeSpec(), SandboxQuota.Strict, SandboxPolicy.DenyAll,
-                new Progress<string>(), plan: null, CancellationToken.None)
-            .GetAwaiter().GetResult();
+        var result = await runner.RunAsync(
+            MakeSpec(), SandboxQuota.Strict, SandboxPolicy.DenyAll,
+            new Progress<string>(), plan: null, CancellationToken.None);
 
         result.Success.Should().BeFalse();
         result.Error.Should().NotBeNullOrEmpty();

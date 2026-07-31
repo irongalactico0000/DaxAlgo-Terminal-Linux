@@ -2,80 +2,211 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Serilog;
+using Serilog.Events;
+using DaxAlgo.FootprintTransformer;
+using DaxAlgo.Daxq.Host;
+using TradingTerminal.App.Archive;
 using TradingTerminal.App.Avalonia.Shell;
+using TradingTerminal.App.Avalonia.Theming;
+using TradingTerminal.App.Support;
 using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Configuration;
+using TradingTerminal.Core.MarketData.Archive;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Ml;
 using TradingTerminal.Infrastructure;
 using TradingTerminal.Infrastructure.AiAnalyst;
 using TradingTerminal.Infrastructure.Backtest;
+using TradingTerminal.Infrastructure.Backtest.Fast;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.MarketData.Archive;
+using TradingTerminal.Infrastructure.MarketData.Archive.Lake;
+using TradingTerminal.Infrastructure.MarketData.Archive.Telegram;
 using TradingTerminal.Infrastructure.Notifications;
+using TradingTerminal.Infrastructure.Plugins;
+using TradingTerminal.Infrastructure.Plugins.Feed;
 using TradingTerminal.Infrastructure.Research;
-using TradingTerminal.Strategies.CumulativeDelta;
-using TradingTerminal.Strategies.FilteredOrderFlow;
-using TradingTerminal.Strategies.ImbalanceHeatFront;
-using TradingTerminal.Strategies.IndexKScoreSurface;
-using TradingTerminal.Strategies.IndexRegimeGraph;
-using TradingTerminal.Strategies.OrderFlowCube;
-using TradingTerminal.Strategies.OrderFlowPressureMap;
-using TradingTerminal.Strategies.OrderFlowSurfaceSpike;
+using TradingTerminal.Infrastructure.Regime;
+using TradingTerminal.Infrastructure.Sidecar;
+using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.BacktestStudio;
 using TradingTerminal.LseBacktest;
 using TradingTerminal.QuantConnect;
+using TradingTerminal.Recording;
+using TradingTerminal.Charts;
+using TradingTerminal.BubbleChart;
+using TradingTerminal.SurfaceLab;
 using TradingTerminal.OrderBook;
 using TradingTerminal.VolumeFootprint;
 using TradingTerminal.Heatmap;
-using TradingTerminal.Strategies.SigmaIcFlow;
+using TradingTerminal.Login;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
 using TradingTerminal.UI.Strategies;
+using TradingTerminal.StrategyComposer;
 
 namespace TradingTerminal.App.Avalonia.Composition;
 
 /// <summary>
-/// Composition root for the Avalonia shell. Mirrors the WPF App's MS.DI host but with the headless,
-/// cross-platform slice only — no WPF services. As more windows are ported, register their
-/// (portable) view-models here. Kept a plain <see cref="ServiceCollection"/> for now; it can grow
-/// into a full Generic Host (config + Serilog) when the shell needs settings/logging files.
+/// Composition root for the Avalonia shell. Mirrors the Windows Professional Generic Host with
+/// cross-platform implementations for configuration, logging, security, and UI services.
 /// </summary>
 public static class ServiceConfiguration
 {
-    public static IServiceProvider Build()
+    public static IHost BuildHost(IPluginConsentPrompt? pluginConsentPrompt = null)
     {
         var services = new ServiceCollection();
 
-        // Empty configuration — the headless services fall back to their defaults (SQLite store at
-        // the default path, simulated broker, etc.). Real config files arrive when the shell grows up.
-        IConfiguration configuration = new ConfigurationBuilder().Build();
+        // Shipped defaults are layered under environment, local, and per-user UI overrides.
+        var environmentName = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? "Production";
+        IConfiguration configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddJsonFile($"appsettings.{environmentName}.json", optional: true, reloadOnChange: true)
+            .AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true)
+            .AddJsonFile(TradingTerminal.App.Notifications.NotificationsUserFile.Path, optional: true, reloadOnChange: true)
+            .AddJsonFile(TradingTerminal.App.Archive.ArchiveUserFile.Path, optional: true, reloadOnChange: true)
+            .AddJsonFile(TradingTerminal.App.Research.ResearchUserFile.Path, optional: true, reloadOnChange: true)
+            .AddJsonFile(TradingTerminal.App.Authoring.AiCodegenUserFile.Path, optional: true, reloadOnChange: true)
+            .Build();
         services.AddSingleton(configuration);
-        services.AddLogging();
+        var activityLog = new InMemoryLogSink();
+        var configuredMinimum = configuration["Logging:MinimumLevel"] ?? "Information";
+        var minimumLevel = Enum.TryParse<LogEventLevel>(configuredMinimum, ignoreCase: true, out var parsedLevel)
+            ? parsedLevel
+            : LogEventLevel.Information;
+        var configuredLogPath = configuration["Logging:FilePath"] ?? "logs/terminal-.log";
+        var logger = new LoggerConfiguration()
+            .ReadFrom.Configuration(configuration)
+            .MinimumLevel.Is(minimumLevel)
+            .WriteTo.File(ResolveLogFilePath(configuredLogPath), rollingInterval: RollingInterval.Day)
+            .WriteTo.Debug()
+            .WriteTo.Sink(new ObservableCollectionLogSink(activityLog))
+            .CreateLogger();
 
         // Universal Activity Log — one shared sink for the whole shell.
-        services.AddSingleton<InMemoryLogSink>();
+        services.AddSingleton(activityLog);
+
+        // Bind the same broker/account/development sections as the Windows Professional shell.
+        services.Configure<InteractiveBrokersOptions>(
+            configuration.GetSection(InteractiveBrokersOptions.SectionName));
+        services.Configure<NinjaTraderOptions>(
+            configuration.GetSection(NinjaTraderOptions.SectionName));
+        services.Configure<CTraderOptions>(
+            configuration.GetSection(CTraderOptions.SectionName));
+        services.Configure<AlpacaOptions>(
+            configuration.GetSection(AlpacaOptions.SectionName));
+        services.Configure<BinanceOptions>(
+            configuration.GetSection(BinanceOptions.SectionName));
+        services.Configure<IronBeamOptions>(
+            configuration.GetSection(IronBeamOptions.SectionName));
+        services.Configure<LondonStrategicEdgeOptions>(
+            configuration.GetSection(LondonStrategicEdgeOptions.SectionName));
+        services.Configure<UpstoxOptions>(
+            configuration.GetSection(UpstoxOptions.SectionName));
+        services.Configure<CoinbaseOptions>(
+            configuration.GetSection(CoinbaseOptions.SectionName));
+        services.Configure<BybitOptions>(
+            configuration.GetSection(BybitOptions.SectionName));
+        services.Configure<KrakenOptions>(
+            configuration.GetSection(KrakenOptions.SectionName));
+        services.Configure<OkxOptions>(
+            configuration.GetSection(OkxOptions.SectionName));
+        services.Configure<DevOptions>(configuration.GetSection(DevOptions.SectionName));
+        services.Configure<GoogleAuthOptions>(configuration.GetSection(GoogleAuthOptions.SectionName));
+        services.Configure<SimulatedBrokerOptions>(
+            configuration.GetSection(SimulatedBrokerOptions.SectionName));
 
         // Headless pipeline + broker layer (WPF-free on net9.0) and the backtest strategy catalog.
         services.AddTradingTerminalInfrastructure();
         services.AddMarketDataPipeline(configuration);
+        services.AddSingleton<IFootprintForecastProvider, FootprintTransformerForecastProvider>();
         // Marshal repository/Paper-Lab UI work onto Avalonia's UI thread (overrides the headless
         // ImmediateUiDispatcher default registered by the pipeline; last registration wins).
         services.AddSingleton<TradingTerminal.Infrastructure.Threading.IUiDispatcher, AvaloniaUiDispatcher>();
         services.AddNotifications(configuration);
+        services.AddMarketRegime(configuration);
         // AI analyst seam (IAiAnalystClient Null/Http, hot-swappable via NotificationsOptions).
         services.AddAiAnalyst(configuration);
         // Paper Lab research/repro seams (IPaperIngestClient/IReproOrchestrator Null defaults).
         services.AddPaperResearch(configuration);
-        // Market-data archive (offloader + manifest store + Telegram transport). Uses the headless
-        // NullTelegramAuthPrompt — the archive UI works; the Telegram verification-code modal is a
-        // later Avalonia piece.
+        services.AddSidecar(configuration);
+        // Market-data archive (offloader + manifest store + Telegram transport), with native
+        // Avalonia prompting and macOS-protected credential post-configuration layered on top.
         services.AddMarketDataArchive(configuration);
+        services.AddSingleton<ITelegramAuthPrompt, AvaloniaTelegramAuthPrompt>();
+        services.AddSingleton<ITelegramArchiveLogin, TelegramArchiveLogin>();
+        services.AddSingleton<IPostConfigureOptions<TelegramArchiveOptions>, TelegramArchiveOptionsPostConfigure>();
+        services.AddParquetLake(configuration);
         services.AddBacktestStrategyCatalog();
+        services.AddFastBacktestRunner();
+
+        var useLocalDaxqLicensing = false;
+#if DEBUG
+        useLocalDaxqLicensing =
+            string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(environmentName, "Testing", StringComparison.OrdinalIgnoreCase) ||
+            environmentName.StartsWith("Dev", StringComparison.OrdinalIgnoreCase);
+#endif
+        var protectedStrategyEngine = new DaxqProtectedStrategyEngine(
+            NullLogger<DaxqProtectedStrategyEngine>.Instance,
+            new DaxqProtectedStrategyEngineOptions
+            {
+                EnableLocalDevelopmentProtocol = useLocalDaxqLicensing,
+                ForceReferenceVm = useLocalDaxqLicensing,
+            });
+        services.AddSingleton(protectedStrategyEngine);
+        services.AddSingleton<TradingTerminal.Infrastructure.Plugins.IProtectedStrategyEngine>(
+            protectedStrategyEngine);
+        services.AddSingleton<DaxqStrategyInstaller>();
 
         // Strategy plug-in seam — the SAME factory the WPF shell uses. Every strategy resolves and
         // opens through IStrategyFactory.Create(id); the shell never names a concrete strategy. Each
         // strategy project registers a StrategyFactoryRegistration (Avalonia view) on its net9.0 leg.
         services.AddSingleton<IStrategyFactory, StrategyFactory>();
+        services.TryAddSingleton<TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler,
+            RoslynStrategyCompiler>();
+        services.AddStrategyCodegen(configuration);
+
+        var pluginsRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DaxAlgoTerminal", "plugins");
+        var pluginOptions = configuration.GetSection(PluginsOptions.SectionName).Get<PluginsOptions>()
+            ?? new PluginsOptions();
+        var pluginPolicy = PluginTrustPolicy.From(pluginOptions);
+        var disableStrategyPlugins = configuration
+            .GetSection(DevOptions.SectionName)
+            .GetValue<bool>(nameof(DevOptions.DisableStrategyPlugins));
+        if (disableStrategyPlugins)
+        {
+            services.AddSingleton(new PluginHostContext(pluginsRoot, pluginPolicy, []));
+        }
+        else
+        {
+            var pluginState = new PluginStateStore(pluginsRoot);
+            var pluginReport = PluginLoader.LoadWithReport(
+                services,
+                pluginsRoot,
+                DaxAlgo.Sdk.SdkInfo.Version,
+                pluginPolicy,
+                pluginState,
+                pluginOptions.ScanMode,
+                consent: pluginConsentPrompt,
+                protectedStrategyEngine: protectedStrategyEngine);
+            services.AddSingleton(new PluginHostContext(
+                pluginsRoot, pluginPolicy, pluginReport.Loaded, pluginReport, pluginState));
+        }
+        services.AddPluginFeed(pluginOptions);
+        services.AddSingleton<AuthoredStrategyInstaller>();
+        services.AddTransient<TradingTerminal.App.Plugins.PluginManagerViewModel>();
+        services.AddTransient<TradingTerminal.App.Plugins.PluginManagerView>();
 
         // Shared live-strategy plumbing (same bundle the WPF shell injects into every per-strategy VM).
         services.AddSingleton<ISignalGeneratorRouterFactory, SignalGeneratorRouterFactory>();
@@ -89,22 +220,14 @@ public static class ServiceConfiguration
             sp.GetRequiredService<IInstrumentRegistry>()));
 
         // Ported per-strategy VMs (descriptor + portable VM; the WPF windows are #if'd out on net9.0).
-        services.AddCumulativeDeltaStrategy();
-        services.AddFilteredOrderFlowStrategy();
-        services.AddImbalanceHeatFrontStrategy();
-        services.AddSigmaIcFlowStrategy();
         // Index Regime Graph consumes the Advanced Market Regime engine (Infrastructure, net9.0).
         services.TryAddSingleton<TradingTerminal.Core.MarketData.AdvancedRegime.IAdvancedRegimeProvider,
             TradingTerminal.Infrastructure.Regime.AdvancedRegime.AdvancedRegimeService>();
-        services.AddIndexRegimeGraphStrategy();
-        services.AddOrderFlowPressureMapStrategy();
-        services.AddIndexKScoreSurfaceStrategy();
-        services.AddOrderFlowCubeStrategy();
-        services.AddOrderFlowSurfaceSpikeStrategy();
 
         // Shell view-models. The header API meter polls IBrokerApiMeter (registered by the
         // Infrastructure layer); MainWindowViewModel binds the catalog to IStrategyFactory.All.
         services.AddSingleton<BrokerApiMeterViewModel>();
+        services.AddSingleton<IThemeManager, ThemeManager>();
 
         // AI tool VMs (portable — ILogger-only ctors; file I/O via the UiFile seam).
         services.AddTransient<TradingTerminal.Ai.MarketAnalyst.AiAnalystViewModel>();
@@ -114,10 +237,11 @@ public static class ServiceConfiguration
         services.AddTransient<TradingTerminal.App.Notifications.NotificationsSettingsViewModel>();
         services.AddTransient<TradingTerminal.App.Research.ResearchSettingsViewModel>();
         services.AddTransient<TradingTerminal.App.Support.SupportViewModel>();
+        services.AddTransient<TradingTerminal.App.Avalonia.Settings.SupportWindow>();
+        services.AddSingleton<ISupportPrompt, SupportPrompt>();
         services.AddTransient<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
+        services.AddTransient<TradingTerminal.App.Authoring.AiProvidersSettingsViewModel>();
         // Roslyn strategy compiler backs the authoring window.
-        services.TryAddSingleton<TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler,
-            TradingTerminal.Infrastructure.Strategies.Authoring.RoslynStrategyCompiler>();
         services.AddTransient<TradingTerminal.App.Archive.ArchiveSettingsViewModel>();
         services.AddTransient<TradingTerminal.App.Archive.ArchiveActivityViewModel>();
         services.AddTransient<TradingTerminal.Ai.FactorResearch.FactorResearchViewModel>();
@@ -125,18 +249,47 @@ public static class ServiceConfiguration
         services.AddTransient<TradingTerminal.Ai.BacktestAnalysis.BacktestAnalysisViewModel>();
         services.AddTransient<TradingTerminal.AdvancedMarketRegime.AdvancedMarketRegimeViewModel>();
         services.AddBacktestStudioSurface();
-        services.AddTransient<TradingTerminal.Recording.TickRecorderViewModel>();
+        services.AddRecordingSurface();
         services.AddLseBacktestSurface();
         services.AddTransient<TradingTerminal.Correlation.LiveCorrelationMatrixViewModel>();
         services.AddQuantConnectSurface(configuration);
         services.AddOrderBookSurface();
         services.AddFootprintSurface();
         services.AddHeatmapSurface();
+        services.AddChartsSurface();
+        services.AddBubbleChartSurface();
+        services.AddSurfaceLabSurface();
+        services.AddStrategyViewComposer();
         TradingTerminal.Backtest.BacktestServiceCollectionExtensions.AddBacktestSurface(services);
+        services.AddLogin();
+        services.AddCredentialedLoginForms();
 
         services.AddSingleton<MainWindowViewModel>();
-        services.AddTransient<Login.LoginViewModel>();
 
-        return services.BuildServiceProvider();
+        return new HostBuilder()
+            .UseSerilog(logger, dispose: true)
+            .ConfigureServices(hostServices =>
+            {
+                foreach (var descriptor in services)
+                    hostServices.Add(descriptor);
+            })
+            .Build();
+    }
+
+    private static string ResolveLogFilePath(string configuredPath)
+    {
+        if (Path.IsPathRooted(configuredPath))
+            return configuredPath;
+
+        var userData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (string.IsNullOrWhiteSpace(userData))
+            userData = Path.Combine(Path.GetTempPath(), "DaxAlgoTerminal");
+        else
+            userData = Path.Combine(userData, "DaxAlgoTerminal");
+
+        var relative = configuredPath
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+        return Path.Combine(userData, relative);
     }
 }

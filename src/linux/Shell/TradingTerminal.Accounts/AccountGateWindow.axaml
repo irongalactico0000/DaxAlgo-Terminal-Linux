@@ -1,0 +1,143 @@
+<Window x:Class="TradingTerminal.Accounts.AccountGateWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DaxAlgo Terminal — Account"
+        Width="760"
+        Height="540"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Background.Primary}"
+        Foreground="{DynamicResource Text.Primary}">
+  <Window.Styles>
+    <Style Selector="Border.status-card">
+      <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+    </Style>
+    <Style Selector="Border.status-card.failure">
+      <Setter Property="BorderBrush" Value="#90FF8C00" />
+    </Style>
+  </Window.Styles>
+
+  <Grid ColumnDefinitions="280,*">
+    <Border Grid.Column="0"
+            Padding="34"
+            Background="{DynamicResource Background.Elevated}"
+            BorderBrush="{DynamicResource Border.Brush}"
+            BorderThickness="0,0,1,0">
+      <StackPanel VerticalAlignment="Center">
+        <Border Width="78"
+                Height="78"
+                HorizontalAlignment="Left"
+                Background="#ECECEC">
+          <Image Width="56"
+                 Height="56"
+                 Source="avares://TradingTerminal.Accounts/Assets/DaxAlgoLogo.png"
+                 Stretch="Uniform" />
+        </Border>
+        <TextBlock Margin="0,24,0,0"
+                   FontSize="24"
+                   FontWeight="SemiBold"
+                   Text="DaxAlgo Terminal" />
+        <TextBlock Margin="0,8,0,0"
+                   Foreground="{DynamicResource Text.Secondary}"
+                   TextWrapping="Wrap"
+                   Text="One account for the terminal, marketplace purchases, submissions, and reviews." />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Column="1"
+          Margin="42,34"
+          RowDefinitions="Auto,Auto,*,Auto">
+      <StackPanel>
+        <TextBlock FontSize="12"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource Accent.Brush}"
+                   Text="REQUIRED EDITION" />
+        <DockPanel Margin="0,8,0,0">
+          <TextBlock DockPanel.Dock="Right"
+                     VerticalAlignment="Bottom"
+                     FontSize="16"
+                     Foreground="{DynamicResource Text.Secondary}"
+                     Text="{Binding PlanPrice}" />
+          <TextBlock FontSize="28"
+                     FontWeight="SemiBold"
+                     Text="{Binding PlanName}" />
+        </DockPanel>
+        <TextBlock Margin="0,8,0,0"
+                   Foreground="{DynamicResource Text.Secondary}"
+                   TextWrapping="Wrap"
+                   Text="{Binding PlanSummary}" />
+      </StackPanel>
+
+      <Border Grid.Row="1"
+              Classes="status-card"
+              Classes.failure="{Binding HasFailure}"
+              Margin="0,24,0,0"
+              Padding="16"
+              BorderThickness="1">
+        <StackPanel>
+          <TextBlock FontSize="16"
+                     FontWeight="SemiBold"
+                     Text="{Binding StatusTitle}" />
+          <TextBlock Margin="0,8,0,0"
+                     Foreground="{DynamicResource Text.Secondary}"
+                     TextWrapping="Wrap"
+                     Text="{Binding StatusMessage}" />
+          <Button Margin="0,12,0,0"
+                  Padding="10,5"
+                  HorizontalAlignment="Left"
+                  IsVisible="{Binding CanUseAnotherAccount}"
+                  Command="{Binding UseAnotherAccountCommand}"
+                  Content="Use another account" />
+          <ProgressBar Height="3"
+                       Margin="0,14,0,0"
+                       IsVisible="{Binding IsBusy}"
+                       IsIndeterminate="True" />
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Row="2"
+              Margin="0,16,0,0"
+              Padding="12"
+              VerticalAlignment="Top"
+              IsVisible="{Binding HasEnvironmentNotice}"
+              Background="#1826A69A"
+              BorderBrush="#5026A69A"
+              BorderThickness="1">
+        <StackPanel>
+          <TextBlock FontSize="11"
+                     Foreground="{DynamicResource Text.Secondary}"
+                     TextWrapping="Wrap"
+                     Text="{Binding EnvironmentNotice}" />
+          <Button Margin="0,10,0,0"
+                  Padding="10,5"
+                  HorizontalAlignment="Left"
+                  IsVisible="{Binding HasLocalDeveloperAccess}"
+                  Command="{Binding ContinueAsLocalDeveloperCommand}"
+                  Content="Continue as local developer" />
+        </StackPanel>
+      </Border>
+
+      <Grid Grid.Row="3" Margin="0,20,0,0"
+            RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Grid.ColumnSpan="3"
+                    FontSize="11"
+                    Foreground="{DynamicResource Text.Secondary}"
+                    TextWrapping="Wrap"
+                    Text="Google OAuth tokens are never stored by this gate." />
+        <Button Grid.Row="1" Grid.Column="1"
+                 MinWidth="84"
+                 Margin="12,10,0,0"
+                 Padding="14,7"
+                 Command="{Binding CancelCommand}"
+                 Content="Cancel" />
+        <Button Grid.Row="1" Grid.Column="2"
+                 MinWidth="176"
+                 Margin="8,10,0,0"
+                 Padding="14,7"
+                Command="{Binding ContinueCommand}"
+                Content="{Binding PrimaryActionText}" />
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

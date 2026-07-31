@@ -12,7 +12,7 @@ public interface IQuestDbLauncher
     /// <summary>True only when the QuestDB backend is configured — otherwise there's nothing to start.</summary>
     bool IsApplicable { get; }
 
-    /// <summary>Whether automatic startup is enabled (<c>MarketDataStore:AutoStartDocker</c>).</summary>
+    /// <summary>Whether automatic startup is enabled (<c>MarketDataStore:AutoStartQuestDb</c>).</summary>
     bool AutoStart { get; }
 
     /// <summary>Quick probe — is QuestDB already accepting connections?</summary>

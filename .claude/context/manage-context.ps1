@@ -3,7 +3,7 @@ param(
     [string]$Action = 'summary'
 )
 
-# Standalone Linux context manager.
+# Standalone macOS context manager. The generated tree keeps its inherited `linux` path.
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 

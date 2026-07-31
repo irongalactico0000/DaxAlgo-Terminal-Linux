@@ -1,9 +1,16 @@
-# Linux index / Core
+# macOS index / Core
 
-Generated from source fingerprint `73069fdb0e55`. Linux/Avalonia source only.
+Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
+| `src/linux/Core/TradingTerminal.Core/Accounts/AccountContractGuards.cs` | 29 | linux | TradingTerminal.Core | product | Y |  |
+| `src/linux/Core/TradingTerminal.Core/Accounts/AccountIdentity.cs` | 76 | linux | TradingTerminal.Core | product | Y | The exclusive session-expiry instant, or |
+| `src/linux/Core/TradingTerminal.Core/Accounts/AccountServices.cs` | 22 | linux | TradingTerminal.Core | product | Y | Retrieves the normalized product entitlement for an authenticated session. |
+| `src/linux/Core/TradingTerminal.Core/Accounts/EntitlementAccessEvaluator.cs` | 171 | linux | TradingTerminal.Core | product | Y | Stable, provider-neutral explanation for an edition-access decision. |
+| `src/linux/Core/TradingTerminal.Core/Accounts/EntitlementLeaseWireDto.cs` | 143 | linux | TradingTerminal.Core | product | Y | Versioned transport contract emitted by the product platform for one device-bound offline |
+| `src/linux/Core/TradingTerminal.Core/Accounts/OfflineEntitlementLease.cs` | 152 | linux | TradingTerminal.Core | product | Y | Device installation identifier authenticated as part of the signed payload. |
+| `src/linux/Core/TradingTerminal.Core/Accounts/SubscriptionEntitlement.cs` | 96 | linux | TradingTerminal.Core | product | Y | Inclusive start of the entitlement window. |
 | `src/linux/Core/TradingTerminal.Core/AiAnalyst/AiAnalystDecision.cs` | 9 | linux | TradingTerminal.Core | product | Y | No actionable verdict — the analyst either declined to call or was |
 | `src/linux/Core/TradingTerminal.Core/AiAnalyst/AnalystBar.cs` | 13 | linux | TradingTerminal.Core | product | Y | Wire-format OHLCV bar handed to the Python analyst. Mirrors Bar but lives |
 | `src/linux/Core/TradingTerminal.Core/AiAnalyst/AnalystReport.cs` | 68 | linux | TradingTerminal.Core | product | Y | One indicator agent's read on the tape — text summary plus the |
@@ -12,21 +19,22 @@ Generated from source fingerprint `73069fdb0e55`. Linux/Avalonia source only.
 | `src/linux/Core/TradingTerminal.Core/Analytics/CorrelationCalculator.cs` | 126 | linux | TradingTerminal.Core | product | Y | Bar-to-bar log returns |
 | `src/linux/Core/TradingTerminal.Core/Analytics/CorrelationResult.cs` | 18 | linux | TradingTerminal.Core | product | Y | A computed correlation matrix over a set of instruments. indexes both |
 | `src/linux/Core/TradingTerminal.Core/Backtest/BacktestConfig.cs` | 50 | linux | TradingTerminal.Core | product | Y | Where the engine pulls tick data from for a single backtest run. |
-| `src/linux/Core/TradingTerminal.Core/Backtest/BacktestResult.cs` | 15 | linux | TradingTerminal.Core | product | Y | Output of a single backtest run. is null until Phase 4 wires |
+| `src/linux/Core/TradingTerminal.Core/Backtest/BacktestResult.cs` | 18 | linux | TradingTerminal.Core | product | Y | Output of a single backtest run. is null until Phase 4 wires |
 | `src/linux/Core/TradingTerminal.Core/Backtest/BacktestStatistics.cs` | 35 | linux | TradingTerminal.Core | product | Y | Aggregate performance metrics derived from a 's trades and |
-| `src/linux/Core/TradingTerminal.Core/Backtest/BacktestStrategyOption.cs` | 68 | linux | TradingTerminal.Core | product | Y | Declared tunables. |
+| `src/linux/Core/TradingTerminal.Core/Backtest/BacktestStrategyOption.cs` | 78 | linux | TradingTerminal.Core | product | Y | Declared tunables. |
 | `src/linux/Core/TradingTerminal.Core/Backtest/EquityPoint.cs` | 4 | linux | TradingTerminal.Core | product | Y | Sample of the equity curve at a point in time. |
 | `src/linux/Core/TradingTerminal.Core/Backtest/Fast/FastBacktestRequest.cs` | 26 | linux | TradingTerminal.Core | product | Y | Input to the out-of-process C++ tick backtester. Serialised to JSON, written to |
 | `src/linux/Core/TradingTerminal.Core/Backtest/Fast/FastBacktestResult.cs` | 18 | linux | TradingTerminal.Core | product | Y | Result emitted by the C++ tick backtester on stdout as JSON. The |
 | `src/linux/Core/TradingTerminal.Core/Backtest/Fast/IFastBacktestRunner.cs` | 25 | linux | TradingTerminal.Core | product | Y | Out-of-process replay engine. Runs in a separate subprocess (the C++20 |
 | `src/linux/Core/TradingTerminal.Core/Backtest/FillRecord.cs` | 17 | linux | TradingTerminal.Core | product | Y | One fill captured during a backtest. Used by transaction-cost analysis |
 | `src/linux/Core/TradingTerminal.Core/Backtest/IBacktestSession.cs` | 21 | linux | TradingTerminal.Core | product | Y | View-model-facing seam over the backtest engine. The Backtest tab's view-model injects |
-| `src/linux/Core/TradingTerminal.Core/Backtest/IBacktestStrategy.cs` | 50 | linux | TradingTerminal.Core | product | Y | Called once before any ticks. Use to read initial state or schedule |
+| `src/linux/Core/TradingTerminal.Core/Backtest/IBacktestStrategy.cs` | 57 | linux | TradingTerminal.Core | product | Y | Called once before any ticks. Use to read initial state or schedule |
 | `src/linux/Core/TradingTerminal.Core/Backtest/IParquetQueryService.cs` | 68 | linux | TradingTerminal.Core | product | Y | One resampled bar from |
 | `src/linux/Core/TradingTerminal.Core/Backtest/MonteCarlo.cs` | 147 | linux | TradingTerminal.Core | product | Y | Trade-bootstrap Monte Carlo. Given a sequence of round-trip trade PnLs from a |
 | `src/linux/Core/TradingTerminal.Core/Backtest/Trade.cs` | 16 | linux | TradingTerminal.Core | product | Y | A round-trip trade: an entry fill and the matching exit fill that |
 | `src/linux/Core/TradingTerminal.Core/Backtest/TransactionCostAnalysis.cs` | 112 | linux | TradingTerminal.Core | product | Y | Transaction-cost analysis (TCA) — the standard post-trade report quant desks run to |
-| `src/linux/Core/TradingTerminal.Core/Backtesting/BacktestReport.cs` | 111 | linux | TradingTerminal.Core | product | Y | One sample of the account through time: mark-to-market |
+| `src/linux/Core/TradingTerminal.Core/Backtest/WalkForward.cs` | 34 | linux | TradingTerminal.Core | product | Y | All-empty axes with quantity 1 — every strategy grid falls back to |
+| `src/linux/Core/TradingTerminal.Core/Backtesting/BacktestReport.cs` | 113 | linux | TradingTerminal.Core | product | Y | One sample of the account through time: mark-to-market |
 | `src/linux/Core/TradingTerminal.Core/Backtesting/IStrategyContext.cs` | 31 | linux | TradingTerminal.Core | product | Y | Simulated clock in backtests, wall clock live. Never call |
 | `src/linux/Core/TradingTerminal.Core/Backtesting/IStrategyKernel.cs` | 45 | linux | TradingTerminal.Core | product | Y | Called once before any market data. Read parameters, allocate per-instrument state. |
 | `src/linux/Core/TradingTerminal.Core/Backtesting/Optimization.cs` | 111 | linux | TradingTerminal.Core | product | Y | What the optimizer ranks trials by. Every criterion is scored so that |
@@ -47,23 +55,29 @@ Generated from source fingerprint `73069fdb0e55`. Linux/Avalonia source only.
 | `src/linux/Core/TradingTerminal.Core/Brokers/IBrokerLoginFormFactory.cs` | 15 | linux | TradingTerminal.Core | product | Y | Every form whose broker is currently available (i.e. its SDK was present |
 | `src/linux/Core/TradingTerminal.Core/Brokers/IBrokerSelector.cs` | 55 | linux | TradingTerminal.Core | product | Y | Brokers that have a registered |
 | `src/linux/Core/TradingTerminal.Core/Brokers/Upstox/IUpstoxAuthService.cs` | 31 | linux | TradingTerminal.Core | product | Y | One-shot helper for the Upstox login form's OAuth2 authorization-code flow. The interface |
+| `src/linux/Core/TradingTerminal.Core/Configuration/AiCodegenOptions.cs` | 76 | linux | TradingTerminal.Core | product | Y | Config for one BYO-key / local codegen provider. |
 | `src/linux/Core/TradingTerminal.Core/Configuration/AlpacaOptions.cs` | 34 | linux | TradingTerminal.Core | product | Y | API key id (shown on the dashboard, prefixed with "PK" for paper |
+| `src/linux/Core/TradingTerminal.Core/Configuration/AppEdition.cs` | 19 | linux | TradingTerminal.Core | product | Y | Keyless brokers only, core charts/tools/strategies. No ML / AI / LSE / |
 | `src/linux/Core/TradingTerminal.Core/Configuration/ArchiveOptions.cs` | 51 | linux | TradingTerminal.Core | product | Y | Master switch — when false the schedule service idles and the offload |
 | `src/linux/Core/TradingTerminal.Core/Configuration/BinanceOptions.cs` | 45 | linux | TradingTerminal.Core | product | Y | REST base for the ping/connectivity check and historical klines. No trailing slash. |
+| `src/linux/Core/TradingTerminal.Core/Configuration/BrokerEditionPolicy.cs` | 49 | linux | TradingTerminal.Core | product | Y | Brokers usable with no API key or account. Available in every edition. |
 | `src/linux/Core/TradingTerminal.Core/Configuration/BybitOptions.cs` | 36 | linux | TradingTerminal.Core | product | Y | REST base for historical kline + the connectivity check. No trailing slash. |
 | `src/linux/Core/TradingTerminal.Core/Configuration/CTraderOptions.cs` | 35 | linux | TradingTerminal.Core | product | Y | OAuth application clientId (from connect.spotware.com/apps). |
 | `src/linux/Core/TradingTerminal.Core/Configuration/CoinbaseOptions.cs` | 34 | linux | TradingTerminal.Core | product | Y | REST base for historical candles + the connectivity check. No trailing slash. |
-| `src/linux/Core/TradingTerminal.Core/Configuration/DevOptions.cs` | 28 | linux | TradingTerminal.Core | product | Y | Developer-only switches, bound from the Dev configuration section. These are off by |
+| `src/linux/Core/TradingTerminal.Core/Configuration/DevOptions.cs` | 40 | linux | TradingTerminal.Core | product | Y | Developer-only switches, bound from the Dev configuration section. These are off by |
+| `src/linux/Core/TradingTerminal.Core/Configuration/GoogleAuthOptions.cs` | 17 | linux | TradingTerminal.Core | product | Y | OAuth client id for the installed desktop application. |
 | `src/linux/Core/TradingTerminal.Core/Configuration/InteractiveBrokersOptions.cs` | 24 | linux | TradingTerminal.Core | product | Y | IB market-data subscription mode applied to all reqMktData requests. |
 | `src/linux/Core/TradingTerminal.Core/Configuration/IronBeamOptions.cs` | 42 | linux | TradingTerminal.Core | product | Y | Ironbeam account username. |
 | `src/linux/Core/TradingTerminal.Core/Configuration/KrakenOptions.cs` | 34 | linux | TradingTerminal.Core | product | Y | REST base for historical OHLC + the connectivity check. No trailing slash. |
 | `src/linux/Core/TradingTerminal.Core/Configuration/LondonStrategicEdgeOptions.cs` | 38 | linux | TradingTerminal.Core | product | Y | API key from londonstrategicedge.com/websockets (format |
-| `src/linux/Core/TradingTerminal.Core/Configuration/MarketDataStoreOptions.cs` | 122 | linux | TradingTerminal.Core | product | Y | Which backend persists the canonical market-data store. |
+| `src/linux/Core/TradingTerminal.Core/Configuration/MarketDataStoreOptions.cs` | 134 | linux | TradingTerminal.Core | product | Y | Which backend persists the canonical market-data store. |
 | `src/linux/Core/TradingTerminal.Core/Configuration/MarketRegimeOptions.cs` | 51 | linux | TradingTerminal.Core | product | Y | Master switch. When false the service does not poll and the panel |
+| `src/linux/Core/TradingTerminal.Core/Configuration/ModelRegistryOptions.cs` | 19 | linux | TradingTerminal.Core | product | Y | SQLite database file path. Empty → a default ( |
 | `src/linux/Core/TradingTerminal.Core/Configuration/NinjaTraderOptions.cs` | 31 | linux | TradingTerminal.Core | product | Y | NinjaTrader account name (e.g. "Sim101" for the bundled simulation account). |
 | `src/linux/Core/TradingTerminal.Core/Configuration/OkxOptions.cs` | 31 | linux | TradingTerminal.Core | product | Y | REST base for historical candles + the connectivity check. No trailing slash. |
 | `src/linux/Core/TradingTerminal.Core/Configuration/OrderFlowPressureMapOptions.cs` | 129 | linux | TradingTerminal.Core | product | Y | No notable pressure this candle. |
 | `src/linux/Core/TradingTerminal.Core/Configuration/ParquetLakeOptions.cs` | 34 | linux | TradingTerminal.Core | product | Y | Master switch. When false the export service idles (one cheap timer tick |
+| `src/linux/Core/TradingTerminal.Core/Configuration/PluginsOptions.cs` | 67 | linux | TradingTerminal.Core | product | Y | How much the host trusts the plugins it finds in its plugins |
 | `src/linux/Core/TradingTerminal.Core/Configuration/ResearchReproOptions.cs` | 36 | linux | TradingTerminal.Core | product | Y | Master switch. When false the ingest client is Null and no jobs |
 | `src/linux/Core/TradingTerminal.Core/Configuration/SandboxOptions.cs` | 39 | linux | TradingTerminal.Core | product | Y | Which runner implementation |
 | `src/linux/Core/TradingTerminal.Core/Configuration/SidecarOptions.cs` | 31 | linux | TradingTerminal.Core | product | Y | Master switch. When true, the app auto-launches the sidecar on startup if |
@@ -84,6 +98,7 @@ Generated from source fingerprint `73069fdb0e55`. Linux/Avalonia source only.
 | `src/linux/Core/TradingTerminal.Core/Events/EventBus.cs` | 44 | linux | TradingTerminal.Core | product | Y |  |
 | `src/linux/Core/TradingTerminal.Core/Events/IEventBus.cs` | 11 | linux | TradingTerminal.Core | product | Y | Lightweight in-process pub/sub. Use for cross-pane events (strategy opened, connection lost, etc.). |
 | `src/linux/Core/TradingTerminal.Core/Hosting/ISidecarController.cs` | 17 | linux | TradingTerminal.Core | product | Y | True once the sidecar's health endpoint has answered. |
+| `src/linux/Core/TradingTerminal.Core/Hosting/NullSidecarController.cs` | 15 | linux | TradingTerminal.Core | product | Y | No sidecar in this edition — returns false without starting anything, never |
 | `src/linux/Core/TradingTerminal.Core/IndexKScore/IndexComponentCatalog.cs` | 123 | linux | TradingTerminal.Core | product | Y | A named index universe: its display metadata and weighted constituents. |
 | `src/linux/Core/TradingTerminal.Core/IndexKScore/IndexKScoreAggregator.cs` | 174 | linux | TradingTerminal.Core | product | Y | Updates the component snapshot and returns the new index-level aggregate. Returns |
 | `src/linux/Core/TradingTerminal.Core/IndexKScore/IndexKScoreCalculator.cs` | 456 | linux | TradingTerminal.Core | product | Y | One bar's worth of computed signals plus the composite K. Returned by |
@@ -94,15 +109,16 @@ Generated from source fingerprint `73069fdb0e55`. Linux/Avalonia source only.
 | `src/linux/Core/TradingTerminal.Core/MarketData/AdvancedRegime/AdvancedRegimeBarIndicators.cs` | 314 | linux | TradingTerminal.Core | product | Y | SMA over the final |
 | `src/linux/Core/TradingTerminal.Core/MarketData/AdvancedRegime/AdvancedRegimeCalculator.cs` | 346 | linux | TradingTerminal.Core | product | Y | Final-bar Wilder RSI via the shared streaming primitive; NaN if not warmed |
 | `src/linux/Core/TradingTerminal.Core/MarketData/AdvancedRegime/AdvancedRegimeModels.cs` | 101 | linux | TradingTerminal.Core | product | Y | The eight default timeframe columns, all enabled. |
-| `src/linux/Core/TradingTerminal.Core/MarketData/AdvancedRegime/AdvancedRegimeSettings.cs` | 101 | linux | TradingTerminal.Core | product | Y | Whether the given row is enabled, by enum value. |
+| `src/linux/Core/TradingTerminal.Core/MarketData/AdvancedRegime/AdvancedRegimeSettings.cs` | 106 | linux | TradingTerminal.Core | product | Y | Whether the given row is enabled, by enum value. |
 | `src/linux/Core/TradingTerminal.Core/MarketData/AdvancedRegime/BarTimeframeAggregator.cs` | 87 | linux | TradingTerminal.Core | product | Y | Pure bar-to-bar timeframe aggregator. Resamples a time-ascending base bar series into wider |
 | `src/linux/Core/TradingTerminal.Core/MarketData/AdvancedRegime/IAdvancedRegimeProvider.cs` | 24 | linux | TradingTerminal.Core | product | Y | Multi-timeframe regime dashboard provider. Mirrors IInstrumentRegimeProvider in shape: |
-| `src/linux/Core/TradingTerminal.Core/MarketData/Archive/ArchiveModels.cs` | 148 | linux | TradingTerminal.Core | product | Y | How often the schedule rolls over and produces a new archive. |
+| `src/linux/Core/TradingTerminal.Core/MarketData/Archive/ArchiveModels.cs` | 149 | linux | TradingTerminal.Core | product | Y | How often the schedule rolls over and produces a new archive. |
 | `src/linux/Core/TradingTerminal.Core/MarketData/Archive/IArchiveTransport.cs` | 35 | linux | TradingTerminal.Core | product | Y | Human-readable name of this transport, persisted into manifests so the right |
 | `src/linux/Core/TradingTerminal.Core/MarketData/Archive/IMarketDataArchiver.cs` | 40 | linux | TradingTerminal.Core | product | Y | Export, upload, verify, and (per options) prune local rows for the range. |
 | `src/linux/Core/TradingTerminal.Core/MarketData/Archive/ITelegramArchiveLogin.cs` | 36 | linux | TradingTerminal.Core | product | Y | Outcome of a |
 | `src/linux/Core/TradingTerminal.Core/MarketData/CuratedInstrumentCatalog.cs` | 83 | linux | TradingTerminal.Core | product | Y | ETFs, large-cap stocks, continuous futures and FX — a broad starter set |
 | `src/linux/Core/TradingTerminal.Core/MarketData/FootprintFeatures.cs` | 334 | linux | TradingTerminal.Core | product | Y | No usable feed. |
+| `src/linux/Core/TradingTerminal.Core/MarketData/FootprintTimeBucketer.cs` | 82 | linux | TradingTerminal.Core | product | Y | Start of the bucket currently accumulating, or |
 | `src/linux/Core/TradingTerminal.Core/MarketData/IBrokerClient.cs` | 104 | linux | TradingTerminal.Core | product | Y | Internal abstraction over a market-data + connection backend (IB, NinjaTrader, ...). |
 | `src/linux/Core/TradingTerminal.Core/MarketData/IInstrumentRegistry.cs` | 38 | linux | TradingTerminal.Core | product | Y | Look up a canonical instrument by id, or null if unknown. |
 | `src/linux/Core/TradingTerminal.Core/MarketData/IMarketDataHub.cs` | 27 | linux | TradingTerminal.Core | product | Y | The live, in-memory, broker-agnostic publish/subscribe bus for normalized market data. |
@@ -118,8 +134,26 @@ Generated from source fingerprint `73069fdb0e55`. Linux/Avalonia source only.
 | `src/linux/Core/TradingTerminal.Core/MarketData/StoredDataExtent.cs` | 24 | linux | TradingTerminal.Core | product | Y | True when there's at least one row, i.e. both bounds are set. |
 | `src/linux/Core/TradingTerminal.Core/MarketData/TradableInstrument.cs` | 22 | linux | TradingTerminal.Core | product | Y | A broker-neutral, user-facing tradable instrument: a display label, a grouping |
 | `src/linux/Core/TradingTerminal.Core/MarketData/VolumeTimeBucketer.cs` | 125 | linux | TradingTerminal.Core | product | Y | Total volume in the bucket (≈ the target size B, modulo the |
+| `src/linux/Core/TradingTerminal.Core/Ml/DepthStepSampler.cs` | 67 | linux | TradingTerminal.Core | product | Y | The last step boundary a summary was emitted for — the caller's |
+| `src/linux/Core/TradingTerminal.Core/Ml/EwmaForecaster.cs` | 67 | linux | TradingTerminal.Core | product | Y | Algorithm discriminator stored in |
 | `src/linux/Core/TradingTerminal.Core/Ml/FactorComputation.cs` | 193 | linux | TradingTerminal.Core | product | Y | One aggregated bar over |
-| `src/linux/Core/TradingTerminal.Core/Ml/OnlineLinearRegression.cs` | 83 | linux | TradingTerminal.Core | product | Y | Predict y given features. Length of |
+| `src/linux/Core/TradingTerminal.Core/Ml/FootprintForecastProvider.cs` | 488 | linux | TradingTerminal.Core | product | Y | Identifies one footprint series without coupling callers to a model implementation. |
+| `src/linux/Core/TradingTerminal.Core/Ml/FootprintNextBarPredictor.cs` | 408 | linux | TradingTerminal.Core | product | Y | Model-family discriminator this predictor's artifacts are filed under in the registry. |
+| `src/linux/Core/TradingTerminal.Core/Ml/FootprintPredictionModels.cs` | 89 | linux | TradingTerminal.Core | product | Y | Projects a sealed Core bar (plus the render-layer argmax POCs and value |
+| `src/linux/Core/TradingTerminal.Core/Ml/Forecasters.cs` | 88 | linux | TradingTerminal.Core | product | Y | Recursive least squares with exponential forgetting — adaptive, second-order, |
+| `src/linux/Core/TradingTerminal.Core/Ml/IModelRegistry.cs` | 58 | linux | TradingTerminal.Core | product | Y | What the registry hands back after a successful |
+| `src/linux/Core/TradingTerminal.Core/Ml/IOnlineForecaster.cs` | 60 | linux | TradingTerminal.Core | product | Y | Discriminator identifying the algorithm — matches |
+| `src/linux/Core/TradingTerminal.Core/Ml/ModelArtifact.cs` | 139 | linux | TradingTerminal.Core | product | Y | Current on-disk schema version. Increment on any breaking shape change. |
+| `src/linux/Core/TradingTerminal.Core/Ml/ModelArtifactJson.cs` | 22 | linux | TradingTerminal.Core | product | Y | Canonical System.Text.Json settings for serializing (and its option |
+| `src/linux/Core/TradingTerminal.Core/Ml/OnlineFeatureScaler.cs` | 116 | linux | TradingTerminal.Core | product | Y | Folds one raw feature vector into the running mean/variance estimates. |
+| `src/linux/Core/TradingTerminal.Core/Ml/OnlineGradientDescent.cs` | 70 | linux | TradingTerminal.Core | product | Y | Algorithm discriminator stored in |
+| `src/linux/Core/TradingTerminal.Core/Ml/OnlineLinearRegression.cs` | 120 | linux | TradingTerminal.Core | product | Y | Algorithm discriminator stored in |
+| `src/linux/Core/TradingTerminal.Core/Ml/OnlineLogisticRegression.cs` | 73 | linux | TradingTerminal.Core | product | Y | Algorithm discriminator stored in |
+| `src/linux/Core/TradingTerminal.Core/Ml/OrderBookEventLabeler.cs` | 30 | linux | TradingTerminal.Core | product | Y | Spread widened: the max spread observed over the window reached at least |
+| `src/linux/Core/TradingTerminal.Core/Ml/OrderBookMicroPredictor.cs` | 527 | linux | TradingTerminal.Core | product | Y | Model-family discriminator this predictor's artifacts are filed under in the registry. |
+| `src/linux/Core/TradingTerminal.Core/Ml/OrderBookPredictionModels.cs` | 178 | linux | TradingTerminal.Core | product | Y | Projects one depth snapshot (plus the accumulated flow) into the step shape, |
+| `src/linux/Core/TradingTerminal.Core/Ml/RollingBrierScore.cs` | 60 | linux | TradingTerminal.Core | product | Y | Scores one realized event forecast. Non-finite probabilities are ignored; |
+| `src/linux/Core/TradingTerminal.Core/Ml/RollingForecastMetrics.cs` | 63 | linux | TradingTerminal.Core | product | Y | Scores one realized forecast, both in ticks relative to the reference bar's |
 | `src/linux/Core/TradingTerminal.Core/Ml/TripleBarrierLabeler.cs` | 79 | linux | TradingTerminal.Core | product | Y | López de Prado (2018) "Advances in Financial Machine Learning" — triple-barrier |
 | `src/linux/Core/TradingTerminal.Core/Notifications/INotificationEnricher.cs` | 20 | linux | TradingTerminal.Core | product | Y | Whether this enricher should run for this notification. |
 | `src/linux/Core/TradingTerminal.Core/Notifications/INotificationPublisher.cs` | 14 | linux | TradingTerminal.Core | product | Y | What strategies call to surface a signal/trade. Implementations buffer and dispatch |
@@ -139,6 +173,11 @@ Generated from source fingerprint `73069fdb0e55`. Linux/Avalonia source only.
 | `src/linux/Core/TradingTerminal.Core/Quant/LedoitWolf.cs` | 197 | linux | TradingTerminal.Core | product | Y | Converts a covariance matrix to a correlation matrix (unit diagonal; guards σ→0). |
 | `src/linux/Core/TradingTerminal.Core/Quant/NeweyWest.cs` | 83 | linux | TradingTerminal.Core | product | Y | Default automatic bandwidth L = floor(4·(n/100)^(2/9)), at least 0. |
 | `src/linux/Core/TradingTerminal.Core/Quant/SignalWeights.cs` | 57 | linux | TradingTerminal.Core | product | Y | Combination-weight solver for blending k signals into one composite. The mean-variance optimal |
+| `src/linux/Core/TradingTerminal.Core/Quant/Surfaces/LiveBarSeries.cs` | 112 | linux | TradingTerminal.Core | product | Y | Committed bars + the forming bar (if any). |
+| `src/linux/Core/TradingTerminal.Core/Quant/Surfaces/SurfaceAxes.cs` | 132 | linux | TradingTerminal.Core | product | Y | Top-level surface mode — decides what the X/Y axes can be bound |
+| `src/linux/Core/TradingTerminal.Core/Quant/Surfaces/SurfaceFormulaParser.cs` | 260 | linux | TradingTerminal.Core | product | Y | Distinct identifiers referenced by the formula (lower-cased). |
+| `src/linux/Core/TradingTerminal.Core/Quant/Surfaces/SurfaceGridBuilder.cs` | 486 | linux | TradingTerminal.Core | product | Y | One configured axis: the picked option id, the bin range (ignored when |
+| `src/linux/Core/TradingTerminal.Core/Quant/Surfaces/SurfaceMetrics.cs` | 245 | linux | TradingTerminal.Core | product | Y | How a surface axis value should be rendered (tick labels, tooltips, stats). |
 | `src/linux/Core/TradingTerminal.Core/Quant/TimeSeries/ArimaModel.cs` | 233 | linux | TradingTerminal.Core | product | Y | A fitted ARIMA(p,d,q) model over a (log-)price series. |
 | `src/linux/Core/TradingTerminal.Core/Quant/TimeSeries/GarchModel.cs` | 102 | linux | TradingTerminal.Core | product | Y | Fits GARCH(1,1) to a return series (fractional returns, not %). Null when |
 | `src/linux/Core/TradingTerminal.Core/Quant/TimeSeries/KalmanFilters.cs` | 235 | linux | TradingTerminal.Core | product | Y | Local level model. |
@@ -192,25 +231,29 @@ Generated from source fingerprint `73069fdb0e55`. Linux/Avalonia source only.
 | `src/linux/Core/TradingTerminal.Core/Risk/RiskManager.cs` | 117 | linux | TradingTerminal.Core | product | Y | Current net signed position per symbol — exposed for telemetry / tests. |
 | `src/linux/Core/TradingTerminal.Core/Risk/RiskOptions.cs` | 24 | linux | TradingTerminal.Core | product | Y | Maximum absolute net position per symbol, in contracts/shares. 0 = disabled. |
 | `src/linux/Core/TradingTerminal.Core/Session/SessionContext.cs` | 32 | linux | TradingTerminal.Core | product | Y | Mutable singleton populated by the login flow once the user is authenticated. |
-| `src/linux/Core/TradingTerminal.Core/Strategies/Apex/ApexLineFit.cs` | 28 | linux | TradingTerminal.Core | product | Y | An empty / unfitted line (all zeros), used before the window warms |
-| `src/linux/Core/TradingTerminal.Core/Strategies/Apex/ApexSnapshotV2.cs` | 105 | linux | TradingTerminal.Core | product | Y | Fraction of the TTL budget remaining ∈ [0, 1]; 0 once stale. |
-| `src/linux/Core/TradingTerminal.Core/Strategies/Apex/ApexTradeRecord.cs` | 25 | linux | TradingTerminal.Core | product | Y | One completed paper (simulated) trade from the engine's internal OMS — entry |
-| `src/linux/Core/TradingTerminal.Core/Strategies/Apex/ApexV2Options.cs` | 270 | linux | TradingTerminal.Core | product | Y | The documented v2 defaults. Constructed explicitly because a record-struct |
-| `src/linux/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCompiler.cs` | 18 | linux | TradingTerminal.Core | product | Y | Compiles a user-authored into a runnable |
-| `src/linux/Core/TradingTerminal.Core/Strategies/Authoring/StrategyCompileResult.cs` | 26 | linux | TradingTerminal.Core | product | Y | Outcome of compiling a . On success, |
-| `src/linux/Core/TradingTerminal.Core/Strategies/Authoring/StrategyDiagnostic.cs` | 25 | linux | TradingTerminal.Core | product | Y | Severity of a |
-| `src/linux/Core/TradingTerminal.Core/Strategies/Authoring/StrategyScript.cs` | 16 | linux | TradingTerminal.Core | product | Y | A user-authored strategy awaiting compilation: a stable id, a friendly display name, |
-| `src/linux/Core/TradingTerminal.Core/Strategies/IStrategyFactory.cs` | 16 | linux | TradingTerminal.Core | product | Y | Resolves a registered strategy into a (view, view-model) pair. The shell never |
-| `src/linux/Core/TradingTerminal.Core/Strategies/ITradingStrategy.cs` | 72 | linux | TradingTerminal.Core | product | Y | Stable, unique identifier (e.g. "example.nvda.3m"). Used to dedupe tabs. |
+| `src/linux/Core/TradingTerminal.Core/Strategies/Authoring/AiModelChoice.cs` | 23 | linux | TradingTerminal.Core | product | Y | False when the provider isn't usable right now (CLI not installed, no |
+| `src/linux/Core/TradingTerminal.Core/Strategies/Authoring/IAiKeyResolver.cs` | 38 | linux | TradingTerminal.Core | product | Y | The API key for |
+| `src/linux/Core/TradingTerminal.Core/Strategies/Authoring/IAuthoredStrategyViewComposer.cs` | 24 | linux | TradingTerminal.Core | product | Y | Composes the default live view for |
+| `src/linux/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCodegenClient.cs` | 221 | linux | TradingTerminal.Core | product | Y | Who is speaking in a codegen conversation. |
+| `src/linux/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCompiler.cs` | 21 | linux | TradingTerminal.Core | product | Y | Compiles a user-authored into a runnable |
+| `src/linux/Core/TradingTerminal.Core/Strategies/Authoring/StrategyBuildEffort.cs` | 70 | linux | TradingTerminal.Core | product | Y | Sketch fast: one skill pack, one fix attempt, no review, no smoke. |
+| `src/linux/Core/TradingTerminal.Core/Strategies/Authoring/StrategyCompileResult.cs` | 73 | linux | TradingTerminal.Core | product | Y | True when the author supplied a complete hand-written window: the descriptor, a |
+| `src/linux/Core/TradingTerminal.Core/Strategies/Authoring/StrategyDiagnostic.cs` | 36 | linux | TradingTerminal.Core | product | Y | Severity of a |
+| `src/linux/Core/TradingTerminal.Core/Strategies/Authoring/StrategyScript.cs` | 36 | linux | TradingTerminal.Core | product | Y | The name given to a single unnamed file (the AI didn't label |
+| `src/linux/Core/TradingTerminal.Core/Strategies/IPluginFaultAttribution.cs` | 10 | linux | TradingTerminal.Core | product | Y | Marker for an exception that can name the runtime plugin responsible for |
+| `src/linux/Core/TradingTerminal.Core/Strategies/IStrategyFactory.cs` | 36 | linux | TradingTerminal.Core | product | Y | Fires when a strategy is added after startup, so a bound catalog |
+| `src/linux/Core/TradingTerminal.Core/Strategies/ITradingStrategy.cs` | 80 | linux | TradingTerminal.Core | product | Y | Stable, unique identifier (e.g. "example.nvda.3m"). Used to dedupe tabs. |
 | `src/linux/Core/TradingTerminal.Core/Strategies/Parameters/ParameterKind.cs` | 25 | linux | TradingTerminal.Core | product | Y | Whole number. Backed by |
 | `src/linux/Core/TradingTerminal.Core/Strategies/Parameters/StrategyParameter.cs` | 100 | linux | TradingTerminal.Core | product | Y | Stable machine key, used to read the value back. Unique within a |
 | `src/linux/Core/TradingTerminal.Core/Strategies/Parameters/StrategyParameterSchema.cs` | 45 | linux | TradingTerminal.Core | product | Y | A schema with no tunables — the default for strategies that take |
 | `src/linux/Core/TradingTerminal.Core/Strategies/Parameters/StrategyParameters.cs` | 162 | linux | TradingTerminal.Core | product | Y | Sets a value, coercing and clamping it against the parameter declaration. |
+| `src/linux/Core/TradingTerminal.Core/Strategies/PluginFaultEvents.cs` | 21 | linux | TradingTerminal.Core | product | Y | Relays strategy callback failures that a host catches to keep its stream |
 | `src/linux/Core/TradingTerminal.Core/Strategies/StrategyAssetScope.cs` | 22 | linux | TradingTerminal.Core | product | Y | Whether a strategy operates on a single instrument at a time or |
 | `src/linux/Core/TradingTerminal.Core/Strategies/StrategyBrokerCapability.cs` | 54 | linux | TradingTerminal.Core | product | Y | The broker capability matrix that backs 's default: |
 | `src/linux/Core/TradingTerminal.Core/Strategies/StrategyDataRequirement.cs` | 38 | linux | TradingTerminal.Core | product | Y | No declared requirement. |
 | `src/linux/Core/TradingTerminal.Core/Strategies/StrategyFactoryRegistration.cs` | 11 | linux | TradingTerminal.Core | product | Y | Pure-data record describing how to build the (view, view-model) pair for a |
 | `src/linux/Core/TradingTerminal.Core/Strategies/StrategyHost.cs` | 12 | linux | TradingTerminal.Core | product | Y | A concrete (view, view-model) pair plus metadata. The view and view-model are |
+| `src/linux/Core/TradingTerminal.Core/Strategies/StrategySignal.cs` | 33 | linux | TradingTerminal.Core | product | Y | A strategy's direction-only signal, independent of order execution. |
 | `src/linux/Core/TradingTerminal.Core/Time/IClock.cs` | 13 | linux | TradingTerminal.Core | product | Y | Wall-clock abstraction. Real code uses SystemClock (); |
 | `src/linux/Core/TradingTerminal.Core/Trading/IFeeModel.cs` | 70 | linux | TradingTerminal.Core | product | Y | Whether a fill took (crossed the spread) or made (rested) liquidity. |
 | `src/linux/Core/TradingTerminal.Core/Trading/IOrderRouter.cs` | 22 | linux | TradingTerminal.Core | product | Y | Cancels a working order by its client-assigned id. Idempotent. |

@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TradingTerminal.App.Login.Forms.UpstoxLoginForm">
+  <StackPanel Spacing="8">
+    <Grid ColumnDefinitions="*,*">
+      <StackPanel Grid.Column="0" Spacing="5">
+        <TextBlock Text="API key" Classes="fieldLabel" />
+        <TextBox Text="{Binding ApiKey}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Spacing="5">
+        <TextBlock Text="API secret" Classes="fieldLabel" />
+        <TextBox Text="{Binding ApiSecret}" PasswordChar="●" Watermark="Keychain protected" />
+      </StackPanel>
+    </Grid>
+    <TextBlock Text="Redirect URI" Classes="fieldLabel" />
+    <TextBox Text="{Binding RedirectUri}" Watermark="https://…" />
+    <Button Content="1 · Authorize in browser" Command="{Binding AuthorizeCommand}" HorizontalAlignment="Left" />
+    <TextBlock Text="Authorization code" Classes="fieldLabel" />
+    <TextBox Text="{Binding AuthCode}" Watermark="Paste the code query parameter" />
+    <Button Content="2 · Get access token" Command="{Binding ExchangeCodeCommand}" HorizontalAlignment="Left" />
+    <TextBlock Text="Access token" Classes="fieldLabel" />
+    <TextBox Text="{Binding AccessToken}" PasswordChar="●" Watermark="Stored in macOS Keychain" />
+    <TextBlock Text="{Binding AuthMessage}" Classes="secondary" TextWrapping="Wrap" />
+    <Border Classes="formNote">
+      <TextBlock Text="Create an app at developer.upstox.com. Access tokens expire daily, so repeat the authorization flow each trading day."
+                 TextWrapping="Wrap" />
+    </Border>
+  </StackPanel>
+</UserControl>

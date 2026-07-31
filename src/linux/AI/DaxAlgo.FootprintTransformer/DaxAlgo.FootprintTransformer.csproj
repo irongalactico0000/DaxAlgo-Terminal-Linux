@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Private ONNX runtime adapter for the trained footprint distribution transformer.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TradingTerminal.Tests.Pro.Headless" />
+    <EmbeddedResource Include="Artifacts\fdt-n.onnx"
+                      LogicalName="DaxAlgo.FootprintTransformer.Artifacts.fdt-n.onnx"
+                      Condition="Exists('Artifacts\fdt-n.onnx')" />
+    <EmbeddedResource Include="Artifacts\metadata.json"
+                      LogicalName="DaxAlgo.FootprintTransformer.Artifacts.metadata.json"
+                      Condition="Exists('Artifacts\metadata.json')" />
+  </ItemGroup>
+
+</Project>

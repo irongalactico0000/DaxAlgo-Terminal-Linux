@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Text;
 using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,6 +13,7 @@ using TradingTerminal.Core.Notifications;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.UI;
 
@@ -66,6 +69,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     private IDisposable? _eventSubscription;
     private IDisposable? _ingestHandle;
     private IDisposable? _tradeIngestHandle;
+    private int _disposeState;
     private DateTime _currentBarStart = DateTime.MinValue;
     private double _barOpen, _barHigh, _barLow, _barClose;
     private long _barVolume;
@@ -97,14 +101,20 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         _routerFactory = routerFactory;
         _logger = logger;
 
+        _presetStore = new ToolPresetStore<StrategyViewPreset>($"strategy-{strategyId}");
+        PresetNames = new ObservableCollection<string>(_presetStore.Names);
+
         // Seed from the canonical instrument registry (no hardcoded catalog). Instrument-discovery
         // fills the registry the moment a broker connects, so if any broker is already up this is the
         // real, discovered universe; if none is up yet it's empty and the picker fills on connect.
         AllInstruments = RegistryRows();
-        Instruments = new ObservableCollection<SignalInstrument>(
-            AllInstruments.Take(MaxInstrumentsDisplayed));
-        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                             ?? Instruments.FirstOrDefault();
+        // Hide-until-search: start with an empty visible list (ApplyInstrumentFilter collapses it to
+        // just the selection) and restore the instrument last used in this strategy window, falling
+        // back to the old SPY default only on first-ever use. See InstrumentPickerFilter.
+        Instruments = new ObservableCollection<SignalInstrument>();
+        SelectedInstrument = InstrumentPickerFilter.InitialSelection(StrategyId, AllInstruments,
+            () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? AllInstruments.FirstOrDefault());
+        ApplyInstrumentFilter();
         Signals = new ObservableCollection<SignalEntry>();
         Bars = new ObservableCollection<Bar>();
 
@@ -221,10 +231,60 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     [ObservableProperty] private double _yAxisMin;
     [ObservableProperty] private double _yAxisMax;
 
-    partial void OnChartBarsShownChanged(int value) => BarsChanged?.Invoke(this, EventArgs.Empty);
-    partial void OnYAutoScaleChanged(bool value) => BarsChanged?.Invoke(this, EventArgs.Empty);
-    partial void OnYAxisMinChanged(double value) { if (!YAutoScale) BarsChanged?.Invoke(this, EventArgs.Empty); }
-    partial void OnYAxisMaxChanged(double value) { if (!YAutoScale) BarsChanged?.Invoke(this, EventArgs.Empty); }
+    partial void OnChartBarsShownChanged(int value) => RaiseBarsChanged();
+    partial void OnYAutoScaleChanged(bool value) => RaiseBarsChanged();
+    partial void OnYAxisMinChanged(double value) { if (!YAutoScale) RaiseBarsChanged(); }
+    partial void OnYAxisMaxChanged(double value) { if (!YAutoScale) RaiseBarsChanged(); }
+
+    // ---------- Display pause (render-only; the strategy keeps running) ----------
+
+    /// <summary>Display pause: the chart-refresh events (<see cref="BarsChanged"/> /
+    /// <see cref="TickProcessed"/>) stop firing while the pumps, bar aggregation, strategy and —
+    /// if armed — signal generation all keep running underneath. Resume replays one catch-up
+    /// refresh, so it is instant and exact.</summary>
+    [ObservableProperty] private bool _isPaused;
+
+    /// <summary>Set when a refresh was suppressed while paused, so resume can replay it.</summary>
+    private bool _redrawPending;
+
+    partial void OnIsPausedChanged(bool value)
+    {
+        if (value)
+        {
+            Status = $"⏸ Display paused — {StrategyDisplayName} keeps running underneath.";
+            return;
+        }
+        Status = IsStreaming
+            ? $"Streaming {SelectedInstrument?.DisplayName} — {StrategyDisplayName}"
+            : "Resumed.";
+        if (_redrawPending)
+        {
+            _redrawPending = false;
+            BarsChanged?.Invoke(this, EventArgs.Empty);
+            TickProcessed?.Invoke(this, EventArgs.Empty);
+        }
+        OnPauseReleased();
+    }
+
+    /// <summary>Called on resume (after the base catch-up refresh) so subclasses with their own
+    /// render events — e.g. a 3D surface's SurfaceChanged — can replay a suppressed redraw.
+    /// Subclasses gate their raise sites on <see cref="IsPaused"/> themselves.</summary>
+    protected virtual void OnPauseReleased() { }
+
+    /// <summary>The one choke point every chart-refresh signal goes through — pausing here pauses
+    /// every window's render path (bar redraws and per-tick coalesced loops alike) without any
+    /// per-window code.</summary>
+    private void RaiseBarsChanged()
+    {
+        if (IsPaused) { _redrawPending = true; return; }
+        BarsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RaiseTickProcessed()
+    {
+        if (IsPaused) { _redrawPending = true; return; }
+        TickProcessed?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>
     /// Populates the picker from real instruments only — no hardcoded catalog. Prefers each connected
@@ -272,6 +332,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             var prevSymbol = SelectedInstrument?.Contract.Symbol;
             SelectedInstrument =
                 (prevSymbol is not null ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prevSymbol) : null)
+                ?? InstrumentPickerFilter.Remembered(StrategyId, AllInstruments)
                 ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                 ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
                 ?? AllInstruments.FirstOrDefault();
@@ -317,27 +378,13 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
     partial void OnInstrumentSearchTextChanged(string value) => ApplyInstrumentFilter();
 
-    /// <summary>Rebuilds <see cref="Instruments"/> from <see cref="AllInstruments"/> using the
-    /// current search text, capped at <see cref="MaxInstrumentsDisplayed"/>. The selected item
-    /// is preserved (and force-included) so the picker never blanks out mid-filter.</summary>
-    private void ApplyInstrumentFilter()
-    {
-        var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<SignalInstrument> query = AllInstruments;
-        if (term.Length > 0)
-            query = AllInstruments.Where(i =>
-                i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
-
-        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
-
-        var keep = SelectedInstrument;
-        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
-
-        Instruments = new ObservableCollection<SignalInstrument>(shown);
-        SelectedInstrument = keep is not null && Instruments.Contains(keep)
-            ? keep
-            : Instruments.FirstOrDefault();
-    }
+    /// <summary>Rebuilds the visible <see cref="Instruments"/> for the picker. With no search text it
+    /// collapses to just the current selection — the predefined universe stays hidden until the user
+    /// searches; typing filters <see cref="AllInstruments"/>. Rebuilt in place so the selection never
+    /// flickers out. See <see cref="InstrumentPickerFilter"/>.</summary>
+    private void ApplyInstrumentFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(AllInstruments, InstrumentSearchText, SelectedInstrument, MaxInstrumentsDisplayed));
 
     /// <summary>Subclasses build a fresh <see cref="IBacktestStrategy"/> here using their
     /// current parameter property values.</summary>
@@ -390,6 +437,8 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     [RelayCommand]
     private async Task StartAsync()
     {
+        if (Volatile.Read(ref _disposeState) != 0) return;
+
         ValidationError = null;
         if (SelectedInstrument is null) { ValidationError = "Pick an instrument before starting."; return; }
         if (IsStreaming) return;
@@ -408,14 +457,22 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         Status = $"Loading market data for {SelectedInstrument.DisplayName} — {StrategyDisplayName}…";
         try
         {
-            _streamCts = new CancellationTokenSource();
-            _strategy = BuildStrategy(contract);
-            _router = _routerFactory.Create();
-            _router.SignalEmitted += OnSignalEmitted;
-            _eventSubscription = _router.OrderEvents.Subscribe(async evt =>
+            var runCts = new CancellationTokenSource();
+            var runToken = runCts.Token;
+            _streamCts = runCts;
+            var strategy = BuildStrategy(contract);
+            var router = _routerFactory.Create();
+            _strategy = strategy;
+            _router = router;
+            router.SignalEmitted += OnSignalEmitted;
+            _eventSubscription = router.OrderEvents.Subscribe(async evt =>
             {
-                try { await _strategy.OnOrderEventAsync(evt, _streamCts.Token); }
-                catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnOrderEventAsync threw", StrategyId); }
+                try { await strategy.OnOrderEventAsync(evt, runToken); }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "{Strategy} OnOrderEventAsync threw", StrategyId);
+                    PluginFaultEvents.Report(ex);
+                }
             });
 
             Signals.Clear();
@@ -427,25 +484,36 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
             try
             {
-                await _strategy.OnStartAsync(_clock, _router, _streamCts.Token);
+                await strategy.OnStartAsync(_clock, router, runToken);
+            }
+            catch (OperationCanceledException) when (runToken.IsCancellationRequested)
+            {
+                return;
             }
             catch (Exception ex)
             {
+                if (!IsCurrentRun(runCts) || runToken.IsCancellationRequested) return;
                 _logger.LogError(ex, "{Strategy} OnStartAsync threw", StrategyId);
+                PluginFaultEvents.Report(ex);
                 Status = $"Failed to start: {ex.Message}";
                 await StopAsync();
                 return;
             }
 
-            await WarmUpBarsAsync(instrumentId, broker, _streamCts.Token);
+            // Closing/stopping can complete while a plug-in ignores cancellation in OnStartAsync.
+            // Never continue that stale run against the source StopAsync has already disposed.
+            if (!IsCurrentRun(runCts) || runToken.IsCancellationRequested) return;
+
+            await WarmUpBarsAsync(instrumentId, broker, runToken);
+            if (!IsCurrentRun(runCts) || runToken.IsCancellationRequested) return;
             Status = $"Streaming {SelectedInstrument.DisplayName} — {StrategyDisplayName}";
 
             // Start (or join) the ref-counted L1 broker pump for this instrument. Quotes and depth
             // share the same handle on the ingest side, so a single Subscribe powers both observables.
             _ingestHandle = _services.Ingest.Subscribe(contract, broker);
 
-            _ = RunQuoteStreamAsync(instrumentId, _streamCts.Token);
-            _ = RunDepthStreamAsync(instrumentId, _streamCts.Token);
+            _ = RunQuoteStreamAsync(instrumentId, runToken);
+            _ = RunDepthStreamAsync(instrumentId, runToken);
 
             // Opt-in trade-tape pump: only started when the hosted strategy declares TradeTape in
             // its DataRequirement. The pump probes broker capability before subscribing so the
@@ -453,7 +521,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             if (DataRequirement.HasFlag(StrategyDataRequirement.TradeTape))
             {
                 TradeTapeAvailable = false;
-                _ = RunTradeStreamAsync(broker, contract, instrumentId, _streamCts.Token);
+                _ = RunTradeStreamAsync(broker, contract, instrumentId, runToken);
             }
         }
         finally
@@ -465,18 +533,39 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     [RelayCommand]
     private async Task StopAsync()
     {
-        if (!IsStreaming && _streamCts is null) return;
+        var streamCts = Interlocked.Exchange(ref _streamCts, null);
+        var strategy = Interlocked.Exchange(ref _strategy, null);
+        var router = Interlocked.Exchange(ref _router, null);
+        var ingestHandle = Interlocked.Exchange(ref _ingestHandle, null);
+        var tradeIngestHandle = Interlocked.Exchange(ref _tradeIngestHandle, null);
+        var eventSubscription = Interlocked.Exchange(ref _eventSubscription, null);
+        if (!IsStreaming && streamCts is null && strategy is null && router is null &&
+            ingestHandle is null && tradeIngestHandle is null && eventSubscription is null)
+            return;
 
-        _streamCts?.Cancel();
-        try { if (_strategy is not null && _router is not null) await _strategy.OnEndAsync(_clock, _router, CancellationToken.None); }
-        catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} OnEndAsync threw", StrategyId); }
+        try
+        {
+            try { streamCts?.Cancel(); }
+            catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} stream cancellation threw", StrategyId); }
 
-        _ingestHandle?.Dispose(); _ingestHandle = null;
-        _tradeIngestHandle?.Dispose(); _tradeIngestHandle = null;
-        _eventSubscription?.Dispose(); _eventSubscription = null;
-        if (_router is not null) { _router.SignalEmitted -= OnSignalEmitted; _router = null; }
-        _strategy = null;
-        _streamCts?.Dispose(); _streamCts = null;
+            if (strategy is not null && router is not null)
+                await strategy.OnEndAsync(_clock, router, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "{Strategy} OnEndAsync threw", StrategyId);
+            PluginFaultEvents.Report(ex);
+        }
+        finally
+        {
+            ingestHandle?.Dispose();
+            tradeIngestHandle?.Dispose();
+            eventSubscription?.Dispose();
+            if (router is not null) router.SignalEmitted -= OnSignalEmitted;
+            streamCts?.Dispose();
+            await DisposeStrategyAsync(strategy);
+        }
+
         IsStreaming = false;
         IsAlgoRunning = false;
         LatestDepth = null;
@@ -484,6 +573,9 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         Status = "Stopped";
         Log("STREAM", "Stopped");
     }
+
+    private bool IsCurrentRun(CancellationTokenSource runCts) =>
+        Volatile.Read(ref _disposeState) == 0 && ReferenceEquals(Volatile.Read(ref _streamCts), runCts);
 
     [RelayCommand]
     private void ClearSignals() => Signals.Clear();
@@ -502,7 +594,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             while (Bars.Count > MaxBarsRetained) Bars.RemoveAt(0);
             await OnWarmupBarsLoadedAsync(Bars.ToList());
             OnBarsUpdated();
-            BarsChanged?.Invoke(this, EventArgs.Empty);
+            RaiseBarsChanged();
         }
         catch (Exception ex)
         {
@@ -544,13 +636,26 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                         LastAsk = tick.Ask;
                         LastMid = (tick.Bid + tick.Ask) * 0.5;
                         TicksSeen++;
-                        AggregateBar(tick);
+                        var completedBar = AggregateBar(tick);
                         _router.UpdateMarketContext(tick);
+                        if (completedBar is not null)
+                        {
+                            try { await _strategy.OnBarAsync(completedBar, _clock, _router, ct); }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "{Strategy} OnBarAsync threw", StrategyId);
+                                PluginFaultEvents.Report(ex);
+                            }
+                        }
                         try { await _strategy.OnTickAsync(tick, _clock, _router, ct); }
-                        catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTickAsync threw", StrategyId); }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "{Strategy} OnTickAsync threw", StrategyId);
+                            PluginFaultEvents.Report(ex);
+                        }
                     }
                     // Per-batch redraw trigger — windows coalesce their own redraws off this anyway.
-                    TickProcessed?.Invoke(this, EventArgs.Empty);
+                    RaiseTickProcessed();
                 });
             }
         }
@@ -600,7 +705,11 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                     {
                         if (_strategy is null || _router is null) break;
                         try { await _strategy.OnDepthAsync(snapshot, _clock, _router, ct); }
-                        catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnDepthAsync threw", StrategyId); }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "{Strategy} OnDepthAsync threw", StrategyId);
+                            PluginFaultEvents.Report(ex);
+                        }
                     }
                     // The order-book pane only needs the freshest book; intermediates are stale.
                     LatestDepth = batch[^1];
@@ -688,7 +797,11 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                     {
                         if (_strategy is null || _router is null) break;
                         try { await _strategy.OnTradeAsync(trade, _clock, _router, ct); }
-                        catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTradeAsync threw", StrategyId); }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "{Strategy} OnTradeAsync threw", StrategyId);
+                            PluginFaultEvents.Report(ex);
+                        }
                     }
                 });
             }
@@ -704,7 +817,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         }
     }
 
-    private void AggregateBar(Tick tick)
+    private Bar? AggregateBar(Tick tick)
     {
         var mid = (tick.Bid + tick.Ask) * 0.5;
         var ts = tick.TimestampUtc;
@@ -715,7 +828,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             _currentBarStart = bucket;
             _barOpen = _barHigh = _barLow = _barClose = mid;
             _barVolume = 1;
-            return;
+            return null;
         }
 
         if (bucket != _currentBarStart)
@@ -725,19 +838,19 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             while (Bars.Count > MaxBarsRetained) Bars.RemoveAt(0);
             Log("BAR", $"{bar.TimestampUtc:HH:mm:ss} O={bar.Open:F4} H={bar.High:F4} L={bar.Low:F4} C={bar.Close:F4} V={bar.Volume}");
             OnBarsUpdated();
-            BarsChanged?.Invoke(this, EventArgs.Empty);
+            RaiseBarsChanged();
 
             _currentBarStart = bucket;
             _barOpen = _barHigh = _barLow = _barClose = mid;
             _barVolume = 1;
+            return bar;
         }
-        else
-        {
-            if (mid > _barHigh) _barHigh = mid;
-            if (mid < _barLow) _barLow = mid;
-            _barClose = mid;
-            _barVolume++;
-        }
+
+        if (mid > _barHigh) _barHigh = mid;
+        if (mid < _barLow) _barLow = mid;
+        _barClose = mid;
+        _barVolume++;
+        return null;
     }
 
     private void OnSignalEmitted(SignalEntry entry)
@@ -745,13 +858,24 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         Signals.Insert(0, entry);
         while (Signals.Count > MaxSignalsRetained) Signals.RemoveAt(Signals.Count - 1);
 
-        Log("SIGNAL", $"{entry.SideText} {entry.Quantity} {entry.OrderType} @ {entry.Price:F4} (mid {entry.Mid:F4}){(IsAlgoRunning ? "" : " [idle]")}");
+        var activity = entry.DirectSignal is { } emitted
+            ? $"{entry.SideText} strength {emitted.Strength:F3} @ {entry.Price:F4} (mid {entry.Mid:F4})"
+            : $"{entry.SideText} {entry.Quantity} {entry.OrderType} @ {entry.Price:F4} (mid {entry.Mid:F4})";
+        Log("SIGNAL", activity + (IsAlgoRunning ? "" : " [idle]"));
 
         if (!IsAlgoRunning) return;
 
         var symbol = SelectedInstrument?.DisplayName ?? "(none)";
-        var direction = entry.Side == OrderSide.Buy ? "LONG" : "SHORT";
-        var msg = $"{entry.SideText} {entry.Quantity} {entry.OrderType} @ {entry.Price:F4} (mid {entry.Mid:F4})";
+        var direction = entry.DirectSignal?.Kind switch
+        {
+            StrategySignalKind.Long => "LONG",
+            StrategySignalKind.Short => "SHORT",
+            StrategySignalKind.Flat => "FLAT",
+            _ => entry.Side == OrderSide.Buy ? "LONG" : "SHORT",
+        };
+        var msg = entry.DirectSignal is { } direct
+            ? $"{entry.SideText} strength {direct.Strength:F3} @ {entry.Price:F4} (mid {entry.Mid:F4})"
+            : $"{entry.SideText} {entry.Quantity} {entry.OrderType} @ {entry.Price:F4} (mid {entry.Mid:F4})";
 
         _notifications.PublishAsync(new StrategyNotification(
             Kind: NotificationKind.Signal,
@@ -764,13 +888,178 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             .FireAndForgetSafe(_logger, $"signal publish {StrategyId}");
     }
 
+    // ---------- Named view presets (chart-axis controls + window-specific extras) ----------
+
+    private readonly ToolPresetStore<StrategyViewPreset> _presetStore;
+
+    /// <summary>Preset names for the picker; per strategy (tool-presets\strategy-{id}.json).</summary>
+    public ObservableCollection<string> PresetNames { get; }
+
+    /// <summary>Editable preset-picker text: type a name and Save, or pick an existing preset to apply.</summary>
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
+
+    /// <summary>Window-specific display toggles to persist inside a preset — override and return
+    /// a string bag (each window owns its keys). Base returns null (no extras).</summary>
+    protected virtual Dictionary<string, string>? CaptureExtraPreset() => null;
+
+    /// <summary>Counterpart of <see cref="CaptureExtraPreset"/> — apply the window-specific bag.
+    /// Called before the catch-up redraw; missing keys should keep current values.</summary>
+    protected virtual void ApplyExtraPreset(IReadOnlyDictionary<string, string> extras) { }
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new StrategyViewPreset(
+            ChartBarsShown, YAutoScale, YAxisMin, YAxisMax, CaptureExtraPreset()));
+        RefreshPresetNames(selected: name);
+        Log("PRESET", $"Preset '{name}' saved");
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        Log("PRESET", $"Preset '{name}' deleted");
+    }
+
+    private void ApplyPreset(StrategyViewPreset preset)
+    {
+        if (preset.ChartBarsShown > 0) ChartBarsShown = preset.ChartBarsShown;
+        YAutoScale = preset.YAutoScale;
+        YAxisMin = preset.YAxisMin;
+        YAxisMax = preset.YAxisMax;
+        if (preset.Extras is not null) ApplyExtraPreset(preset.Extras);
+        RaiseBarsChanged();
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ---------- CSV export (portable UiFile seam; PNG snapshots stay view-side) ----------
+
+    /// <summary>Exports the live 15-second chart bars. Volume is the tick count per bar (the
+    /// live aggregation counts quote updates, not traded size) — the header says so.</summary>
+    [RelayCommand]
+    private async Task ExportBarsCsvAsync()
+    {
+        if (Bars.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("time_utc,open,high,low,close,ticks");
+        foreach (var b in Bars)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{b.TimestampUtc:O},{b.Open},{b.High},{b.Low},{b.Close},{b.Volume}"));
+        await SaveCsvAsync($"{StrategyId}-bars-{SymbolToken()}", sb.ToString());
+    }
+
+    /// <summary>Exports the signal tape, oldest first.</summary>
+    [RelayCommand]
+    private async Task ExportSignalsCsvAsync()
+    {
+        if (Signals.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("time_utc,side,quantity_or_strength,order_or_signal_type,price,mid,note");
+        foreach (var s in Signals.Reverse())   // stored newest-first
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{s.TimestampUtc:O},{s.SideText},{s.QuantityText},{s.TypeText},{s.Price},{s.Mid},{CsvQuote(s.Note)}"));
+        await SaveCsvAsync($"{StrategyId}-signals-{SymbolToken()}", sb.ToString());
+    }
+
+    private static string CsvQuote(string? value) =>
+        string.IsNullOrEmpty(value) ? "" : "\"" + value.Replace("\"", "\"\"") + "\"";
+
+    private string SymbolToken() =>
+        (SelectedInstrument?.Contract.Symbol ?? "live").Replace('/', '-').Replace(':', '-');
+
+    private async Task SaveCsvAsync(string baseName, string content)
+    {
+        try
+        {
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"{baseName}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, content);
+            Log("EXPORT", $"Exported → {path}");
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "{Strategy} CSV export failed", StrategyId);
+            Status = $"Export failed: {ex.Message}";
+        }
+    }
+
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+
+        // Remember the instrument the user was last on so this strategy window reopens on it.
+        LastInstrumentStore.Save(StrategyId, SelectedInstrument?.Contract.Symbol);
         _services.Selector.StateChanged -= OnBrokerStateChanged;
-        _streamCts?.Cancel();
-        _streamCts?.Dispose();
-        _ingestHandle?.Dispose();
-        _tradeIngestHandle?.Dispose();
-        _eventSubscription?.Dispose();
+        var streamCts = Interlocked.Exchange(ref _streamCts, null);
+        var router = Interlocked.Exchange(ref _router, null);
+        var ingestHandle = Interlocked.Exchange(ref _ingestHandle, null);
+        var tradeIngestHandle = Interlocked.Exchange(ref _tradeIngestHandle, null);
+        var eventSubscription = Interlocked.Exchange(ref _eventSubscription, null);
+        var strategy = Interlocked.Exchange(ref _strategy, null);
+        try { streamCts?.Cancel(); }
+        catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} stream cancellation threw during disposal", StrategyId); }
+        streamCts?.Dispose();
+        ingestHandle?.Dispose();
+        tradeIngestHandle?.Dispose();
+        eventSubscription?.Dispose();
+        if (router is not null) router.SignalEmitted -= OnSignalEmitted;
+        DisposeStrategy(strategy);
+    }
+
+    private async ValueTask DisposeStrategyAsync(IBacktestStrategy? strategy)
+    {
+        if (strategy is null) return;
+        try
+        {
+            if (strategy is IAsyncDisposable asyncDisposable)
+                await asyncDisposable.DisposeAsync();
+            else if (strategy is IDisposable disposable)
+                disposable.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "{Strategy} runtime disposal threw", StrategyId);
+        }
+    }
+
+    private void DisposeStrategy(IBacktestStrategy? strategy)
+    {
+        if (strategy is null) return;
+        if (strategy is IDisposable disposable)
+        {
+            try { disposable.Dispose(); }
+            catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} runtime disposal threw", StrategyId); }
+            return;
+        }
+
+        if (strategy is IAsyncDisposable asyncDisposable)
+            _ = DisposeStrategyAsyncCore(asyncDisposable);
+    }
+
+    private async Task DisposeStrategyAsyncCore(IAsyncDisposable strategy)
+    {
+        try { await strategy.DisposeAsync(); }
+        catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} runtime disposal threw", StrategyId); }
     }
 }

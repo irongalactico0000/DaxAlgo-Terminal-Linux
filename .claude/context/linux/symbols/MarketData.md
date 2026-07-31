@@ -1,6 +1,6 @@
-# TradingTerminal.MarketData — public API surface (Linux/Avalonia)
+# TradingTerminal.MarketData — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Pipeline/TradingTerminal.MarketData/Archive/ArchiveBundleBuilder.cs
@@ -199,8 +199,8 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/Pipeline/TradingTerminal.MarketData/MarketDataPipelineServiceCollectionExtensions.cs
 ```cs
-   15: public static class MarketDataPipelineServiceCollectionExtensions
-   24: public static IServiceCollection AddMarketDataPipeline(this IServiceCollection services, IConfiguration configuration)
+   16: public static class MarketDataPipelineServiceCollectionExtensions
+   25: public static IServiceCollection AddMarketDataPipeline(this IServiceCollection services, IConfiguration configuration)
 ```
 
 ## src/linux/Pipeline/TradingTerminal.MarketData/MarketDataRepository.cs
@@ -210,8 +210,8 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    56: public async Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default)
    81: public async Task<IReadOnlyList<Bar>> GetHistoricalBarsAsync(
   119: public async IAsyncEnumerable<Bar> SubscribeBarsAsync(
-  156: public async IAsyncEnumerable<Tick> SubscribeTicksAsync(
-  194: public async IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
+  159: public async IAsyncEnumerable<Tick> SubscribeTicksAsync(
+  200: public async IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
 ```
 
 ## src/linux/Pipeline/TradingTerminal.MarketData/Store/CompositeMarketDataStore.cs
@@ -331,15 +331,16 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/Pipeline/TradingTerminal.MarketData/Store/QuestDbDockerBootstrapper.cs
 ```cs
-   25: public static TimeSpan StartupTimeout(MarketDataStoreOptions opts) =>
-   29: public static bool DockerCliPresent() => TryRunDocker("--version", TimeSpan.FromSeconds(15), out _, log: null);
-   32: public static bool DockerDaemonReady() => TryRunDocker("info", TimeSpan.FromSeconds(20), out _, log: null);
-   40: public static bool TryStartDockerEngineCli(ILogger log)
-   53: public static bool IsReachable(string conn)
-   70: public static bool TryStartContainer(MarketDataStoreOptions opts, ILogger log)
-   88: public static bool TryLaunchDockerDesktop(MarketDataStoreOptions opts, ILogger log)
-  108: public static bool WaitForDaemon(TimeSpan timeout, CancellationToken ct)
-  120: public static bool WaitUntilReachable(string conn, TimeSpan timeout, CancellationToken ct)
+   15: public static TimeSpan StartupTimeout(MarketDataStoreOptions options) =>
+   18: public static bool DockerCliPresent() =>
+   21: public static bool DockerDaemonReady() =>
+   24: public static bool TryStartDockerEngineCli(ILogger log)
+   41: public static bool TryLaunchDockerDesktop(ILogger log)
+   71: public static bool IsReachable(string connectionString)
+   85: public static bool HasSafeEndpoints(MarketDataStoreOptions options, out string? reason)
+  131: public static bool TryStartContainer(MarketDataStoreOptions options, ILogger log)
+  176: public static bool WaitForDaemon(TimeSpan timeout, CancellationToken cancellationToken)
+  187: public static bool WaitUntilReachable(
 ```
 
 ## src/linux/Pipeline/TradingTerminal.MarketData/Store/QuestDbDockerService.cs
@@ -348,9 +349,9 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    24: public QuestDbDockerService(
    32: public bool IsQuestDbBackend => _opts.Provider == MarketDataProvider.QuestDb;
    35: public bool IsApplicable => IsQuestDbBackend;
-   36: public bool AutoStart => _opts.AutoStartDocker;
-   37: public bool IsReachable() => QuestDbDockerBootstrapper.IsReachable(_opts.QuestDbPgConnectionString);
-   41: public Task<bool> StartAsync(CancellationToken ct = default) => Task.Run(() => StartCore(ct), ct);
+   36: public bool AutoStart =>
+   40: public bool IsReachable() => QuestDbDockerBootstrapper.IsReachable(_opts.QuestDbPgConnectionString);
+   44: public Task<bool> StartAsync(CancellationToken ct = default) => Task.Run(() => StartCore(ct), ct);
 ```
 
 ## src/linux/Pipeline/TradingTerminal.MarketData/Store/QuestDbMarketDataStore.cs
@@ -405,6 +406,18 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
   434: protected override void OnDispose() => _writeConnection.Dispose();
 ```
 
+## src/linux/Pipeline/TradingTerminal.MarketData/Store/SqliteModelRegistry.cs
+```cs
+   31: public SqliteModelRegistry(string databasePath)
+   74: public StoredModel Save(ModelArtifact artifact)
+  130: public ModelArtifact? Load(string modelId)
+  141: public ModelArtifact? LoadLatest(ModelKey key)
+  159: public IReadOnlyList<StoredModelInfo> List(ModelKey? filter, int maxRows)
+  186: public bool Delete(string modelId)
+  197: public int PruneOlderThan(int retentionDays)
+  255: public void Dispose()
+```
+
 ## src/linux/Pipeline/TradingTerminal.MarketData/Store/SqliteSchema.cs
 ```cs
    15: public static void ApplyPragmas(SqliteConnection cn)
@@ -420,6 +433,21 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    15: public static DateTime Utc(DateTime d) => d.Kind switch
    24: public static void ApplyRetention(
    61: public static void EnsureCreated(NpgsqlConnection cn, ILogger logger)
+```
+
+## src/linux/Pipeline/TradingTerminal.MarketData/Threading/FeedChannel.cs
+```cs
+   15: public static class FeedChannel
+   20: public static class Capacity
+   23: public const int Quotes = 16_384;
+   27: public const int Bars = 8_192;
+   30: public const int Trades = 65_536;
+   34: public const int Depth = 2_048;
+   40: public static Channel<T> CreateDropOldest<T>(
+   64: public sealed class FeedDropMeter
+   74: public long Dropped => Interlocked.Read(ref _dropped);
+   78: public static long GlobalDropped => Interlocked.Read(ref _globalDropped);
+   82: public bool Record()
 ```
 
 ## src/linux/Pipeline/TradingTerminal.MarketData/Threading/IUiDispatcher.cs

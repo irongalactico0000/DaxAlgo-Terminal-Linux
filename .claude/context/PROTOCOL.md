@@ -1,4 +1,4 @@
-# Protocol — Linux context-first change contract
+# Protocol — macOS context-first change contract
 
 ## Per request
 
@@ -9,7 +9,7 @@
 5. Use `deps.json` to identify direct dependents and tests before editing.
 6. Make the smallest coherent change and keep optional broker SDKs behind Infrastructure seams.
 7. Verify the narrowest project or test first; never use a bare `dotnet build`.
-8. Regenerate Linux context after project, source-path, or public-surface changes.
+8. Regenerate the macOS context after project, source-path, or public-surface changes.
 9. Record changed files, checks, results, risks, and deferred work in the task record.
 
 The Windows public core and Professional overlay are separate repositories. Do not read, mirror, or

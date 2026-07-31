@@ -1,0 +1,250 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TradingTerminal.StrategyComposer.ComposedStrategyView"
+             Background="{DynamicResource Background.Primary}"
+             Foreground="{DynamicResource Text.Primary}">
+  <UserControl.Styles>
+    <Style Selector="TextBlock.section-label">
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+    <Style Selector="TextBlock.data-value">
+      <Setter Property="FontFamily" Value="{DynamicResource Font.Data}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    </Style>
+    <Style Selector="Button.compact">
+      <Setter Property="MinHeight" Value="28" />
+      <Setter Property="Padding" Value="10,3" />
+      <Setter Property="Margin" Value="0,0,6,0" />
+    </Style>
+    <Style Selector="ToggleButton.compact">
+      <Setter Property="MinHeight" Value="28" />
+      <Setter Property="Padding" Value="10,3" />
+      <Setter Property="Margin" Value="0,0,6,0" />
+    </Style>
+    <Style Selector="Border.panel-caption">
+      <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+      <Setter Property="Padding" Value="8,4" />
+    </Style>
+    <Style Selector="TextBlock.panel-caption-text">
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid>
+    <!-- Setup form: authored strategies expose their kernel parameters elsewhere, so the generic
+         composition owns only the instrument choice before it hands control to the runtime view. -->
+    <Border x:Name="SetupPane"
+            HorizontalAlignment="Center" VerticalAlignment="Center"
+            Width="680" MaxWidth="760" Margin="24" Padding="28"
+            Background="{DynamicResource Background.Surface}"
+            BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1" CornerRadius="8">
+      <StackPanel Spacing="12">
+        <Border Width="44" Height="4" CornerRadius="2" HorizontalAlignment="Left"
+                Background="{DynamicResource Gradient.Ai}" />
+        <TextBlock Text="AI-AUTHORED STRATEGY" FontSize="11" FontWeight="SemiBold"
+                   Foreground="{DynamicResource Ai.Text.Brush}" />
+        <TextBlock x:Name="SetupTitle" FontSize="27" FontWeight="SemiBold"
+                   Foreground="{DynamicResource Text.Header}" TextWrapping="Wrap" />
+        <TextBlock x:Name="SetupDescription" FontSize="13" LineHeight="20" TextWrapping="Wrap"
+                   Foreground="{DynamicResource Text.Secondary}" />
+        <Border HorizontalAlignment="Left" Padding="9,4" CornerRadius="3"
+                Background="{DynamicResource Ai.Soft}">
+          <TextBlock x:Name="SetupTags" FontSize="10" FontWeight="SemiBold"
+                     Foreground="{DynamicResource Ai.Text.Brush}" />
+        </Border>
+
+        <Border Height="1" Margin="0,6" Background="{DynamicResource Border.Brush}" />
+        <TextBlock Text="INSTRUMENT" Classes="section-label" />
+        <TextBox Watermark="Filter instruments" Text="{Binding InstrumentSearchText, Mode=TwoWay}"
+                 MinHeight="34" />
+        <ComboBox ItemsSource="{Binding Instruments}"
+                  SelectedItem="{Binding SelectedInstrument, Mode=TwoWay}"
+                  MaxDropDownHeight="420" MinHeight="36">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="*,Auto" Margin="2">
+                <TextBlock Grid.Column="0" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="1" Text="{Binding Category}" Margin="16,0,0,0"
+                           FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+              </Grid>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <Border x:Name="ValidationBanner" IsVisible="False" Padding="10,8" CornerRadius="3"
+                Background="{DynamicResource Danger.Brush}">
+          <TextBlock Text="{Binding ValidationError}" Foreground="White" TextWrapping="Wrap" />
+        </Border>
+        <StackPanel IsVisible="{Binding IsStarting}" Spacing="5">
+          <ProgressBar IsIndeterminate="True" Height="3" />
+          <TextBlock Text="{Binding LoadingTitle}" FontSize="11"
+                     Foreground="{DynamicResource Text.Secondary}" />
+        </StackPanel>
+        <Button Content="Continue" Command="{Binding ContinueCommand}"
+                HorizontalAlignment="Right" MinWidth="124" MinHeight="36"
+                Background="{DynamicResource Accent.Brush}" Foreground="White" />
+      </StackPanel>
+    </Border>
+
+    <!-- Runtime dashboard: same hierarchy as the Windows composition — configuration chrome,
+         live quote header, DataRequirement-driven panels, signal tape, and state footer. -->
+    <Grid x:Name="RuntimePane" IsVisible="False" RowDefinitions="Auto,Auto,*,150,Auto">
+      <Border Grid.Row="0" Padding="10,7"
+              Background="{DynamicResource Background.Surface}"
+              BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
+        <Grid ColumnDefinitions="*,Auto">
+          <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Disabled">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="STREAM" Classes="section-label" VerticalAlignment="Center" Margin="0,0,8,0" />
+              <Button x:Name="StopButton" Content="■ Stop" Command="{Binding StopCommand}" Classes="compact" />
+              <Button x:Name="StartButton" Content="▶ Start" Command="{Binding StartCommand}" Classes="compact" />
+              <Button x:Name="DisarmButton" Content="■ Disarm" Command="{Binding ToggleAlgoCommand}" Classes="compact" />
+              <Button x:Name="ArmButton" Content="▶ Arm algo" Command="{Binding ToggleAlgoCommand}" Classes="compact" />
+              <Border Width="1" Margin="5,2,9,2" Background="{DynamicResource Border.Brush}" />
+              <Border Padding="8,4" CornerRadius="3" Background="{DynamicResource Ai.Soft}"
+                      ToolTip.Tip="The host composed this view from the strategy's declared data requirement.">
+                <TextBlock Text="AI-AUTHORED · COMPOSED VIEW" FontSize="10" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Ai.Text.Brush}" />
+              </Border>
+            </StackPanel>
+          </ScrollViewer>
+
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0">
+            <ToggleButton Content="⏸ Pause" IsChecked="{Binding IsPaused, Mode=TwoWay}" Classes="compact"
+                          ToolTip.Tip="Pause rendering while strategy processing continues" />
+            <ComboBox Width="130" ItemsSource="{Binding PresetNames}"
+                      SelectedItem="{Binding SelectedPreset, Mode=TwoWay}" />
+            <TextBox Width="120" Watermark="Preset name" Text="{Binding PresetName, Mode=TwoWay}" />
+            <Button Content="Save" Command="{Binding SavePresetCommand}" Classes="compact" />
+            <Button Content="Delete" Command="{Binding DeletePresetCommand}" Classes="compact" />
+            <Button Content="Bars CSV" Command="{Binding ExportBarsCsvCommand}" Classes="compact" />
+            <Button Content="Signals CSV" Command="{Binding ExportSignalsCsvCommand}" Classes="compact" />
+            <Button Content="Clear" Command="{Binding ClearSignalsCommand}" Classes="compact" />
+            <Button Content="Snapshot" Click="SaveSnapshot_Click" Classes="compact" />
+            <ToggleButton x:Name="HelpToggle" Content="?" Classes="compact" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <Border Grid.Row="1" Padding="10,6"
+              Background="{DynamicResource Background.Elevated}"
+              BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="SYMBOL" Classes="section-label" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding SelectedInstrument.DisplayName}" FontWeight="SemiBold" Margin="0,0,12,0" />
+            <TextBlock Text="BID" Classes="section-label" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding LastBid, StringFormat='{}{0:0.#####}'}" Classes="data-value" Margin="0,0,10,0" />
+            <TextBlock Text="ASK" Classes="section-label" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding LastAsk, StringFormat='{}{0:0.#####}'}" Classes="data-value" Margin="0,0,10,0" />
+            <TextBlock Text="MID" Classes="section-label" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding LastMid, StringFormat='{}{0:0.#####}'}" Classes="data-value" FontWeight="SemiBold" Margin="0,0,12,0" />
+            <TextBlock Text="TICKS" Classes="section-label" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding TicksSeen}" Classes="data-value" Margin="0,0,12,0" />
+            <StackPanel x:Name="TapeStat" Orientation="Horizontal" Spacing="6" IsVisible="False">
+              <TextBlock Text="TAPE" Classes="section-label" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding TradeTapeAvailable}" FontWeight="SemiBold" />
+            </StackPanel>
+            <TextBlock Text="{Binding Status}" Margin="16,0,0,0"
+                       Foreground="{DynamicResource Text.Secondary}" />
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <Grid x:Name="PanelHost" Grid.Row="2">
+        <StackPanel x:Name="QuoteCard" IsVisible="False"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+          <TextBlock Text="{Binding SelectedInstrument.DisplayName}" FontSize="22" FontWeight="SemiBold"
+                     HorizontalAlignment="Center" />
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="32">
+            <StackPanel Spacing="2">
+              <TextBlock Text="BID" Classes="section-label" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding LastBid, StringFormat='{}{0:0.#####}'}" FontSize="30"
+                         FontFamily="{DynamicResource Font.Data}" Foreground="{DynamicResource Bullish.Brush}" />
+            </StackPanel>
+            <StackPanel Spacing="2">
+              <TextBlock Text="MID" Classes="section-label" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding LastMid, StringFormat='{}{0:0.#####}'}" FontSize="30" FontWeight="SemiBold"
+                         FontFamily="{DynamicResource Font.Data}" />
+            </StackPanel>
+            <StackPanel Spacing="2">
+              <TextBlock Text="ASK" Classes="section-label" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding LastAsk, StringFormat='{}{0:0.#####}'}" FontSize="30"
+                         FontFamily="{DynamicResource Font.Data}" Foreground="{DynamicResource Bearish.Brush}" />
+            </StackPanel>
+          </StackPanel>
+          <TextBlock Text="This strategy consumes L1 quotes only — signals appear in the feed below."
+                     FontSize="11" Foreground="{DynamicResource Text.Secondary}" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Grid>
+
+      <Border Grid.Row="3" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0">
+        <Grid RowDefinitions="Auto,*">
+          <Border Grid.Row="0" Padding="8,4" Background="{DynamicResource Background.Elevated}">
+            <Grid ColumnDefinitions="110,68,82,100,100,100,*">
+              <TextBlock Grid.Column="0" Text="TIME" Classes="section-label" />
+              <TextBlock Grid.Column="1" Text="SIDE" Classes="section-label" />
+              <TextBlock Grid.Column="2" Text="TYPE" Classes="section-label" />
+              <TextBlock Grid.Column="3" Text="QTY / STRENGTH" Classes="section-label" />
+              <TextBlock Grid.Column="4" Text="PRICE" Classes="section-label" />
+              <TextBlock Grid.Column="5" Text="MID" Classes="section-label" />
+              <TextBlock Grid.Column="6" Text="NOTE" Classes="section-label" />
+            </Grid>
+          </Border>
+          <ListBox Grid.Row="1" ItemsSource="{Binding Signals}" Background="Transparent" BorderThickness="0">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="110,68,82,100,100,100,*" Margin="4,1" MinHeight="22">
+                  <TextBlock Grid.Column="0" Text="{Binding TimeText}" Classes="data-value" FontSize="11" />
+                  <TextBlock Grid.Column="1" Text="{Binding SideText}" FontWeight="SemiBold"
+                             Foreground="{DynamicResource Text.Highlight}" />
+                  <TextBlock Grid.Column="2" Text="{Binding TypeText}" />
+                  <TextBlock Grid.Column="3" Text="{Binding QuantityText}" Classes="data-value" />
+                  <TextBlock Grid.Column="4" Text="{Binding Price, StringFormat='{}{0:0.#####}'}" Classes="data-value" />
+                  <TextBlock Grid.Column="5" Text="{Binding Mid, StringFormat='{}{0:0.#####}'}" Classes="data-value" />
+                  <TextBlock Grid.Column="6" Text="{Binding Note}" TextTrimming="CharacterEllipsis" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+
+      <Border Grid.Row="4" Padding="10,6"
+              Background="{DynamicResource Background.Surface}"
+              BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="SIGNALS" Classes="section-label" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Signals.Count}" Classes="data-value" FontWeight="SemiBold" />
+          <TextBlock x:Name="ArmedPill" Text="● ALGO ARMED" Margin="18,0,0,0"
+                     FontWeight="SemiBold" Foreground="{DynamicResource Warning.Brush}" />
+          <Border Padding="7,2" Margin="12,0,0,0" CornerRadius="3"
+                  Background="{DynamicResource Warning.Soft}" IsVisible="{Binding IsPaused}">
+            <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold"
+                       Foreground="{DynamicResource Warning.Brush}" />
+          </Border>
+        </StackPanel>
+      </Border>
+
+      <Border Grid.RowSpan="5" Width="390" HorizontalAlignment="Right" VerticalAlignment="Top"
+              Margin="0,54,12,0" Padding="16" CornerRadius="5"
+              Background="{DynamicResource Background.Elevated}"
+              BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1"
+              IsVisible="{Binding IsChecked, ElementName=HelpToggle}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="READING THIS VIEW" FontSize="12" FontWeight="SemiBold"
+                     Foreground="{DynamicResource Text.Header}" />
+          <TextBlock x:Name="HelpText" TextWrapping="Wrap" FontSize="11.5" LineHeight="18"
+                     Foreground="{DynamicResource Text.Primary}" />
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

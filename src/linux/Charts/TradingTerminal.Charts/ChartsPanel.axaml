@@ -1,0 +1,157 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:TradingTerminal.Charts"
+             x:Class="TradingTerminal.Charts.ChartsPanel"
+             Background="#0A0A0A"
+             Foreground="#D1D4DC">
+  <UserControl.Resources>
+    <local:AvaloniaInstrumentTagsConverter x:Key="InstrumentTags" />
+  </UserControl.Resources>
+  <Grid RowDefinitions="Auto,*,Auto">
+    <Border x:Name="Toolbar"
+            Grid.Row="0"
+            Background="#1E222D"
+            BorderBrush="#2A2E39"
+            BorderThickness="0,0,0,1"
+            Padding="10,7">
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="Symbol" FontSize="11" Foreground="#787B86" VerticalAlignment="Center" />
+          <AutoCompleteBox Width="376"
+                           Watermark="Type an instrument…"
+                           MinimumPrefixLength="0"
+                           MinimumPopulateDelay="150"
+                           MaxDropDownHeight="420"
+                           FilterMode="None"
+                           IsTextCompletionEnabled="False"
+                           ValueMemberBinding="{Binding DisplayName}"
+                           Text="{Binding InstrumentSearchText, Mode=TwoWay}"
+                           ItemsSource="{Binding Instruments}"
+                           SelectedItem="{Binding SelectedInstrument, Mode=TwoWay}">
+            <AutoCompleteBox.ItemTemplate>
+              <DataTemplate>
+                <DockPanel MinWidth="340" LastChildFill="True">
+                  <ItemsControl DockPanel.Dock="Right"
+                                ItemsSource="{Binding Converter={StaticResource InstrumentTags}}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Background="{Binding Background}" Padding="5,1" Margin="3,0,0,0">
+                          <TextBlock Text="{Binding Text}" Foreground="{Binding Foreground}"
+                                     FontSize="10" FontWeight="SemiBold" />
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center" Margin="0,0,10,0" />
+                </DockPanel>
+              </DataTemplate>
+            </AutoCompleteBox.ItemTemplate>
+          </AutoCompleteBox>
+
+          <TextBlock Text="Timeframe" Margin="6,0,0,0" FontSize="11"
+                     Foreground="#787B86" VerticalAlignment="Center" />
+          <ComboBox Width="76"
+                    ItemsSource="{Binding Timeframes}"
+                    SelectedItem="{Binding SelectedTimeframe}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate><TextBlock Text="{Binding Label}" /></DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+
+          <Border Width="1" Height="24" Margin="6,0" Background="#2A2E39" />
+          <TextBlock Text="PRESET" FontSize="10" FontWeight="SemiBold"
+                     Foreground="#787B86" VerticalAlignment="Center" />
+          <AutoCompleteBox Width="140"
+                           Watermark="Preset name"
+                           MinimumPrefixLength="0"
+                           FilterMode="None"
+                           ItemsSource="{Binding PresetNames}"
+                           SelectedItem="{Binding SelectedPreset}"
+                           Text="{Binding PresetName, Mode=TwoWay}"
+                           ToolTip.Tip="Pick a preset or type a name to save" />
+          <Button Content="💾" Command="{Binding SavePresetCommand}"
+                  ToolTip.Tip="Save symbol, interval, chart type and indicators" />
+          <Button Content="🗑" Command="{Binding DeletePresetCommand}"
+                  ToolTip.Tip="Delete the selected preset" />
+
+          <Border Width="1" Height="24" Margin="6,0" Background="#2A2E39" />
+          <ToggleButton Content="⏸"
+                        IsChecked="{Binding IsPaused}"
+                        ToolTip.Tip="Pause display updates; the live stream continues underneath" />
+          <Button Content="↧"
+                  Command="{Binding ExportCsvCommand}"
+                  IsEnabled="{Binding HasData}"
+                  ToolTip.Tip="Export loaded bars and indicators as CSV" />
+          <Button Content="📷" Click="ExportPng_Click" ToolTip.Tip="Save a PNG snapshot of the chart" />
+          <Button Content="?" ToolTip.Tip="Chart help">
+            <Button.Flyout>
+              <Flyout Placement="BottomEdgeAlignedRight">
+                <Border Width="390" Padding="16" Background="#262B38"
+                        BorderBrush="#363A45" BorderThickness="1" CornerRadius="4">
+                  <StackPanel Spacing="8">
+                    <TextBlock Text="READING THE CHART" FontSize="12" FontWeight="SemiBold" Foreground="#D1D4DC" />
+                    <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="#B2B5BE" LineHeight="17"
+                               Text="Price — candles, bars, line or area. Scroll to zoom, drag to pan, and hover for OHLC.&#10;&#10;Volume — bottom histogram on the price pane.&#10;&#10;SMA 20 / EMA 50 — C# overlays shared with backtesting.&#10;&#10;RSI 14 — separate pane with 30 / 70 bands.&#10;&#10;MACD 12·26·9 — histogram, MACD and signal in a separate pane." />
+                  </StackPanel>
+                </Border>
+              </Flyout>
+            </Button.Flyout>
+          </Button>
+          <ToggleButton x:Name="OptionsToggle" Content="⚙" IsChecked="True"
+                        ToolTip.Tip="Show or hide chart options" />
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+      <local:NativeChartSurface x:Name="ChartSurface" Grid.Column="0" />
+
+      <Border x:Name="OptionsRail"
+              Grid.Column="1"
+              Width="200"
+              Padding="14"
+              Background="#1E222D"
+              BorderBrush="#2A2E39"
+              BorderThickness="1,0,0,0"
+              IsVisible="{Binding IsChecked, ElementName=OptionsToggle}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="7">
+            <TextBlock Text="CHART TYPE" FontSize="10" FontWeight="SemiBold" Foreground="#787B86" />
+            <ComboBox ItemsSource="{Binding ChartTypes}"
+                      SelectedItem="{Binding SelectedChartType}" Margin="0,0,0,8" />
+
+            <StackPanel x:Name="IndicatorsPanel" Spacing="5">
+              <TextBlock Text="INDICATORS" FontSize="10" FontWeight="SemiBold" Foreground="#787B86" />
+              <CheckBox Content="SMA (20)" IsChecked="{Binding ShowSma}" />
+              <CheckBox Content="EMA (50)" IsChecked="{Binding ShowEma}" />
+              <CheckBox Content="RSI (14)" IsChecked="{Binding ShowRsi}" />
+              <CheckBox Content="MACD (12·26·9)" IsChecked="{Binding ShowMacd}" />
+              <TextBlock Text="RSI and MACD open their own panes below price."
+                         Margin="0,3,0,0" FontSize="10" Foreground="#787B86" TextWrapping="Wrap" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+
+    <Border x:Name="StatusBar"
+            Grid.Row="2"
+            Padding="10,5"
+            Background="#1E222D"
+            BorderBrush="#2A2E39"
+            BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding Status}" FontSize="11" Foreground="#787B86"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        <Border Grid.Column="1" Padding="7,2" Margin="8,0,0,0" CornerRadius="2"
+                Background="#3D3220" IsVisible="{Binding IsPaused}">
+          <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" Foreground="#F7A600" />
+        </Border>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

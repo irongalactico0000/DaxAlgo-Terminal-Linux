@@ -241,12 +241,6 @@
                                        FontSize="10" Foreground="{DynamicResource Text.Secondary}"
                                        TextWrapping="Wrap" Margin="0,2,0,0" />
 
-                            <CheckBox Content="Use GPU when available" IsChecked="{Binding UseGpu}"
-                                      IsEnabled="{Binding IsNotOptimizing}" Margin="0,8,0,0"
-                                      ToolTip="Exhaustive sweeps of mean-reversion (net-profit) run on the CUDA accelerator if built; otherwise CPU." />
-                            <TextBlock Text="{Binding GpuStatus}" FontSize="10"
-                                       Foreground="{DynamicResource Text.Secondary}" Margin="0,2,0,0" />
-
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                 <Button Content="Optimize" Command="{Binding OptimizeCommand}"
                                         IsEnabled="{Binding IsNotOptimizing}" Padding="12,4" />

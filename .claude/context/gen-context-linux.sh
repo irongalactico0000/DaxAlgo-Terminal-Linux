@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generate the Linux/Avalonia context for this standalone repository.
+# Generate the macOS/Avalonia context for this standalone repository.
 #
 # Writes only .claude/context/linux/.
 # Project references are evaluated by MSBuild so inactive WPF-only ItemGroups are excluded.
@@ -20,7 +20,7 @@ for cmd in rg dotnet awk sed sort diff mktemp realpath sha256sum; do
   command -v "$cmd" >/dev/null 2>&1 || { echo "gen-context-linux.sh: missing required command: $cmd" >&2; exit 1; }
 done
 
-[ -d src/linux ] && [ -d tests/linux ] && [ -f TradingTerminal.Linux.slnx ] || {
+[ -d src/linux ] && [ -d tests/linux ] && [ -f TradingTerminal.Mac.slnx ] || {
   echo "gen-context-linux.sh: run from the repository root" >&2
   exit 1
 }
@@ -36,9 +36,10 @@ trap 'rm -rf "$SCRATCH"' EXIT
 # ---------- project and solution inventory ----------
 rg --files -g '*.csproj' src/linux tests/linux | tr '\\' '/' | sort > "$WORK/csprojs.txt"
 awk -F/ 'BEGIN { OFS="\t" }
-  $1 == "src"   { group=$3; module=$4; role="product" }
-  $1 == "tests" { group="Tests"; module=$3; role="test" }
+  $1 == "src"   { group=$3; role="product" }
+  $1 == "tests" { group="Tests"; role="test" }
   {
+    module=$NF; sub(/[.]csproj$/, "", module)
     dir=$0; sub(/\/[^/]*$/, "", dir)
     print module, $0, dir, group, role
   }
@@ -46,16 +47,16 @@ awk -F/ 'BEGIN { OFS="\t" }
 
 cut -f1 "$WORK/projects.tsv" | sort | uniq -d > "$WORK/duplicate-modules.txt"
 if [ -s "$WORK/duplicate-modules.txt" ]; then
-  echo "gen-context-linux.sh: duplicate Linux module names:" >&2
+  echo "gen-context-linux.sh: duplicate macOS module names:" >&2
   cat "$WORK/duplicate-modules.txt" >&2
   exit 1
 fi
 
-rg -o 'Project Path="[^"]+"' TradingTerminal.Linux.slnx \
+rg -o 'Project Path="[^"]+"' TradingTerminal.Mac.slnx \
   | sed 's/^Project Path="//; s/"$//; s#\\#/#g' | sort > "$WORK/solution-projects.txt"
 cut -f2 "$WORK/projects.tsv" | sort > "$WORK/scope-projects.txt"
 if ! diff -u "$WORK/scope-projects.txt" "$WORK/solution-projects.txt" > "$WORK/solution.diff"; then
-  echo "gen-context-linux.sh: TradingTerminal.Linux.slnx does not exactly match the Linux project scope" >&2
+  echo "gen-context-linux.sh: TradingTerminal.Mac.slnx does not exactly match the macOS project scope" >&2
   cat "$WORK/solution.diff" >&2
   exit 1
 fi
@@ -68,7 +69,7 @@ rg -c '^' -g '*.cs' -g '*.xaml' -g '*.axaml' src/linux tests/linux \
 
 cut -f1 "$WORK/loc.tsv" > "$WORK/loc-files.txt"
 if ! diff -u "$WORK/files.txt" "$WORK/loc-files.txt" > "$WORK/files.diff"; then
-  echo "gen-context-linux.sh: LOC inventory does not match the Linux file inventory" >&2
+  echo "gen-context-linux.sh: LOC inventory does not match the macOS file inventory" >&2
   cat "$WORK/files.diff" >&2
   exit 1
 fi
@@ -77,7 +78,7 @@ fi
 # context files themselves are committed.
 REVISION=$(
   {
-    sha256sum TradingTerminal.Linux.slnx Directory.Build.props
+    sha256sum TradingTerminal.Mac.slnx Directory.Build.props
     while IFS= read -r path; do sha256sum "$path"; done < "$WORK/csprojs.txt"
     while IFS= read -r path; do sha256sum "$path"; done < "$WORK/files.txt"
   } | sha256sum | awk '{ print $1 }'
@@ -87,7 +88,7 @@ SHORT_REVISION=${REVISION:0:12}
 awk -F'\t' 'BEGIN { OFS="\t" }
   {
     n=split($1, p, "/")
-    module=(p[1] == "src" ? p[4] : p[3])
+    module=(p[1] == "src" ? p[4] : (p[3] == "Fixtures" ? p[4] : p[3]))
     loc[module]+=$2; files[module]++
   }
   END { for (module in loc) print module, loc[module], files[module] }
@@ -104,7 +105,7 @@ TOTAL_LOC=$(awk -F'\t' '{ n += $2 } END { print n+0 }' "$WORK/loc.tsv")
 
 # ---------- evaluated ProjectReference graph ----------
 # Raw XML includes WPF-only references in false ItemGroup conditions. MSBuild evaluation returns
-# only references active for each Linux project's actual TargetFramework.
+# only references active for each macOS project's actual TargetFramework.
 cut -f1 "$WORK/projects.tsv" | sort > "$WORK/modules.txt"
 : > "$WORK/reference-edges.tsv"
 while IFS=$'\t' read -r module project_path project_dir group role; do
@@ -119,7 +120,7 @@ while IFS=$'\t' read -r module project_path project_dir group role; do
   while IFS= read -r dependency; do
     [ -n "$dependency" ] || continue
     if ! grep -Fxq "$dependency" "$WORK/modules.txt"; then
-      echo "gen-context-linux.sh: evaluated reference outside Linux scope: $module -> $dependency" >&2
+      echo "gen-context-linux.sh: evaluated reference outside macOS scope: $module -> $dependency" >&2
       exit 1
     fi
     printf '%s\t%s\n' "$module" "$dependency" >> "$WORK/reference-edges.tsv"
@@ -136,7 +137,7 @@ while IFS=$'\t' read -r module project_path project_dir group role; do
     resolved=$(realpath -m "$shell_path")
     case "$resolved" in
       "$ROOT"/src/linux/*|"$ROOT"/tests/linux/*) ;;
-      *) echo "gen-context-linux.sh: evaluated reference escapes Linux scope: $module -> $reference_path" >&2; exit 1 ;;
+      *) echo "gen-context-linux.sh: evaluated reference escapes macOS scope: $module -> $reference_path" >&2; exit 1 ;;
     esac
     [ -f "$resolved" ] || { echo "gen-context-linux.sh: missing evaluated reference: $module -> $reference_path" >&2; exit 1; }
   done < "$WORK/ref-paths-$module.txt"
@@ -150,6 +151,7 @@ while IFS=$'\t' read -r path loc; do
     group=$p3; project=$p4; role="product"
   else
     group="Tests"; project=$p3; role="test"
+    [ "$project" = "Fixtures" ] && project=$p4
   fi
 
   public_surface="N"
@@ -182,9 +184,9 @@ cut -f3 "$WORK/project-details.tsv" | sort -u > "$WORK/groups.txt"
 while IFS= read -r group; do
   rows="$WORK/index-$group.rows"
   {
-    echo "# Linux index / $group"
+    echo "# macOS index / $group"
     echo
-    echo "Generated from source fingerprint \`$SHORT_REVISION\`. Linux/Avalonia source only."
+    echo "Generated from source fingerprint \`$SHORT_REVISION\`. macOS/Avalonia source only."
     echo
     echo "| File | LOC | Tree | Project | Role | Public surface | Purpose |"
     echo "|---|---:|---|---|---|---|---|"
@@ -202,7 +204,7 @@ gen_symbols() { # directory, output, title, optional root-only flag
   fi
   [ -n "$list" ] || return 0
   {
-    echo "# $title — public API surface (Linux/Avalonia)"
+    echo "# $title — public API surface (macOS/Avalonia)"
     echo
     echo "Generated from source fingerprint \`$SHORT_REVISION\`. Declaration lines only;"
     echo "multi-line signatures show their first line. \`[ObservableProperty]\` generated properties are not listed."
@@ -266,7 +268,7 @@ done < "$WORK/projects.tsv"
 
 # ---------- generated masters ----------
 {
-  echo "# Linux context index"
+  echo "# macOS context index"
   echo
   echo "Primary source map for \`src/linux/\` and \`tests/linux/\`. This repository has no Windows tree."
   echo "Paths are relative to the repository root."
@@ -299,9 +301,9 @@ CORE_SYMBOL_FILES=$(find "$OUT/symbols" -maxdepth 1 -type f -name 'Core-*.md' | 
 INFRA_SYMBOL_FILES=$(find "$OUT/symbols" -maxdepth 1 -type f -name 'Infrastructure-*.md' | wc -l | tr -d ' ')
 PROJECT_SYMBOL_FILES=$((SYMBOL_FILES - CORE_SYMBOL_FILES - INFRA_SYMBOL_FILES))
 {
-  echo "# Linux symbol index"
+  echo "# macOS symbol index"
   echo
-  echo "Generated public/protected declaration surfaces for the Linux/Avalonia tree:"
+  echo "Generated public/protected declaration surfaces for the macOS/Avalonia tree:"
   echo "**$SYMBOL_FILES files / $SYMBOL_LINES declaration lines**. Grep this directory before opening source:"
   echo
   echo '```sh'
@@ -341,7 +343,7 @@ awk -F'\t' -v revision="$REVISION" -v projects="$TOTAL_PROJECTS" -v files="$TOTA
     print "  \"_meta\": {"
     print "    \"tree\": \"linux\","
     print "    \"sourceFingerprint\": \"" esc(revision) "\","
-    print "    \"solution\": \"TradingTerminal.Linux.slnx\","
+    print "    \"solution\": \"TradingTerminal.Mac.slnx\","
     print "    \"source\": \"MSBuild-evaluated ProjectReference items from src/linux and tests/linux\","
     print "    \"projectCount\": " projects ","
     print "    \"indexedFileCount\": " files ","
@@ -381,14 +383,14 @@ INDEX_ROWS=$(grep -h '^| `' "$OUT"/index/*.md | wc -l | tr -d ' ')
 if [ "$MODE" = "check" ]; then
   [ -d "$TARGET" ] || { echo "gen-context-linux.sh: $TARGET does not exist; regenerate it" >&2; exit 1; }
   if diff -qr "$OUT" "$TARGET"; then
-    echo "Linux context is current: $TOTAL_PROJECTS projects, $TOTAL_FILES files, $TOTAL_LOC LOC."
+    echo "macOS context is current: $TOTAL_PROJECTS projects, $TOTAL_FILES files, $TOTAL_LOC LOC."
     exit 0
   fi
-  echo "gen-context-linux.sh: Linux context is stale; regenerate with bash .claude/context/gen-context-linux.sh" >&2
+  echo "gen-context-linux.sh: macOS context is stale; regenerate with bash .claude/context/gen-context-linux.sh" >&2
   exit 1
 fi
 
-# Replace only the isolated Linux subtree. Staging first makes orphan removal deterministic and
+# Replace only the isolated context subtree. Staging first makes orphan removal deterministic and
 # leaves the previous tree recoverable until the new tree is in place.
 PARENT=$(dirname "$TARGET")
 NEW="$PARENT/.linux.new.$$"

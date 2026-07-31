@@ -20,10 +20,10 @@ namespace TradingTerminal.Infrastructure.Sidecar;
 /// Object guarantees it can't be orphaned). It also exposes <see cref="ISidecarController"/> so the login
 /// screen / settings can start it on demand.
 ///
-/// <para>Launch resolution is exe-first: an explicit path, then a bundled <c>daxalgo-ml.exe</c> next to
-/// the app or under <c>tools/python-ml/{dist,bin}</c>, then a dev fallback of <c>python -m
-/// daxalgo_ml.app</c> using the repo venv. If nothing is found it logs and no-ops — the app still runs;
-/// the AI/research clients just report unavailable, exactly as before.</para>
+/// <para>Launch resolution is platform-aware: an explicit path wins, then packaged/user-installed
+/// frozen helpers, then <c>python -m daxalgo_ml.app</c>. macOS uses app-bundle Resources and the
+/// user's application-data directory without walking a source tree. If nothing is found it logs and
+/// no-ops; the AI/research clients simply report unavailable.</para>
 /// </summary>
 internal sealed class SidecarHostService : IHostedService, ISidecarController, IDisposable
 {
@@ -102,9 +102,8 @@ internal sealed class SidecarHostService : IHostedService, ISidecarController, I
             if (launch is null)
             {
                 _logger.LogWarning(
-                    "Sidecar not launched — no daxalgo-ml.exe found and no Python/{0} dev install located. " +
-                    "Set Sidecar:ExecutablePath, or build the exe (pyinstaller daxalgo_ml.spec).",
-                    "tools/python-ml");
+                    "Sidecar not launched — no packaged or user-installed daxalgo-ml helper/module " +
+                    "was found. Set Sidecar:ExecutablePath or Sidecar:PythonPath to an installed runtime.");
                 return false;
             }
 
@@ -203,52 +202,181 @@ internal sealed class SidecarHostService : IHostedService, ISidecarController, I
 
     private (string FileName, List<string> Args, string? WorkDir)? ResolveLaunch(SidecarOptions o, int port)
     {
+        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var userAppDir = string.IsNullOrWhiteSpace(localData)
+            ? null
+            : Path.Combine(localData, "DaxAlgoTerminal");
+        return ResolveLaunchForPlatform(
+            o, port, AppContext.BaseDirectory, userAppDir, OperatingSystem.IsWindows());
+    }
+
+    internal static (string FileName, List<string> Args, string? WorkDir)? ResolveLaunchForPlatform(
+        SidecarOptions o,
+        int port,
+        string baseDir,
+        string? userAppDir,
+        bool isWindows)
+    {
+        ArgumentNullException.ThrowIfNull(o);
+        ArgumentException.ThrowIfNullOrWhiteSpace(baseDir);
         var portArg = port.ToString(CultureInfo.InvariantCulture);
 
-        if (!string.IsNullOrWhiteSpace(o.ExecutablePath) && File.Exists(o.ExecutablePath))
-            return (o.ExecutablePath, new List<string> { "--port", portArg }, Path.GetDirectoryName(o.ExecutablePath));
+        if (ResolveConfiguredFile(o.ExecutablePath, baseDir, userAppDir) is { } configuredExecutable)
+            return CreateExecutableLaunch(configuredExecutable, portArg, isWindows);
 
-        if (FindFrozenExe() is { } exe)
-            return (exe, new List<string> { "--port", portArg }, Path.GetDirectoryName(exe));
+        if (FindFrozenExecutable(baseDir, userAppDir, isWindows) is { } executable)
+            return CreateExecutableLaunch(executable, portArg, isWindows);
 
-        if (FindToolsPythonDir() is { } toolsDir && ResolvePython(o, toolsDir) is { } python)
-            return (python, new List<string> { "-m", "daxalgo_ml.app", "--port", portArg }, toolsDir);
-
-        return null;
-    }
-
-    private static string? FindFrozenExe()
-    {
-        var baseDir = AppContext.BaseDirectory;
-        var direct = new[]
+        if (FindPythonModuleDir(baseDir, userAppDir, isWindows) is { } moduleDir)
         {
-            Path.Combine(baseDir, "daxalgo-ml.exe"),
-            Path.Combine(baseDir, "sidecar", "daxalgo-ml.exe"),
-        };
-        foreach (var p in direct)
-            if (File.Exists(p)) return p;
-
-        // Dev: walk up for the repo's tools/python-ml/{dist,bin}/daxalgo-ml.exe.
-        foreach (var rel in new[] { "tools/python-ml/dist/daxalgo-ml.exe", "tools/python-ml/bin/daxalgo-ml.exe" })
-            if (FindUpwards(baseDir, rel) is { } hit) return hit;
+            var python = ResolvePython(o, moduleDir, baseDir, userAppDir, isWindows);
+            return (python, new List<string> { "-m", "daxalgo_ml.app", "--port", portArg }, moduleDir);
+        }
 
         return null;
     }
 
-    private static string? FindToolsPythonDir()
+    private static (string FileName, List<string> Args, string? WorkDir) CreateExecutableLaunch(
+        string executable,
+        string portArg,
+        bool isWindows)
     {
-        var marker = FindUpwards(AppContext.BaseDirectory, "tools/python-ml/daxalgo_ml/app.py");
-        if (marker is null) return null;
-        // marker = …/tools/python-ml/daxalgo_ml/app.py → return …/tools/python-ml
-        return Path.GetDirectoryName(Path.GetDirectoryName(marker));
+        var workDir = Path.GetDirectoryName(executable);
+        if (!isWindows && executable.EndsWith(".sh", StringComparison.OrdinalIgnoreCase))
+            return ("/bin/sh", new List<string> { executable, "--port", portArg }, workDir);
+
+        return (executable, new List<string> { "--port", portArg }, workDir);
     }
 
-    private static string? ResolvePython(SidecarOptions o, string toolsDir)
+    private static string? FindFrozenExecutable(string baseDir, string? userAppDir, bool isWindows)
     {
-        if (!string.IsNullOrWhiteSpace(o.PythonPath) && File.Exists(o.PythonPath)) return o.PythonPath;
-        var venv = Path.Combine(toolsDir, ".venv", "Scripts", "python.exe");
-        if (File.Exists(venv)) return venv;
-        return "python"; // rely on PATH; if absent, Process.Start throws and we degrade gracefully
+        var names = isWindows
+            ? new[] { "daxalgo-ml.exe" }
+            : new[] { "daxalgo-ml", "daxalgo_ml", "daxalgo-ml.sh" };
+        var roots = new List<string>
+        {
+            baseDir,
+            Path.Combine(baseDir, "sidecar"),
+        };
+
+        if (!isWindows)
+        {
+            var resourcesDir = Path.GetFullPath(Path.Combine(baseDir, "..", "Resources"));
+            roots.Add(resourcesDir);
+            roots.Add(Path.Combine(resourcesDir, "sidecar"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(userAppDir))
+        {
+            roots.Add(userAppDir);
+            roots.Add(Path.Combine(userAppDir, "sidecar"));
+            roots.Add(Path.Combine(userAppDir, "bin"));
+        }
+
+        foreach (var root in roots)
+        foreach (var name in names)
+        {
+            var candidate = Path.Combine(root, name);
+            if (File.Exists(candidate)) return candidate;
+        }
+
+        if (isWindows)
+        {
+            // Preserve the existing Windows development lookup.
+            foreach (var relative in new[]
+                     {
+                         "tools/python-ml/dist/daxalgo-ml.exe",
+                         "tools/python-ml/bin/daxalgo-ml.exe",
+                     })
+                if (FindUpwards(baseDir, relative) is { } hit) return hit;
+        }
+
+        return null;
+    }
+
+    private static string? FindPythonModuleDir(string baseDir, string? userAppDir, bool isWindows)
+    {
+        var roots = new List<string>
+        {
+            baseDir,
+            Path.Combine(baseDir, "sidecar"),
+        };
+
+        if (!isWindows)
+        {
+            var resourcesDir = Path.GetFullPath(Path.Combine(baseDir, "..", "Resources"));
+            roots.Add(resourcesDir);
+            roots.Add(Path.Combine(resourcesDir, "sidecar"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(userAppDir))
+        {
+            roots.Add(userAppDir);
+            roots.Add(Path.Combine(userAppDir, "sidecar"));
+        }
+
+        foreach (var root in roots)
+            if (File.Exists(Path.Combine(root, "daxalgo_ml", "app.py"))) return root;
+
+        if (!isWindows) return null;
+
+        var marker = FindUpwards(baseDir, "tools/python-ml/daxalgo_ml/app.py");
+        return marker is null
+            ? null
+            : Path.GetDirectoryName(Path.GetDirectoryName(marker));
+    }
+
+    private static string ResolvePython(
+        SidecarOptions o,
+        string moduleDir,
+        string baseDir,
+        string? userAppDir,
+        bool isWindows)
+    {
+        if (ResolveConfiguredFile(o.PythonPath, baseDir, userAppDir) is { } configuredPython)
+            return configuredPython;
+
+        var candidates = isWindows
+            ? new[] { Path.Combine(moduleDir, ".venv", "Scripts", "python.exe") }
+            : new[]
+            {
+                Path.Combine(moduleDir, ".venv", "bin", "python3"),
+                Path.Combine(moduleDir, ".venv", "bin", "python"),
+            };
+        return candidates.FirstOrDefault(File.Exists) ?? (isWindows ? "python" : "python3");
+    }
+
+    private static string? ResolveConfiguredFile(string configuredPath, string baseDir, string? userAppDir)
+    {
+        if (string.IsNullOrWhiteSpace(configuredPath)) return null;
+
+        var expanded = ExpandUserPath(Environment.ExpandEnvironmentVariables(configuredPath.Trim()));
+        if (File.Exists(expanded)) return Path.GetFullPath(expanded);
+        if (Path.IsPathRooted(expanded)) return null;
+
+        var packaged = Path.Combine(baseDir, expanded);
+        if (File.Exists(packaged)) return packaged;
+
+        if (!string.IsNullOrWhiteSpace(userAppDir))
+        {
+            var userInstalled = Path.Combine(userAppDir, expanded);
+            if (File.Exists(userInstalled)) return userInstalled;
+        }
+
+        return null;
+    }
+
+    private static string ExpandUserPath(string path)
+    {
+        if (path != "~" && !path.StartsWith("~/", StringComparison.Ordinal) &&
+            !path.StartsWith("~\\", StringComparison.Ordinal))
+            return path;
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (string.IsNullOrWhiteSpace(home)) return path;
+        return path.Length == 1
+            ? home
+            : Path.Combine(home, path[2..]);
     }
 
     /// <summary>Walks up from <paramref name="startDir"/> looking for a relative path, returning its

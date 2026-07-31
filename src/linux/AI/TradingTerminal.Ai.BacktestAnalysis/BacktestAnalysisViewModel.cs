@@ -22,18 +22,22 @@ namespace TradingTerminal.Ai.BacktestAnalysis;
 public sealed partial class BacktestAnalysisViewModel : ViewModelBase
 {
     private readonly ILogger<BacktestAnalysisViewModel> _logger;
+    private readonly IBacktestStrategyRegistry _strategies;
 
-    public BacktestAnalysisViewModel(ILogger<BacktestAnalysisViewModel> logger)
+    public BacktestAnalysisViewModel(
+        ILogger<BacktestAnalysisViewModel> logger,
+        IBacktestStrategyRegistry strategies)
     {
         _logger = logger;
-        StrategyChoices = new[] { "meanReversion", "donchianBreakout", "microprice", "ou" };
-        SelectedStrategy = "meanReversion";
+        _strategies = strategies;
+        RefreshStrategyChoices();
+        _strategies.Changed += (_, _) => _ = UiThread.RunAsync(RefreshStrategyChoices);
     }
 
-    public IReadOnlyList<string> StrategyChoices { get; }
+    public ObservableCollection<string> StrategyChoices { get; } = new();
     public ObservableCollection<WalkForwardRow> WalkForwardRows { get; } = new();
 
-    [ObservableProperty] private string _selectedStrategy = "meanReversion";
+    [ObservableProperty] private string _selectedStrategy = string.Empty;
     [ObservableProperty] private string _symbol = "TEST";
     [ObservableProperty] private string _dataPath = "";
     [ObservableProperty] private int _windows = 5;
@@ -88,6 +92,13 @@ public sealed partial class BacktestAnalysisViewModel : ViewModelBase
         if (Windows < 2) { WalkForwardError = "Windows must be ≥ 2."; return; }
         if (TrainFraction <= 0.1 || TrainFraction >= 0.95) { WalkForwardError = "TrainFraction must be in (0.1, 0.95)."; return; }
 
+        var option = _strategies.Find(SelectedStrategy);
+        if (option?.WalkForwardGrid is null)
+        {
+            WalkForwardError = "Choose an authored or installed strategy that provides a walk-forward grid.";
+            return;
+        }
+
         IsWalkForwardRunning = true;
         WalkForwardStatus = "Scanning dataset time range…";
 
@@ -119,16 +130,15 @@ public sealed partial class BacktestAnalysisViewModel : ViewModelBase
                 ContractMultiplier: 1.0,
                 StartingCash: 100_000);
 
-            var grid = WalkForwardGridBuilders.Build(
-                SelectedStrategy,
-                lookbacks: ParseIntList(Lookbacks),
-                entries: ParseDoubleList(Entries),
-                stops: ParseDoubleList(Stops),
-                trails: ParseDoubleList(Trails),
-                thresholds: ParseDoubleList(Thresholds),
-                holds: ParseIntList(Holds),
-                entryZ: ParseDoubleList(EntryZ),
-                quantity: Quantity);
+            var grid = option.WalkForwardGrid(new WalkForwardAxes(
+                Lookbacks: ParseIntList(Lookbacks),
+                Entries: ParseDoubleList(Entries),
+                Stops: ParseDoubleList(Stops),
+                Trails: ParseDoubleList(Trails),
+                Thresholds: ParseDoubleList(Thresholds),
+                Holds: ParseIntList(Holds),
+                EntryZ: ParseDoubleList(EntryZ),
+                Quantity: Quantity));
 
             WalkForwardStatus = $"Running {Windows} windows × {grid.Count} configs…";
 
@@ -142,8 +152,8 @@ public sealed partial class BacktestAnalysisViewModel : ViewModelBase
                 foreach (var cell in grid)
                 {
                     var cfg = baseConfig with { FromUtc = winStart, ToUtc = trainCutoff };
-                    var r = await Task.Run(() => new BacktestSession().RunAsync(cfg, cell.Builder(contract)));
-                    trainResults.Add((cell.Label, cell.Builder, r.Stats?.Sharpe ?? double.MinValue));
+                    var r = await Task.Run(() => new BacktestSession().RunAsync(cfg, cell.Build(contract)));
+                    trainResults.Add((cell.Label, cell.Build, r.Stats?.Sharpe ?? double.MinValue));
                 }
                 var best = trainResults.OrderByDescending(t => t.Sharpe).First();
 
@@ -260,6 +270,22 @@ public sealed partial class BacktestAnalysisViewModel : ViewModelBase
                 pnls.Add(pnl);
         }
         return pnls;
+    }
+
+    private void RefreshStrategyChoices()
+    {
+        var previous = SelectedStrategy;
+        var choices = _strategies.All
+            .Where(option => option.WalkForwardGrid is not null)
+            .Select(option => option.Id)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        StrategyChoices.Clear();
+        foreach (var id in choices) StrategyChoices.Add(id);
+        SelectedStrategy = choices.Contains(previous, StringComparer.OrdinalIgnoreCase)
+            ? previous
+            : choices.FirstOrDefault() ?? string.Empty;
     }
 
     private static string Fmt(IReadOnlyList<double> p, string fmt, CultureInfo ic) =>

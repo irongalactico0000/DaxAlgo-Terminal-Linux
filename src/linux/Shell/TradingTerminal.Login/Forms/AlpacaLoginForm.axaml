@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TradingTerminal.App.Login.Forms.AlpacaLoginForm">
+  <StackPanel Spacing="8">
+    <TextBlock Text="Display name (optional)" Classes="fieldLabel" />
+    <TextBox Text="{Binding Username}" Watermark="Trader or desk name" />
+    <TextBlock Text="API key id" Classes="fieldLabel" />
+    <TextBox Text="{Binding ApiKey}" Watermark="PK…" />
+    <TextBlock Text="API secret" Classes="fieldLabel" />
+    <TextBox Text="{Binding ApiSecret}" PasswordChar="●" Watermark="Stored in macOS Keychain" />
+    <Grid ColumnDefinitions="*,*">
+      <StackPanel Grid.Column="0" Spacing="5">
+        <TextBlock Text="Stock data feed" Classes="fieldLabel" />
+        <ComboBox ItemsSource="{Binding StockDataFeeds}" SelectedItem="{Binding StockDataFeed}" />
+      </StackPanel>
+      <CheckBox Grid.Column="1" IsChecked="{Binding IsLive}"
+                Content="Use live endpoint" VerticalAlignment="Bottom" Margin="0,0,0,7" />
+    </Grid>
+    <Border Classes="formNote">
+      <TextBlock Text="The IEX feed is free; SIP requires a paid market-data subscription. Crypto and options ignore this setting."
+                 TextWrapping="Wrap" />
+    </Border>
+  </StackPanel>
+</UserControl>

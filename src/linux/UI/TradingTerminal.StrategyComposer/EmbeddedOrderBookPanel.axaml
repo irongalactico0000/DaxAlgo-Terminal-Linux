@@ -1,0 +1,125 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TradingTerminal.StrategyComposer.EmbeddedOrderBookPanel"
+             Background="{DynamicResource Background.Primary}"
+             Foreground="{DynamicResource Text.Primary}">
+  <UserControl.Resources>
+    <SolidColorBrush x:Key="AskBar" Color="#33F23645" />
+    <SolidColorBrush x:Key="BidBar" Color="#33089981" />
+  </UserControl.Resources>
+  <UserControl.Styles>
+    <Style Selector="TextBlock.metric-caption">
+      <Setter Property="FontSize" Value="9" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+    <Style Selector="TextBlock.metric-value">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontFamily" Value="{DynamicResource Font.Data}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- Copied from the native Avalonia Order Book surface, with its independent instrument toolbar
+       removed because the authored strategy owns selection and pause state. -->
+  <Grid>
+  <Grid RowDefinitions="Auto,*">
+    <Border Grid.Row="0" Padding="8,6"
+            Background="{DynamicResource Background.Elevated}"
+            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
+      <UniformGrid Columns="4">
+        <StackPanel Margin="0,0,10,0">
+          <TextBlock Text="BID" Classes="metric-caption" />
+          <TextBlock Text="{Binding BestBid, StringFormat='{}{0:0.#####}'}" Classes="metric-value"
+                     Foreground="{DynamicResource Bullish.Brush}" />
+        </StackPanel>
+        <StackPanel Margin="0,0,10,0">
+          <TextBlock Text="ASK" Classes="metric-caption" />
+          <TextBlock Text="{Binding BestAsk, StringFormat='{}{0:0.#####}'}" Classes="metric-value"
+                     Foreground="{DynamicResource Bearish.Brush}" />
+        </StackPanel>
+        <StackPanel Margin="0,0,10,0">
+          <TextBlock Text="SPREAD / MID" Classes="metric-caption" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="{Binding Spread, StringFormat='{}{0:0.#####}'}" Classes="metric-value" />
+            <TextBlock Text="{Binding Mid, StringFormat='{}{0:0.#####}'}" Classes="metric-value" />
+          </StackPanel>
+        </StackPanel>
+        <StackPanel>
+          <TextBlock Text="MICRO / IMBALANCE" Classes="metric-caption" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="{Binding Microprice, StringFormat='{}{0:0.#####}'}" Classes="metric-value" />
+            <TextBlock Text="{Binding ImbalanceCumText}" Classes="metric-value" />
+          </StackPanel>
+        </StackPanel>
+        <StackPanel Margin="0,5,10,0">
+          <TextBlock Text="BOOK SKEW" Classes="metric-caption" />
+          <TextBlock Text="{Binding BookSkewText}" Classes="metric-value" />
+        </StackPanel>
+        <StackPanel Margin="0,5,10,0">
+          <TextBlock Text="IMBALANCE TREND" Classes="metric-caption" />
+          <TextBlock Text="{Binding ImbalanceSlopeText}" Classes="metric-value" />
+        </StackPanel>
+        <StackPanel Margin="0,5,10,0">
+          <TextBlock Text="CUMULATIVE DELTA" Classes="metric-caption" />
+          <TextBlock Text="{Binding CumulativeDelta}" Classes="metric-value" />
+        </StackPanel>
+        <StackPanel Margin="0,5,0,0">
+          <TextBlock Text="TAPE" Classes="metric-caption" />
+          <TextBlock Text="{Binding TradeTapeText}" Classes="metric-value" />
+        </StackPanel>
+      </UniformGrid>
+    </Border>
+
+    <Grid Grid.Row="1" RowDefinitions="*,Auto,*" Margin="8">
+      <Border Grid.Row="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Asks}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="88,78,*" Height="21">
+                  <TextBlock Grid.Column="0" Text="{Binding Price, StringFormat='{}{0:0.#####}'}"
+                             FontFamily="{DynamicResource Font.Data}" Foreground="{DynamicResource Bearish.Brush}" Margin="6,1" />
+                  <TextBlock Grid.Column="1" Text="{Binding Size}" FontFamily="{DynamicResource Font.Data}" Margin="4,1" />
+                  <ProgressBar Grid.Column="2" Minimum="0" Maximum="1" Value="{Binding BarFraction}"
+                               Foreground="{StaticResource AskBar}" Background="Transparent" Margin="4,3" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Border>
+
+      <Border Grid.Row="1" Background="{DynamicResource Background.Surface}" Padding="4,3">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
+          <TextBlock Text="{Binding Spread, StringFormat='spread {0:0.#####}'}"
+                     Foreground="{DynamicResource Accent.Brush}" />
+          <TextBlock Text="{Binding BidLevels, StringFormat='{}{0} bid levels'}" FontSize="10"
+                     Foreground="{DynamicResource Text.Secondary}" />
+          <TextBlock Text="{Binding AskLevels, StringFormat='{}{0} ask levels'}" FontSize="10"
+                     Foreground="{DynamicResource Text.Secondary}" />
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Row="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Bids}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="88,78,*" Height="21">
+                  <TextBlock Grid.Column="0" Text="{Binding Price, StringFormat='{}{0:0.#####}'}"
+                             FontFamily="{DynamicResource Font.Data}" Foreground="{DynamicResource Bullish.Brush}" Margin="6,1" />
+                  <TextBlock Grid.Column="1" Text="{Binding Size}" FontFamily="{DynamicResource Font.Data}" Margin="4,1" />
+                  <ProgressBar Grid.Column="2" Minimum="0" Maximum="1" Value="{Binding BarFraction}"
+                               Foreground="{StaticResource BidBar}" Background="Transparent" Margin="4,3" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+  </Grid>
+  <Image x:Name="FreezeImage" IsVisible="False" Stretch="Fill" IsHitTestVisible="False" />
+  </Grid>
+</UserControl>

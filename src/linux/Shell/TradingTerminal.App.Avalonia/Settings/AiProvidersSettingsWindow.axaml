@@ -1,0 +1,54 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TradingTerminal.App.Avalonia.Settings.AiProvidersSettingsWindow"
+        Width="680" Height="600" MinWidth="560" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource Background.Primary}"
+        Title="AI providers">
+  <DockPanel Margin="16">
+    <TextBlock DockPanel.Dock="Top" Text="AI providers" FontSize="18" FontWeight="Bold"
+               Foreground="{StaticResource Text.Header}" Margin="0,0,0,4" />
+    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap"
+               Foreground="{StaticResource Text.Secondary}" Margin="0,0,0,10"
+               Text="The AI Strategy Builder uses the provider you choose. Agent CLIs use their own login. API keys are protected for this macOS user with Keychain-backed encryption; only your prompt and the SDK context pack are sent to the selected provider." />
+    <TextBlock DockPanel.Dock="Top" Text="{Binding Status}" Margin="0,0,0,10"
+               FontStyle="Italic" Foreground="{StaticResource Text.Secondary}" />
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <ItemsControl ItemsSource="{Binding Providers}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border Margin="0,0,0,8" Padding="10" BorderThickness="1"
+                    BorderBrush="{StaticResource Border.Brush}"
+                    Background="{StaticResource Background.Elevated}">
+              <StackPanel>
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" />
+                    <TextBlock Text="{Binding ProviderId, StringFormat=' ({0})'}"
+                               Foreground="{StaticResource Text.Secondary}" FontSize="11"
+                               VerticalAlignment="Center" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Text="{Binding StatusText}"
+                             Foreground="{StaticResource Accent.Brush}" FontSize="11"
+                             VerticalAlignment="Center" />
+                </Grid>
+                <Grid Margin="0,7,0,0" ColumnDefinitions="*,Auto,Auto"
+                      IsVisible="{Binding NeedsKey}">
+                  <TextBox Grid.Column="0" Margin="0,0,6,0" PasswordChar="&#x25CF;"
+                           Text="{Binding KeyInput, Mode=TwoWay}" Watermark="Paste API key" />
+                  <Button Grid.Column="1" Content="Save" Padding="12,5" Margin="0,0,6,0"
+                          Command="{Binding DataContext.SaveKeyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding}" />
+                  <Button Grid.Column="2" Content="Clear" Padding="12,5"
+                          Command="{Binding DataContext.ClearKeyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding}" />
+                </Grid>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

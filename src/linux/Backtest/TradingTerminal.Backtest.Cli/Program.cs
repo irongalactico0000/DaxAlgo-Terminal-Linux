@@ -7,7 +7,6 @@ using TradingTerminal.Core.Ml;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Backtest.Persistence;
-using TradingTerminal.Infrastructure.Backtest.Strategies;
 
 if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
 {
@@ -109,21 +108,19 @@ static async Task<int> RunBacktestAsync(string[] argv)
     return 0;
 }
 
-static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToLowerInvariant() switch
+// macOS intentionally ships no concrete strategy implementations. Authored and installed plugins
+// under {exe}/plugins contribute the executable strategy catalog at runtime.
+static IBacktestStrategy ResolveStrategy(string id, Contract contract) =>
+    PluginStrategies.TryCreate(id, contract)
+    ?? throw new ArgumentException(UnknownStrategyMessage(id));
+
+static string UnknownStrategyMessage(string id)
 {
-    "buyandhold" or "buy-and-hold" => new BuyAndHoldStrategy(contract),
-    "meanreversion" or "mean-reversion" => new MeanReversionStrategy(contract),
-    "donchianbreakout" or "donchian" or "breakout" => new DonchianBreakoutStrategy(contract),
-    // L2 / depth-of-market themed
-    "orderflowcube" or "ofcube" or "cube" => new OrderFlowCubeStrategy(contract),
-    "orderflowsurfacespike" or "ofss" or "surfacespike" or "surface" => new OrderFlowSurfaceSpikeStrategy(contract),
-    "imbalanceheatfront" or "ihf" or "heatfront" => new ImbalanceHeatFrontStrategy(contract),
-    "sigmaicflow" or "sigmaic" or "flowopt" or "apexscalper" or "apex" => new ApexScalperStrategy(contract),
-    "indexkscoresurface" or "kscore" or "indexkscore" => new IndexKScoreSurfaceStrategy(contract),
-    "filteredorderflow" or "fof" or "obit" => new FilteredOrderFlowStrategy(contract),
-    _ => throw new ArgumentException(
-        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, sigmaIcFlow, indexKScoreSurface, filteredOrderFlow.")
-};
+    var plugins = PluginStrategies.AvailableIds;
+    return plugins.Count > 0
+        ? $"Unknown strategy '{id}'. Installed plugins: {string.Join(", ", plugins)}."
+        : $"Unknown strategy '{id}' (no strategy plugins loaded from '{Path.Combine(AppContext.BaseDirectory, "plugins")}').";
+}
 
 static void PrintSummary(BacktestResult result)
 {
@@ -227,12 +224,7 @@ static async Task<int> SweepAsync(string[] argv)
         ContractMultiplier: a.Double("multiplier", 1.0),
         StartingCash: a.Double("starting-cash", 100_000));
 
-    IReadOnlyList<(string Label, IBacktestStrategy Build)> grid = strategyId switch
-    {
-        "meanreversion" or "mean-reversion" => BuildMeanReversionGrid(contract, a),
-        "donchianbreakout" or "donchian" or "breakout" => BuildDonchianGrid(contract, a),
-        _ => throw new ArgumentException($"Sweep doesn't know parameters for '{strategyId}'. Try meanReversion or donchianBreakout."),
-    };
+    var grid = BuildPluginGrid(strategyId, a);
 
     Console.WriteLine($"Sweep: {grid.Count} configurations on {symbol} (parallel={maxParallel})");
 
@@ -248,7 +240,7 @@ static async Task<int> SweepAsync(string[] argv)
         try
         {
             var session = new BacktestSession();
-            var result = await session.RunAsync(baseConfig, cell.Build);
+            var result = await session.RunAsync(baseConfig, cell.Build(contract));
             var s = result.Stats;
             rows.Add(string.Join(",", new[]
             {
@@ -287,36 +279,6 @@ static async Task<int> SweepAsync(string[] argv)
 static string Escape(string s) =>
     s.Contains(',') || s.Contains('"') ? "\"" + s.Replace("\"", "\"\"") + "\"" : s;
 
-static IReadOnlyList<(string Label, IBacktestStrategy Build)> BuildMeanReversionGrid(Contract contract, Args a)
-{
-    var lookbacks = ParseIntList(a.Optional("lookback") ?? "50,100,200");
-    var entries = ParseDoubleList(a.Optional("entry") ?? "0.05,0.10,0.20");
-    var stops = ParseDoubleList(a.Optional("stop") ?? "0.20,0.40");
-    var qty = a.Int("qty", 1);
-
-    var grid = new List<(string, IBacktestStrategy)>();
-    foreach (var l in lookbacks)
-        foreach (var e in entries)
-            foreach (var s in stops)
-                grid.Add(($"mr-lk{l}-e{e.ToString(CultureInfo.InvariantCulture)}-s{s.ToString(CultureInfo.InvariantCulture)}",
-                    new MeanReversionStrategy(contract, l, e, s, qty)));
-    return grid;
-}
-
-static IReadOnlyList<(string Label, IBacktestStrategy Build)> BuildDonchianGrid(Contract contract, Args a)
-{
-    var lookbacks = ParseIntList(a.Optional("lookback") ?? "50,100,200");
-    var stops = ParseDoubleList(a.Optional("trail") ?? "0.10,0.20,0.40");
-    var qty = a.Int("qty", 1);
-
-    var grid = new List<(string, IBacktestStrategy)>();
-    foreach (var l in lookbacks)
-        foreach (var s in stops)
-            grid.Add(($"don-lk{l}-trail{s.ToString(CultureInfo.InvariantCulture)}",
-                new DonchianBreakoutStrategy(contract, l, s, qty)));
-    return grid;
-}
-
 static int[] ParseIntList(string raw) =>
     raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Select(s => int.Parse(s, CultureInfo.InvariantCulture))
@@ -327,25 +289,28 @@ static double[] ParseDoubleList(string raw) =>
         .Select(s => double.Parse(s, CultureInfo.InvariantCulture))
         .ToArray();
 
-// Walk-forward needs to instantiate each strategy FRESH per window — strategies are
-// stateful (rolling indicators, position trackers), so reusing an instance across
-// train→test→next-window would leak state. Grid builders live in
-// Infrastructure.Backtest.WalkForwardGridBuilders so the App's Backtest analysis tab
-// can call them too.
-static IReadOnlyList<(string Label, Func<Contract, IBacktestStrategy> Builder)> BuildWalkForwardGrid(
-    string strategyId, Contract contract, Args a) => strategyId.ToLowerInvariant() switch
+// Authored and installed plugins declare their own parameter grid on the option they register. The
+// CLI consumes that contract directly so no concrete strategy implementation ships in this host.
+static IReadOnlyList<WalkForwardCandidate> BuildPluginGrid(string strategyId, Args a)
 {
-    "meanreversion" or "mean-reversion" => WalkForwardGridBuilders.MeanReversion(
-        ParseIntList(a.Optional("lookback") ?? "50,100,200"),
-        ParseDoubleList(a.Optional("entry") ?? "0.05,0.10,0.20"),
-        ParseDoubleList(a.Optional("stop") ?? "0.20,0.40"),
-        a.Int("qty", 1)),
-    "donchianbreakout" or "donchian" or "breakout" => WalkForwardGridBuilders.Donchian(
-        ParseIntList(a.Optional("lookback") ?? "50,100,200"),
-        ParseDoubleList(a.Optional("trail") ?? "0.10,0.20,0.40"),
-        a.Int("qty", 1)),
-    _ => throw new ArgumentException($"Walk-forward grid not defined for '{strategyId}'."),
-};
+    var option = PluginStrategies.Options.FirstOrDefault(
+        candidate => string.Equals(candidate.Id, strategyId, StringComparison.OrdinalIgnoreCase))
+        ?? throw new ArgumentException(UnknownStrategyMessage(strategyId));
+
+    // Empty axis => the strategy's grid applies its own defaults; otherwise pass the user's values.
+    var axes = new WalkForwardAxes(
+        Lookbacks: ParseIntList(a.Optional("lookback") ?? string.Empty),
+        Entries: ParseDoubleList(a.Optional("entry") ?? string.Empty),
+        Stops: ParseDoubleList(a.Optional("stop") ?? string.Empty),
+        Trails: ParseDoubleList(a.Optional("trail") ?? string.Empty),
+        Thresholds: ParseDoubleList(a.Optional("threshold") ?? string.Empty),
+        Holds: ParseIntList(a.Optional("hold") ?? string.Empty),
+        EntryZ: ParseDoubleList(a.Optional("entry-z") ?? string.Empty),
+        Quantity: a.Int("qty", 1));
+
+    return option.WalkForwardGrid?.Invoke(axes)
+        ?? throw new ArgumentException($"Strategy plugin '{option.Id}' does not declare a sweep/walk-forward grid.");
+}
 
 static async Task<int> WalkForwardAsync(string[] argv)
 {
@@ -387,7 +352,7 @@ static async Task<int> WalkForwardAsync(string[] argv)
         ContractMultiplier: a.Double("multiplier", 1.0),
         StartingCash: a.Double("starting-cash", 100_000));
 
-    var grid = BuildWalkForwardGrid(strategyId, contract, a);
+    var grid = BuildPluginGrid(strategyId, a);
 
     Console.WriteLine($"Walk-forward: {windows} windows × {grid.Count} configs, train_frac={trainFraction:F2}");
     Console.WriteLine($"  data span: {minTs.Value:O} → {maxTs.Value:O}");
@@ -413,8 +378,8 @@ static async Task<int> WalkForwardAsync(string[] argv)
             {
                 var cfg = baseConfig with { FromUtc = winStart, ToUtc = trainCutoff };
                 var s = new BacktestSession();
-                var r = await s.RunAsync(cfg, cell.Builder(contract));
-                lock (trainResults) trainResults.Add((cell.Label, cell.Builder, r.Stats?.Sharpe ?? double.MinValue));
+                var r = await s.RunAsync(cfg, cell.Build(contract));
+                lock (trainResults) trainResults.Add((cell.Label, cell.Build, r.Stats?.Sharpe ?? double.MinValue));
             }
             finally { gate.Release(); }
         });
@@ -655,14 +620,14 @@ static async Task<int> FeaturesAsync(string[] argv)
 static void PrintHelp()
 {
     Console.WriteLine("daxalgo-backtest run \\");
-    Console.WriteLine("    --strategy <id>          Strategy id (buyAndHold | meanReversion)");
+    Console.WriteLine("    --strategy <id>          Id contributed by an installed strategy plugin");
     Console.WriteLine("    --symbol <ticker>        Instrument symbol");
     Console.WriteLine("    [--source parquet|store] Tick source (default parquet)");
     Console.WriteLine("    --data <path.parquet>    Quote tick file (required when --source parquet)");
     Console.WriteLine("    [--trades <path.parquet>] Optional real trade tape merged with the quotes (q=1.0 for tape strategies)");
     Console.WriteLine("    [--from <UTC date>]      Required when --source store");
     Console.WriteLine("    [--to <UTC date>]        Required when --source store");
-    Console.WriteLine("    [--sqlite-path <path>]   Override SQLite store path (default: %LOCALAPPDATA%\\DaxAlgoTerminal\\marketdata.db)");
+    Console.WriteLine("    [--sqlite-path <path>]   Override the platform-local DaxAlgoTerminal/marketdata.db store");
     Console.WriteLine("    [--postgres-conn <str>]  Use Postgres/TimescaleDB store instead of SQLite");
     Console.WriteLine("    [--tick-size <n>]        Default 0.01");
     Console.WriteLine("    [--slippage-ticks <n>]   Default 0");
@@ -681,19 +646,17 @@ static void PrintHelp()
     Console.WriteLine("    [--seed <int>]           Default 42");
     Console.WriteLine();
     Console.WriteLine("daxalgo-backtest sweep \\");
-    Console.WriteLine("    --strategy <id>          meanReversion | donchianBreakout");
+    Console.WriteLine("    --strategy <id>          Installed plugin that declares a parameter grid");
     Console.WriteLine("    --symbol <ticker>");
     Console.WriteLine("    --data <path.parquet>");
     Console.WriteLine("    [--lookback <a,b,c>]     Grid over lookbacks");
-    Console.WriteLine("    [--entry <a,b,c>]        meanReversion only");
-    Console.WriteLine("    [--stop <a,b,c>]         meanReversion only");
-    Console.WriteLine("    [--trail <a,b,c>]        donchianBreakout only");
+    Console.WriteLine("    [--entry/stop/trail ...] Optional axes consumed by the plugin's grid");
     Console.WriteLine("    [--qty <n>]              Default 1");
     Console.WriteLine("    [--output <path.csv>]    Default sweep-results.csv");
     Console.WriteLine("    [--parallel <n>]         Default = CPU count");
     Console.WriteLine();
     Console.WriteLine("daxalgo-backtest walkforward \\");
-    Console.WriteLine("    --strategy <id>          meanReversion | donchianBreakout | microprice | ou");
+    Console.WriteLine("    --strategy <id>          Installed plugin that declares a walk-forward grid");
     Console.WriteLine("    --symbol <ticker>");
     Console.WriteLine("    --data <path.parquet>");
     Console.WriteLine("    [--windows <n>]          Number of rolling windows (default 5)");

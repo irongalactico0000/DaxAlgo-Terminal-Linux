@@ -7,31 +7,19 @@
     <Description>Backtest Studio: MT5-style window over the Backtest.Engine â€” strategy/param setup, detailed report, and visual replay.</Description>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <UseWPF>true</UseWPF>
-    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
-  </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\..\..\linux\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\..\..\linux\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
     <ProjectReference Include="..\..\..\linux\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
     <ProjectReference Include="..\..\..\linux\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\linux\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
+    <ProjectReference Include="..\..\..\linux\Backtest\TradingTerminal.Backtest.Protocol\TradingTerminal.Backtest.Protocol.csproj" />
+    <ProjectReference Include="..\..\..\linux\Backtest\TradingTerminal.Backtest.Client\TradingTerminal.Backtest.Client.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
-    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
-    <PackageReference Include="ScottPlot.WPF" Version="5.0.55" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
+  <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.1" />
     <Compile Remove="BacktestStudioView.xaml.cs" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <Compile Remove="AvaloniaUi\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

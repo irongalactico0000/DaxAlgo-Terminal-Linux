@@ -1,6 +1,6 @@
-# TradingTerminal.Infrastructure / Brokers — public API surface (Linux/Avalonia)
+# TradingTerminal.Infrastructure / Brokers — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Pipeline/TradingTerminal.Infrastructure/Brokers/BrokerApiMeter.cs

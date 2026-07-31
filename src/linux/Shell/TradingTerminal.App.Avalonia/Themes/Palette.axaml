@@ -1,82 +1,94 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- Bloomberg-inspired palette ported 1:1 from the WPF theme (TradingTerminal.UI/Themes/Brushes.xaml):
-       pure-black canvas, amber/orange chrome, saturated green/red P&L, cyan secondary highlights. -->
+  <!-- DaxAlgo TradingView-dark token contract copied from the current Windows theme. -->
+  <Color x:Key="Background.Primary.Color">#131722</Color>
+  <Color x:Key="Background.Surface.Color">#1E222D</Color>
+  <Color x:Key="Background.Elevated.Color">#262B38</Color>
+  <Color x:Key="Border.Color">#2A2E39</Color>
+  <Color x:Key="Surface.Hover.Color">#2A2E39</Color>
+  <Color x:Key="Border.Strong.Color">#3A404E</Color>
 
-  <!-- Backgrounds -->
-  <Color x:Key="Background.Primary.Color">#000000</Color>
-  <Color x:Key="Background.Surface.Color">#0A0A0A</Color>
-  <Color x:Key="Background.Elevated.Color">#141414</Color>
-  <Color x:Key="Border.Color">#2A2A2A</Color>
-  <Color x:Key="Surface.Hover.Color">#1C1C1C</Color>
-  <Color x:Key="Border.Strong.Color">#3A3A3A</Color>
+  <Color x:Key="Text.Primary.Color">#D1D4DC</Color>
+  <Color x:Key="Text.Secondary.Color">#787B86</Color>
+  <Color x:Key="Text.Header.Color">#EAECEF</Color>
+  <Color x:Key="Text.Highlight.Color">#4C8FFF</Color>
 
-  <!-- Text -->
-  <Color x:Key="Text.Primary.Color">#E8E8E8</Color>
-  <Color x:Key="Text.Secondary.Color">#8A8A8A</Color>
-  <Color x:Key="Text.Header.Color">#FFB000</Color>
-  <Color x:Key="Text.Highlight.Color">#00BFFF</Color>
+  <Color x:Key="Accent.Color">#2962FF</Color>
+  <Color x:Key="Accent.Dim.Color">#1E4BC8</Color>
+  <Color x:Key="Accent.Hover.Color">#4C8FFF</Color>
+  <Color x:Key="Bullish.Color">#089981</Color>
+  <Color x:Key="Bearish.Color">#F23645</Color>
+  <Color x:Key="Danger.Color">#F23645</Color>
+  <Color x:Key="Warning.Color">#F7A600</Color>
 
-  <!-- Semantic -->
-  <Color x:Key="Accent.Color">#FF8C00</Color>
-  <Color x:Key="Accent.Dim.Color">#A65A00</Color>
-  <Color x:Key="Accent.Hover.Color">#FFA733</Color>
-  <Color x:Key="Bullish.Color">#00C853</Color>
-  <Color x:Key="Bearish.Color">#FF1744</Color>
-  <Color x:Key="Danger.Color">#FF1744</Color>
-  <Color x:Key="Warning.Color">#FFD600</Color>
+  <SolidColorBrush x:Key="Background.Primary" Color="{StaticResource Background.Primary.Color}" />
+  <SolidColorBrush x:Key="Background.Surface" Color="{StaticResource Background.Surface.Color}" />
+  <SolidColorBrush x:Key="Background.Elevated" Color="{StaticResource Background.Elevated.Color}" />
+  <SolidColorBrush x:Key="Border.Brush" Color="{StaticResource Border.Color}" />
+  <SolidColorBrush x:Key="Surface.Hover" Color="{StaticResource Surface.Hover.Color}" />
+  <SolidColorBrush x:Key="Border.Strong" Color="{StaticResource Border.Strong.Color}" />
+  <SolidColorBrush x:Key="Text.Primary" Color="{StaticResource Text.Primary.Color}" />
+  <SolidColorBrush x:Key="Text.Secondary" Color="{StaticResource Text.Secondary.Color}" />
+  <SolidColorBrush x:Key="Text.Header" Color="{StaticResource Text.Header.Color}" />
+  <SolidColorBrush x:Key="Text.Highlight" Color="{StaticResource Text.Highlight.Color}" />
+  <SolidColorBrush x:Key="Accent.Brush" Color="{StaticResource Accent.Color}" />
+  <SolidColorBrush x:Key="Accent.Dim.Brush" Color="{StaticResource Accent.Dim.Color}" />
+  <SolidColorBrush x:Key="Accent.Hover.Brush" Color="{StaticResource Accent.Hover.Color}" />
+  <SolidColorBrush x:Key="Bullish.Brush" Color="{StaticResource Bullish.Color}" />
+  <SolidColorBrush x:Key="Bearish.Brush" Color="{StaticResource Bearish.Color}" />
+  <SolidColorBrush x:Key="Danger.Brush" Color="{StaticResource Danger.Color}" />
+  <SolidColorBrush x:Key="Warning.Brush" Color="{StaticResource Warning.Color}" />
 
-  <!-- Brushes -->
-  <SolidColorBrush x:Key="Background.Primary"  Color="#000000" />
-  <SolidColorBrush x:Key="Background.Surface"  Color="#0A0A0A" />
-  <SolidColorBrush x:Key="Background.Elevated" Color="#141414" />
-  <SolidColorBrush x:Key="Border.Brush"        Color="#2A2A2A" />
-  <SolidColorBrush x:Key="Surface.Hover"       Color="#1C1C1C" />
-  <SolidColorBrush x:Key="Border.Strong"       Color="#3A3A3A" />
-  <SolidColorBrush x:Key="Text.Primary"        Color="#E8E8E8" />
-  <SolidColorBrush x:Key="Text.Secondary"      Color="#8A8A8A" />
-  <SolidColorBrush x:Key="Text.Header"         Color="#FFB000" />
-  <SolidColorBrush x:Key="Text.Highlight"      Color="#00BFFF" />
-  <SolidColorBrush x:Key="Accent.Brush"        Color="#FF8C00" />
-  <SolidColorBrush x:Key="Accent.Dim.Brush"    Color="#A65A00" />
-  <SolidColorBrush x:Key="Accent.Hover.Brush"  Color="#FFA733" />
-  <SolidColorBrush x:Key="Bullish.Brush"       Color="#00C853" />
-  <SolidColorBrush x:Key="Bearish.Brush"       Color="#FF1744" />
-  <SolidColorBrush x:Key="Danger.Brush"        Color="#FF1744" />
-  <SolidColorBrush x:Key="Warning.Brush"       Color="#FFD600" />
-  <SolidColorBrush x:Key="Accent.Soft"   Color="#26FF8C00" />
-  <SolidColorBrush x:Key="Bullish.Soft"  Color="#2600C853" />
-  <SolidColorBrush x:Key="Bearish.Soft"  Color="#26FF1744" />
-  <SolidColorBrush x:Key="Warning.Soft"  Color="#26FFD600" />
-  <SolidColorBrush x:Key="Highlight.Soft" Color="#2600BFFF" />
+  <SolidColorBrush x:Key="Accent.Soft" Color="#262962FF" />
+  <SolidColorBrush x:Key="Bullish.Soft" Color="#26089981" />
+  <SolidColorBrush x:Key="Bearish.Soft" Color="#26F23645" />
+  <SolidColorBrush x:Key="Warning.Soft" Color="#26F7A600" />
+  <SolidColorBrush x:Key="Highlight.Soft" Color="#264C8FFF" />
 
-  <!-- Gradients (chrome bars, panels, headers) — values 1:1 with WPF Brushes.xaml -->
   <LinearGradientBrush x:Key="Gradient.Chrome" StartPoint="0%,0%" EndPoint="0%,100%">
-    <GradientStop Color="#1A1A1A" Offset="0" />
-    <GradientStop Color="#0C0C0C" Offset="1" />
+    <GradientStop Color="#1C202B" Offset="0" />
+    <GradientStop Color="#161A24" Offset="1" />
   </LinearGradientBrush>
   <LinearGradientBrush x:Key="Gradient.Elevated" StartPoint="0%,0%" EndPoint="0%,100%">
-    <GradientStop Color="#1E1E1E" Offset="0" />
-    <GradientStop Color="#121212" Offset="1" />
+    <GradientStop Color="#262B38" Offset="0" />
+    <GradientStop Color="#20242F" Offset="1" />
   </LinearGradientBrush>
   <LinearGradientBrush x:Key="Gradient.Surface" StartPoint="0%,0%" EndPoint="0%,100%">
-    <GradientStop Color="#121212" Offset="0" />
-    <GradientStop Color="#080808" Offset="1" />
+    <GradientStop Color="#1A1E29" Offset="0" />
+    <GradientStop Color="#151924" Offset="1" />
   </LinearGradientBrush>
   <LinearGradientBrush x:Key="Gradient.Header" StartPoint="0%,0%" EndPoint="100%,0%">
-    <GradientStop Color="#2A1E07" Offset="0" />
-    <GradientStop Color="#130D03" Offset="1" />
+    <GradientStop Color="#223052" Offset="0" />
+    <GradientStop Color="#1A2030" Offset="1" />
   </LinearGradientBrush>
   <LinearGradientBrush x:Key="Gradient.Accent" StartPoint="0%,0%" EndPoint="0%,100%">
-    <GradientStop Color="#FFA733" Offset="0" />
-    <GradientStop Color="#FF8C00" Offset="1" />
+    <GradientStop Color="#3D74FF" Offset="0" />
+    <GradientStop Color="#2962FF" Offset="1" />
   </LinearGradientBrush>
   <LinearGradientBrush x:Key="Gradient.AccentHover" StartPoint="0%,0%" EndPoint="0%,100%">
-    <GradientStop Color="#FFBB55" Offset="0" />
-    <GradientStop Color="#FF9A1A" Offset="1" />
+    <GradientStop Color="#5C8AFF" Offset="0" />
+    <GradientStop Color="#3D74FF" Offset="1" />
   </LinearGradientBrush>
 
-  <!-- Typographic constant. Bloomberg-terminal monospace; the WPF theme sets this app-wide and so
-       do we. Consolas (Windows) → DejaVu/Liberation Mono (Linux) → generic mono fallbacks. -->
-  <FontFamily x:Key="Font.Mono">Consolas, DejaVu Sans Mono, Liberation Mono, Cascadia Mono, Menlo, monospace</FontFamily>
+  <!-- AI-native violet-to-cyan signature used by Vibe Quant and other AI surfaces. -->
+  <Color x:Key="Ai.Accent.Color">#A855F7</Color>
+  <Color x:Key="Ai.Glow.Color">#8B5CF6</Color>
+  <Color x:Key="Ai.Text.Color">#C4B5FD</Color>
+  <SolidColorBrush x:Key="Ai.Accent.Brush" Color="{StaticResource Ai.Accent.Color}" />
+  <SolidColorBrush x:Key="Ai.Glow.Brush" Color="{StaticResource Ai.Glow.Color}" />
+  <SolidColorBrush x:Key="Ai.Text.Brush" Color="{StaticResource Ai.Text.Color}" />
+  <SolidColorBrush x:Key="Ai.Soft" Color="#268B5CF6" />
+  <LinearGradientBrush x:Key="Gradient.Ai" StartPoint="0%,0%" EndPoint="100%,0%">
+    <GradientStop Color="#7C3AED" Offset="0" />
+    <GradientStop Color="#A855F7" Offset="0.5" />
+    <GradientStop Color="#22D3EE" Offset="1" />
+  </LinearGradientBrush>
+  <LinearGradientBrush x:Key="Gradient.AiGlass" StartPoint="0%,0%" EndPoint="100%,100%">
+    <GradientStop Color="#2E7C3AED" Offset="0" />
+    <GradientStop Color="#1F22D3EE" Offset="1" />
+  </LinearGradientBrush>
+
+  <FontFamily x:Key="Font.Base">-apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI Variable Text, Segoe UI, sans-serif</FontFamily>
+  <FontFamily x:Key="Font.Data">SF Mono, Menlo, Consolas, Cascadia Mono, monospace</FontFamily>
+  <FontFamily x:Key="Font.Mono">SF Mono, Menlo, Consolas, Cascadia Mono, monospace</FontFamily>
 </ResourceDictionary>

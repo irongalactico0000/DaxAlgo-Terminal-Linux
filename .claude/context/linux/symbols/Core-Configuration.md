@@ -1,7 +1,25 @@
-# TradingTerminal.Core / Configuration — public API surface (Linux/Avalonia)
+# TradingTerminal.Core / Configuration — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
+
+## src/linux/Core/TradingTerminal.Core/Configuration/AiCodegenOptions.cs
+```cs
+    4: public sealed class AiCodegenProvider
+    8: public string BaseUrl { get; set; } = string.Empty;
+   11: public string Model { get; set; } = string.Empty;
+   16: public string Effort { get; set; } = string.Empty;
+   20: public string CliProfile { get; set; } = string.Empty;
+   24: public AiCodegenProviderKind Kind { get; set; } = AiCodegenProviderKind.OpenAiCompatible;
+   28: public enum AiCodegenProviderKind
+   42: public sealed class AiCodegenOptions
+   44: public const string SectionName = "AiCodegen";
+   48: public string DefaultProvider { get; set; } = string.Empty;
+   53: public int MaxFixAttempts { get; set; } = 3;
+   59: public string BuildEffort { get; set; } = string.Empty;
+   71: public int TimeoutSeconds { get; set; } = 600;
+   74: public IDictionary<string, AiCodegenProvider> Providers { get; set; } =
+```
 
 ## src/linux/Core/TradingTerminal.Core/Configuration/AlpacaOptions.cs
 ```cs
@@ -13,6 +31,11 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    30: public string StockDataFeed { get; set; } = "iex";
    32: public int ReconnectInitialDelaySeconds { get; set; } = 1;
    33: public int ReconnectMaxDelaySeconds { get; set; } = 30;
+```
+
+## src/linux/Core/TradingTerminal.Core/Configuration/AppEdition.cs
+```cs
+   12: public enum AppEdition
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Configuration/ArchiveOptions.cs
@@ -42,6 +65,15 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    41: public double SizeScale { get; set; } = 1000.0;
    43: public int ReconnectInitialDelaySeconds { get; set; } = 1;
    44: public int ReconnectMaxDelaySeconds { get; set; } = 30;
+```
+
+## src/linux/Core/TradingTerminal.Core/Configuration/BrokerEditionPolicy.cs
+```cs
+   16: public static class BrokerEditionPolicy
+   19: public static readonly IReadOnlyList<BrokerKind> Keyless =
+   30: public static readonly IReadOnlyList<BrokerKind> Credentialed =
+   42: public static IReadOnlyList<BrokerKind> BrokersFor(AppEdition edition) =>
+   48: public static bool RequiresCredentials(BrokerKind broker) => Credentialed.Contains(broker);
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Configuration/BybitOptions.cs
@@ -92,6 +124,16 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    13: public const string SectionName = "Dev";
    20: public bool BypassLogin { get; set; }
    27: public BrokerKind[] AutoConnectBrokers { get; set; } = [];
+   33: public bool ResetAccountOnStart { get; set; }
+   39: public bool DisableStrategyPlugins { get; set; }
+```
+
+## src/linux/Core/TradingTerminal.Core/Configuration/GoogleAuthOptions.cs
+```cs
+    6: public sealed class GoogleAuthOptions
+    8: public const string SectionName = "GoogleAuth";
+   11: public string ClientId { get; set; } = string.Empty;
+   16: public string? ClientSecret { get; set; }
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Configuration/InteractiveBrokersOptions.cs
@@ -148,26 +190,28 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 ## src/linux/Core/TradingTerminal.Core/Configuration/MarketDataStoreOptions.cs
 ```cs
     4: public enum MarketDataProvider
-   36: public sealed class MarketDataStoreOptions
-   38: public const string SectionName = "MarketDataStore";
-   41: public bool Enabled { get; set; } = true;
-   45: public MarketDataProvider Provider { get; set; } = MarketDataProvider.SqlitePerBroker;
-   49: public string PostgresConnectionString { get; set; } =
-   53: public string DatabasePath { get; set; } = string.Empty;
-   57: public bool PersistLiveData { get; set; } = true;
-   60: public int WriteBatchSize { get; set; } = 500;
-   63: public int FlushIntervalMs { get; set; } = 1000;
-   70: public int QuoteRetentionDays { get; set; } = 30;
-   73: public int TradeRetentionDays { get; set; } = 30;
-   77: public int BarRetentionDays { get; set; } = 0;
-   87: public string QuestDbIlpConfig { get; set; } = "http::addr=localhost:9000;auto_flush=off;";
-   91: public string QuestDbPgConnectionString { get; set; } =
-   97: public int DepthRetentionDays { get; set; } = 14;
-  107: public bool AutoStartDocker { get; set; } = true;
-  110: public string DockerComposeService { get; set; } = "questdb";
-  114: public string DockerContainerName { get; set; } = "daxalgo-questdb";
-  117: public int DockerStartupTimeoutSeconds { get; set; } = 40;
-  121: public string DockerDesktopPath { get; set; } = string.Empty;
+   31: public enum QuestDbLaunchMode
+   49: public sealed class MarketDataStoreOptions
+   51: public const string SectionName = "MarketDataStore";
+   54: public bool Enabled { get; set; } = true;
+   58: public MarketDataProvider Provider { get; set; } = MarketDataProvider.SqlitePerBroker;
+   62: public string PostgresConnectionString { get; set; } =
+   66: public string DatabasePath { get; set; } = string.Empty;
+   70: public bool PersistLiveData { get; set; } = true;
+   73: public int WriteBatchSize { get; set; } = 500;
+   76: public int FlushIntervalMs { get; set; } = 1000;
+   83: public int QuoteRetentionDays { get; set; } = 30;
+   86: public int TradeRetentionDays { get; set; } = 30;
+   90: public int BarRetentionDays { get; set; } = 0;
+  100: public string QuestDbIlpConfig { get; set; } = "http::addr=localhost:9000;auto_flush=off;";
+  104: public string QuestDbPgConnectionString { get; set; } =
+  110: public int DepthRetentionDays { get; set; } = 14;
+  117: public QuestDbLaunchMode QuestDbLaunchMode { get; set; } = QuestDbLaunchMode.Native;
+  121: public bool AutoStartQuestDb { get; set; } = true;
+  124: public string QuestDbContainerImage { get; set; } = "questdb/questdb:8.2.1";
+  127: public string QuestDbContainerName { get; set; } = "daxalgo-questdb";
+  130: public string QuestDbVolumeName { get; set; } = "daxalgo-questdb";
+  133: public int QuestDbStartupTimeoutSeconds { get; set; } = 40;
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Configuration/MarketRegimeOptions.cs
@@ -182,6 +226,14 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    41: public bool NotifyOnRegimeChange { get; set; } = true;
    46: public bool GateSignalsWhenRiskOff { get; set; }
    50: public double RiskOffThreshold { get; set; } = 40;
+```
+
+## src/linux/Core/TradingTerminal.Core/Configuration/ModelRegistryOptions.cs
+```cs
+    8: public sealed class ModelRegistryOptions
+   10: public const string SectionName = "ModelRegistry";
+   14: public string DatabasePath { get; set; } = string.Empty;
+   18: public int RetentionDays { get; set; } = 0;
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Configuration/NinjaTraderOptions.cs
@@ -243,6 +295,19 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    26: public ArchivePeriod Period { get; set; } = ArchivePeriod.Monthly;
    29: public ArchiveTables Tables { get; set; } = ArchiveTables.Quotes | ArchiveTables.Bars | ArchiveTables.Trades;
    33: public int DailyCheckHourUtc { get; set; } = 4;
+```
+
+## src/linux/Core/TradingTerminal.Core/Configuration/PluginsOptions.cs
+```cs
+    4: public enum PluginTrustMode
+   20: public enum PluginScanMode
+   39: public sealed class PluginsOptions
+   41: public const string SectionName = "Plugins";
+   46: public PluginTrustMode TrustPolicy { get; set; } = PluginTrustMode.Permissive;
+   52: public IList<string> TrustedThumbprints { get; set; } = [];
+   57: public PluginScanMode ScanMode { get; set; } = PluginScanMode.Enforce;
+   61: public string FeedUrl { get; set; } = string.Empty;
+   66: public string FeedPublicKey { get; set; } = string.Empty;
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Configuration/ResearchReproOptions.cs

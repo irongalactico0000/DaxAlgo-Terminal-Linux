@@ -33,7 +33,10 @@ public sealed class QuestDbDockerService : IQuestDbLauncher
 
     // ── IQuestDbLauncher ─────────────────────────────────────────────────────────────────────────
     public bool IsApplicable => IsQuestDbBackend;
-    public bool AutoStart => _opts.AutoStartDocker;
+    public bool AutoStart =>
+        IsQuestDbBackend
+        && _opts.QuestDbLaunchMode == QuestDbLaunchMode.Native
+        && _opts.AutoStartQuestDb;
     public bool IsReachable() => QuestDbDockerBootstrapper.IsReachable(_opts.QuestDbPgConnectionString);
 
     /// <summary>Runs the full start sequence off the calling (UI) thread. Returns true when QuestDB ends
@@ -50,10 +53,25 @@ public sealed class QuestDbDockerService : IQuestDbLauncher
             return false;
         }
 
+        if (!QuestDbDockerBootstrapper.HasSafeEndpoints(_opts, out var endpointError))
+        {
+            _log.LogWarning(
+                "QuestDB startup was blocked because its endpoints are not safely configured: {Reason}",
+                endpointError);
+            return false;
+        }
+
         if (QuestDbDockerBootstrapper.IsReachable(_opts.QuestDbPgConnectionString))
         {
             _log.LogInformation("QuestDB is already running.");
             return Reactivate();
+        }
+
+        if (_opts.QuestDbLaunchMode == QuestDbLaunchMode.External)
+        {
+            _log.LogWarning(
+                "QuestDB is configured for External launch mode but its loopback endpoint is unreachable.");
+            return false;
         }
 
         if (!QuestDbDockerBootstrapper.DockerCliPresent())
@@ -74,11 +92,11 @@ public sealed class QuestDbDockerService : IQuestDbLauncher
             if (!ready)
             {
                 _log.LogInformation("Headless start unavailable — launching Docker Desktop…");
-                if (!QuestDbDockerBootstrapper.TryLaunchDockerDesktop(_opts, _log))
+                if (!QuestDbDockerBootstrapper.TryLaunchDockerDesktop(_log))
                 {
                     _log.LogWarning(
-                        "Couldn't start Docker automatically. Start Docker Desktop manually (or set " +
-                        "MarketDataStore:DockerDesktopPath), then retry File → Start QuestDB.");
+                        "Couldn't start Docker automatically. Start Docker Desktop manually, then retry " +
+                        "File → Start QuestDB.");
                     return false;
                 }
                 if (!QuestDbDockerBootstrapper.WaitForDaemon(TimeSpan.FromSeconds(120), ct))

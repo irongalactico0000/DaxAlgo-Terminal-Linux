@@ -1,6 +1,6 @@
-# TradingTerminal.Infrastructure / Ib — public API surface (Linux/Avalonia)
+# TradingTerminal.Infrastructure / Ib — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Pipeline/TradingTerminal.Infrastructure/Ib/ConnectionManager.cs
@@ -23,36 +23,36 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/Pipeline/TradingTerminal.Infrastructure/Ib/RealIbClient.cs
 ```cs
-   28: public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
-   47: public RealIbClient(ILogger<RealIbClient> logger, IOptions<InteractiveBrokersOptions> options)
-   53: public BrokerKind Kind => BrokerKind.InteractiveBrokers;
-   55: public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
-   57: public async Task ConnectAsync(CancellationToken ct = default)
-  116: public Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default) =>
-  119: public Task DisconnectAsync(CancellationToken ct = default)
-  127: public Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
-  157: public async IAsyncEnumerable<Bar> SubscribeBarsAsync(
-  189: public async IAsyncEnumerable<Tick> SubscribeTicksAsync(
-  219: public IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
-  228: public async IAsyncEnumerable<TradeTick> SubscribeTradesAsync(
-  292: public ValueTask DisposeAsync()
-  302: public HistoricalRequest(TaskCompletionSource<IReadOnlyList<Bar>> tcs) { Tcs = tcs; }
-  303: public TaskCompletionSource<IReadOnlyList<Bar>> Tcs { get; }
-  304: public List<Bar> Bars { get; } = new();
-  314: public Channel<Tick> Channel { get; } = System.Threading.Channels.Channel.CreateUnbounded<Tick>();
-  315: public double Bid;
-  316: public double Ask;
-  317: public long BidSize;
-  318: public long AskSize;
-  323: public override void nextValidId(int orderId)
-  329: public override void historicalData(int reqId, IBApi.Bar bar)
-  343: public override void historicalDataEnd(int reqId, string startDateStr, string endDateStr)
-  350: public override void historicalDataUpdate(int reqId, IBApi.Bar bar)
-  363: public override void tickPrice(int reqId, int field, double price, IBApi.TickAttrib attribs)
-  395: public override void tickByTickAllLast(
-  411: public override void tickSize(int reqId, int field, decimal size)
-  425: public override void error(Exception e) =>
-  428: public override void error(string str) =>
-  431: public override void error(int id, long errorTime, int errorCode, string errorMsg, string advancedOrderRejectJson)
-  460: public override void connectionClosed()
+   29: public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
+   48: public RealIbClient(ILogger<RealIbClient> logger, IOptions<InteractiveBrokersOptions> options)
+   54: public BrokerKind Kind => BrokerKind.InteractiveBrokers;
+   56: public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
+   58: public async Task ConnectAsync(CancellationToken ct = default)
+  117: public Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default) =>
+  120: public Task DisconnectAsync(CancellationToken ct = default)
+  128: public Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
+  158: public async IAsyncEnumerable<Bar> SubscribeBarsAsync(
+  197: public async IAsyncEnumerable<Tick> SubscribeTicksAsync(
+  227: public IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
+  236: public async IAsyncEnumerable<TradeTick> SubscribeTradesAsync(
+  307: public ValueTask DisposeAsync()
+  317: public HistoricalRequest(TaskCompletionSource<IReadOnlyList<Bar>> tcs) { Tcs = tcs; }
+  318: public TaskCompletionSource<IReadOnlyList<Bar>> Tcs { get; }
+  319: public List<Bar> Bars { get; } = new();
+  329: public Channel<Tick> Channel { get; } =
+  331: public double Bid;
+  332: public double Ask;
+  333: public long BidSize;
+  334: public long AskSize;
+  339: public override void nextValidId(int orderId)
+  345: public override void historicalData(int reqId, IBApi.Bar bar)
+  359: public override void historicalDataEnd(int reqId, string startDateStr, string endDateStr)
+  366: public override void historicalDataUpdate(int reqId, IBApi.Bar bar)
+  379: public override void tickPrice(int reqId, int field, double price, IBApi.TickAttrib attribs)
+  411: public override void tickByTickAllLast(
+  427: public override void tickSize(int reqId, int field, decimal size)
+  441: public override void error(Exception e) =>
+  444: public override void error(string str) =>
+  447: public override void error(int id, long errorTime, int errorCode, string errorMsg, string advancedOrderRejectJson)
+  476: public override void connectionClosed()
 ```

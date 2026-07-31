@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TradingTerminal.App.Archive.TelegramPromptDialog"
+        x:CompileBindings="False"
+        Title="Telegram login"
+        Height="236" Width="440"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False" ShowInTaskbar="False"
+        Background="{StaticResource Background.Primary}"
+        Foreground="{StaticResource Text.Primary}">
+  <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto">
+    <TextBlock Grid.Row="0"
+               Text="{Binding HeaderText}"
+               FontSize="14" FontWeight="SemiBold"
+               Margin="0,0,0,8" />
+
+    <TextBlock Grid.Row="1"
+               Text="{Binding HelpText}"
+               Foreground="{StaticResource Text.Secondary}"
+               TextWrapping="Wrap"
+               Margin="0,0,0,12" />
+
+    <TextBox Grid.Row="2"
+             x:Name="InputBox"
+             Text="{Binding InputValue, Mode=TwoWay}"
+             FontFamily="{StaticResource Font.Mono}" FontSize="14"
+             VerticalAlignment="Top"
+             Padding="6,4" />
+
+    <StackPanel Grid.Row="3"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Margin="0,12,0,0">
+      <Button Content="Cancel"
+              IsCancel="True"
+              Click="OnCancelClicked"
+              Padding="16,4"
+              Margin="0,0,8,0" />
+      <Button Content="OK"
+              IsDefault="True"
+              Click="OnOkClicked"
+              Padding="16,4" />
+    </StackPanel>
+  </Grid>
+</Window>

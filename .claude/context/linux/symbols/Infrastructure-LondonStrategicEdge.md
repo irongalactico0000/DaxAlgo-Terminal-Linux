@@ -1,25 +1,25 @@
-# TradingTerminal.Infrastructure / LondonStrategicEdge — public API surface (Linux/Avalonia)
+# TradingTerminal.Infrastructure / LondonStrategicEdge — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Pipeline/TradingTerminal.Infrastructure/LondonStrategicEdge/RealLondonStrategicEdgeClient.cs
 ```cs
-   66: public RealLondonStrategicEdgeClient(
-   75: public BrokerKind Kind => BrokerKind.LondonStrategicEdge;
-   77: public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
-   81: public async Task ConnectAsync(CancellationToken ct = default)
-  122: public async Task DisconnectAsync(CancellationToken ct = default)
-  150: public async ValueTask DisposeAsync()
-  160: public async Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default)
-  231: public async Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
-  321: public IAsyncEnumerable<Bar> SubscribeBarsAsync(
-  329: public async IAsyncEnumerable<Tick> SubscribeTicksAsync(
-  355: public IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
-  360: public IAsyncEnumerable<TradeTick> SubscribeTradesAsync(Contract contract, CancellationToken ct = default) =>
-  704: public Subscription(string symbol) => Symbol = symbol;
-  706: public string Symbol { get; }
-  707: public ChannelWriter<Tick> Writer => _channel.Writer;
-  708: public ChannelReader<Tick> Reader => _channel.Reader;
-  710: public void Complete() => _channel.Writer.TryComplete();
+   67: public RealLondonStrategicEdgeClient(
+   76: public BrokerKind Kind => BrokerKind.LondonStrategicEdge;
+   78: public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
+   82: public async Task ConnectAsync(CancellationToken ct = default)
+  123: public async Task DisconnectAsync(CancellationToken ct = default)
+  151: public async ValueTask DisposeAsync()
+  161: public async Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default)
+  232: public async Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
+  322: public IAsyncEnumerable<Bar> SubscribeBarsAsync(
+  330: public async IAsyncEnumerable<Tick> SubscribeTicksAsync(
+  356: public IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
+  361: public IAsyncEnumerable<TradeTick> SubscribeTradesAsync(Contract contract, CancellationToken ct = default) =>
+  705: public Subscription(string symbol) => Symbol = symbol;
+  707: public string Symbol { get; }
+  708: public ChannelWriter<Tick> Writer => _channel.Writer;
+  709: public ChannelReader<Tick> Reader => _channel.Reader;
+  711: public void Complete() => _channel.Writer.TryComplete();
 ```

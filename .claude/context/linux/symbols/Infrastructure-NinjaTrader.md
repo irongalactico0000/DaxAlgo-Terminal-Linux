@@ -1,29 +1,29 @@
-# TradingTerminal.Infrastructure / NinjaTrader — public API surface (Linux/Avalonia)
+# TradingTerminal.Infrastructure / NinjaTrader — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Pipeline/TradingTerminal.Infrastructure/NinjaTrader/RealNinjaClient.cs
 ```cs
-   29: public sealed class RealNinjaClient : IBrokerClient
-   39: public RealNinjaClient(ILogger<RealNinjaClient> logger, IOptions<NinjaTraderOptions> options)
-   45: public BrokerKind Kind => BrokerKind.NinjaTrader;
-   47: public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
-   49: public Task ConnectAsync(CancellationToken ct = default)
-   83: public Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default) =>
-   86: public Task DisconnectAsync(CancellationToken ct = default)
-  102: public Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
-  135: public async IAsyncEnumerable<Bar> SubscribeBarsAsync(
-  192: public async IAsyncEnumerable<Tick> SubscribeTicksAsync(
-  236: public IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
-  245: public IAsyncEnumerable<TradeTick> SubscribeTradesAsync(
-  298: public ValueTask DisposeAsync()
-  318: public static extern int Connected(int showMessage);
-  321: public static extern int SubscribeMarketData([MarshalAs(UnmanagedType.LPStr)] string instrument);
-  324: public static extern int UnsubscribeMarketData([MarshalAs(UnmanagedType.LPStr)] string instrument);
-  327: public static extern double Bid([MarshalAs(UnmanagedType.LPStr)] string instrument);
-  330: public static extern double Ask([MarshalAs(UnmanagedType.LPStr)] string instrument);
-  333: public static extern double LastPrice([MarshalAs(UnmanagedType.LPStr)] string instrument);
-  336: public static extern long Volume([MarshalAs(UnmanagedType.LPStr)] string instrument);
-  339: public static extern int Command(
+   30: public sealed class RealNinjaClient : IBrokerClient
+   40: public RealNinjaClient(ILogger<RealNinjaClient> logger, IOptions<NinjaTraderOptions> options)
+   46: public BrokerKind Kind => BrokerKind.NinjaTrader;
+   48: public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
+   50: public Task ConnectAsync(CancellationToken ct = default)
+   84: public Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default) =>
+   87: public Task DisconnectAsync(CancellationToken ct = default)
+  103: public Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
+  136: public async IAsyncEnumerable<Bar> SubscribeBarsAsync(
+  196: public async IAsyncEnumerable<Tick> SubscribeTicksAsync(
+  243: public IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
+  252: public IAsyncEnumerable<TradeTick> SubscribeTradesAsync(
+  305: public ValueTask DisposeAsync()
+  325: public static extern int Connected(int showMessage);
+  328: public static extern int SubscribeMarketData([MarshalAs(UnmanagedType.LPStr)] string instrument);
+  331: public static extern int UnsubscribeMarketData([MarshalAs(UnmanagedType.LPStr)] string instrument);
+  334: public static extern double Bid([MarshalAs(UnmanagedType.LPStr)] string instrument);
+  337: public static extern double Ask([MarshalAs(UnmanagedType.LPStr)] string instrument);
+  340: public static extern double LastPrice([MarshalAs(UnmanagedType.LPStr)] string instrument);
+  343: public static extern long Volume([MarshalAs(UnmanagedType.LPStr)] string instrument);
+  346: public static extern int Command(
 ```

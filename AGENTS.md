@@ -1,6 +1,6 @@
-# DaxAlgo Terminal Linux — Codex guide
+# DaxAlgo Terminal macOS — Codex guide
 
-This private repository owns the Linux/Avalonia edition only. The Windows public core and
+This private repository owns the macOS/Avalonia edition only. The Windows public core and
 Professional overlay are separate repositories and outside the default blast radius.
 
 ## Session start
@@ -27,7 +27,7 @@ mirror, or coordinate with a Windows repository unless the user explicitly place
 Always name the target:
 
 ```bash
-dotnet build TradingTerminal.Linux.slnx
+dotnet build TradingTerminal.Mac.slnx
 dotnet test tests/linux/TradingTerminal.Tests.Headless/TradingTerminal.Tests.Headless.csproj
 ```
 

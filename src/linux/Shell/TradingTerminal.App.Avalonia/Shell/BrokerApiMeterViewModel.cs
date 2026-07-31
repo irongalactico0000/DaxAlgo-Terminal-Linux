@@ -10,7 +10,7 @@ namespace TradingTerminal.App.Avalonia.Shell;
 /// Header-strip API meter — one chip per broker being talked to. Avalonia mirror of the WPF
 /// <c>BrokerApiMeterViewModel</c>: polls <see cref="IBrokerApiMeter"/> on a 1 Hz timer and updates
 /// chip counters in place. The only difference from the WPF VM is the timer
-/// (<see cref="Avalonia.Threading.DispatcherTimer"/> instead of the WPF one).
+/// (<see cref="global::Avalonia.Threading.DispatcherTimer"/> instead of the WPF one).
 /// </summary>
 public sealed partial class BrokerApiMeterViewModel : ViewModelBase, IDisposable
 {

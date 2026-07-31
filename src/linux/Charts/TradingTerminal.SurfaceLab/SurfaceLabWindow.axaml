@@ -1,0 +1,371 @@
+<Window x:Class="TradingTerminal.SurfaceLab.SurfaceLabWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:TradingTerminal.SurfaceLab"
+        x:Name="Root"
+        Title="DaxAlgo - 3D Surface Lab"
+        Width="1500" Height="900"
+        MinWidth="1120" MinHeight="720"
+        Background="#0D1117" Foreground="#E6EDF3"
+        WindowStartupLocation="CenterOwner">
+
+  <Window.Resources>
+    <local:StringNotEmptyConverter x:Key="StringNotEmptyConverter" />
+
+    <DataTemplate x:Key="AxisEditorTemplate">
+      <StackPanel Spacing="6" Margin="0,5,0,3">
+        <TextBox Text="{Binding SearchText}"
+                 Watermark="search variables..." />
+        <ComboBox ItemsSource="{Binding Options}"
+                  SelectedItem="{Binding SelectedOption}"
+                  MaxDropDownHeight="420">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="110,*" Margin="0,2">
+                <TextBlock Text="{Binding Category}" FontSize="9.5"
+                           Foreground="#58A6FF" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding Name}"
+                           TextTrimming="CharacterEllipsis" />
+              </Grid>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <Grid IsVisible="{Binding IsRangeEditable}"
+              ColumnDefinitions="*,8,*,8,*"
+              RowDefinitions="Auto,Auto">
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Min" Classes="field-label" />
+          <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" Classes="field-label" />
+          <TextBlock Grid.Row="0" Grid.Column="4" Text="Step" Classes="field-label" />
+          <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding Min}" />
+          <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding Max}" />
+          <TextBox Grid.Row="1" Grid.Column="4" Text="{Binding Step}" />
+        </Grid>
+
+        <StackPanel IsVisible="{Binding SupportsFormula}" Spacing="4">
+          <TextBox Text="{Binding CustomFormula}"
+                   Watermark="custom formula (overrides metric)..."
+                   FontFamily="SFMono-Regular, Menlo, Cascadia Mono, Consolas, monospace" />
+          <TextBlock Classes="micro" TextWrapping="Wrap"
+                     Text="Operators + - * / ^  |  Log Exp Sqrt Abs Max Min Avg Sum  |  variables: avgret, medret, stdret, count, probup, vol, var95, var99, cvar95, skew, kurtosis, zscore, npdf, ncdf, autocorr1, amihud" />
+        </StackPanel>
+      </StackPanel>
+    </DataTemplate>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="#8B949E" />
+    </Style>
+    <Style Selector="TextBlock.micro">
+      <Setter Property="Foreground" Value="#8B949E" />
+      <Setter Property="FontSize" Value="10" />
+    </Style>
+    <Style Selector="TextBlock.field-label">
+      <Setter Property="Foreground" Value="#8B949E" />
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="Margin" Value="0,0,0,2" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="Foreground" Value="#58A6FF" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.mono">
+      <Setter Property="FontFamily" Value="SFMono-Regular, Menlo, Cascadia Mono, Consolas, monospace" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="#161B22" />
+      <Setter Property="BorderBrush" Value="#30363D" />
+      <Setter Property="Foreground" Value="#E6EDF3" />
+      <Setter Property="MinHeight" Value="29" />
+      <Setter Property="Padding" Value="7,4" />
+    </Style>
+    <Style Selector="ComboBox">
+      <Setter Property="Background" Value="#161B22" />
+      <Setter Property="BorderBrush" Value="#30363D" />
+      <Setter Property="Foreground" Value="#E6EDF3" />
+      <Setter Property="MinHeight" Value="29" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="Background" Value="#21262D" />
+      <Setter Property="BorderBrush" Value="#3A424D" />
+      <Setter Property="Foreground" Value="#E6EDF3" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="MinHeight" Value="29" />
+    </Style>
+    <Style Selector="ToggleButton">
+      <Setter Property="Background" Value="#21262D" />
+      <Setter Property="BorderBrush" Value="#3A424D" />
+      <Setter Property="Foreground" Value="#E6EDF3" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="MinHeight" Value="29" />
+    </Style>
+    <Style Selector="Button:pointerover">
+      <Setter Property="Background" Value="#30363D" />
+    </Style>
+    <Style Selector="ToggleButton:pointerover">
+      <Setter Property="Background" Value="#30363D" />
+    </Style>
+    <Style Selector="Button.icon">
+      <Setter Property="Padding" Value="8,4" />
+      <Setter Property="MinWidth" Value="34" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="ToggleButton.icon">
+      <Setter Property="Padding" Value="8,4" />
+      <Setter Property="MinWidth" Value="34" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="Button.accent">
+      <Setter Property="Background" Value="#1F6FEB" />
+      <Setter Property="BorderBrush" Value="#388BFD" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.success">
+      <Setter Property="Background" Value="#238636" />
+      <Setter Property="BorderBrush" Value="#2EA043" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.danger">
+      <Setter Property="Background" Value="#B62324" />
+      <Setter Property="BorderBrush" Value="#DA3633" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Expander">
+      <Setter Property="Background" Value="#161B22" />
+      <Setter Property="BorderBrush" Value="#30363D" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="8" />
+    </Style>
+    <Style Selector="Separator">
+      <Setter Property="Background" Value="#30363D" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="54,*,34">
+    <Border Grid.Row="0" Background="#161B22" BorderBrush="#30363D"
+            BorderThickness="0,0,0,1" Padding="12,9">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <TextBlock Text="PRESET" Classes="section" VerticalAlignment="Center" Margin="0,0,4,0" />
+          <ComboBox Width="150" ItemsSource="{Binding PresetNames}"
+                    SelectedItem="{Binding SelectedPreset}"
+                    PlaceholderText="saved presets" />
+          <TextBox Width="150" Text="{Binding PresetName}" Watermark="preset name" />
+          <Button Classes="icon" Content="Save" Command="{Binding SavePresetCommand}"
+                  ToolTip.Tip="Save the current lab setup as a named preset" />
+          <Button Classes="icon" Content="Delete" Command="{Binding DeletePresetCommand}"
+                  ToolTip.Tip="Delete the selected preset" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+          <ToggleButton Classes="icon" Content="Pause" IsChecked="{Binding IsPaused}"
+                        ToolTip.Tip="Pause rendering while the live stream continues filling the rolling window" />
+          <Button Classes="icon" Content="CSV" Command="{Binding ExportGridCsvCommand}"
+                  IsEnabled="{Binding HasResult}" ToolTip.Tip="Export x, y, z, w, and robustness for every cell" />
+          <Button Classes="icon" Content="PNG" Click="ExportPng_Click"
+                  IsEnabled="{Binding HasResult}" ToolTip.Tip="Save a PNG snapshot of the 3D viewport" />
+          <Button Classes="icon" Content="?">
+            <Button.Flyout>
+              <Flyout>
+                <Border Width="430" Background="#21262D" BorderBrush="#48515E"
+                        BorderThickness="1" CornerRadius="6" Padding="16">
+                  <StackPanel Spacing="7">
+                    <TextBlock Text="READING THE SURFACE" Classes="section" />
+                    <TextBlock TextWrapping="Wrap" FontSize="11.5" LineHeight="17"
+                               Text="Modes - Temporal Aggregation reveals calendar seasonality; Cross-Sectional conditions next returns on market state.&#x0a;&#x0a;Axes - X/Y are buckets, Z is height, and W is color. A formula may combine statistics.&#x0a;&#x0a;Holes - empty cells remain gaps, never false zeros.&#x0a;&#x0a;Robustness - green plateaus are stable; red spikes are likely noise or overfit.&#x0a;&#x0a;Slices - sliders move the translucent cutting planes and redraw the 2D cross-sections.&#x0a;&#x0a;Camera - drag to orbit, wheel to zoom, Shift-drag to pan, double-click to reset." />
+                  </StackPanel>
+                </Border>
+              </Flyout>
+            </Button.Flyout>
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="350,4,*,4,390">
+      <ScrollViewer Grid.Column="0" Background="#11161D" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="13" Spacing="8">
+          <TextBlock Text="3D Surface Lab" FontSize="18" FontWeight="SemiBold" />
+          <TextBlock Classes="muted" TextWrapping="Wrap"
+                     Text="Seasonality and cross-sectional return-statistics surfaces - one-shot over history, or live on streaming market data." />
+
+          <TextBlock Text="SURFACE MODE" Classes="section" Margin="0,5,0,0" />
+          <ComboBox ItemsSource="{Binding Modes}" SelectedItem="{Binding SelectedMode}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate><TextBlock Text="{Binding Label}" /></DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <TextBlock Text="{Binding SelectedMode.Description}" Classes="muted"
+                     FontSize="11" TextWrapping="Wrap" />
+
+          <TextBlock Text="DATA" Classes="section" Margin="0,5,0,0" />
+          <TextBox Text="{Binding InstrumentSearchText}" Watermark="search instruments..." />
+          <ComboBox ItemsSource="{Binding Instruments}" SelectedItem="{Binding SelectedInstrument}"
+                    MaxDropDownHeight="420">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                  <TextBlock Text="{Binding DisplayName}" />
+                  <TextBlock Grid.Column="1" Text="{Binding Category}" Classes="micro" Margin="8,0,0,0" />
+                </Grid>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Timeframe" Classes="field-label" />
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="Bars" Classes="field-label" />
+            <ComboBox Grid.Row="1" Grid.Column="0" ItemsSource="{Binding Timeframes}"
+                      SelectedItem="{Binding SelectedTimeframe}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate><TextBlock Text="{Binding Label}" /></DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding BarCount}" />
+          </Grid>
+
+          <Expander Header="X AXIS" IsExpanded="True">
+            <ContentControl Content="{Binding XAxis}" ContentTemplate="{StaticResource AxisEditorTemplate}" />
+          </Expander>
+          <Expander Header="Y AXIS" IsExpanded="True">
+            <ContentControl Content="{Binding YAxis}" ContentTemplate="{StaticResource AxisEditorTemplate}" />
+          </Expander>
+          <Expander Header="Z AXIS (HEIGHT)" IsExpanded="True">
+            <ContentControl Content="{Binding ZAxis}" ContentTemplate="{StaticResource AxisEditorTemplate}" />
+          </Expander>
+          <Expander Header="COLOR (W)" IsExpanded="True">
+            <ContentControl Content="{Binding WAxis}" ContentTemplate="{StaticResource AxisEditorTemplate}" />
+          </Expander>
+
+          <Border Background="#5C2023" BorderBrush="#DA3633" BorderThickness="1"
+                  CornerRadius="4" Padding="8,6"
+                  IsVisible="{Binding ErrorMessage, Converter={StaticResource StringNotEmptyConverter}}">
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="White" TextWrapping="Wrap" FontSize="11" />
+          </Border>
+
+          <Grid ColumnDefinitions="*,8,Auto">
+            <Button Grid.Column="0" Classes="accent" Content="GENERATE SURFACE"
+                    Command="{Binding GenerateCommand}" IsEnabled="{Binding CanGenerate}"
+                    FontWeight="SemiBold" Padding="10,9" />
+            <Button Grid.Column="2" Classes="danger" Content="Cancel"
+                    Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
+          </Grid>
+          <Button Classes="success" Content="GO LIVE" Command="{Binding ToggleLiveCommand}"
+                  IsVisible="{Binding !IsLive}" FontWeight="SemiBold" Padding="10,9" />
+          <Button Classes="danger" Content="STOP LIVE" Command="{Binding ToggleLiveCommand}"
+                  IsVisible="{Binding IsLive}" FontWeight="SemiBold" Padding="10,9" />
+          <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsRunning}" Height="4" />
+        </StackPanel>
+      </ScrollViewer>
+
+      <GridSplitter Grid.Column="1" Background="#30363D" ResizeDirection="Columns" />
+
+      <Grid Grid.Column="2" Background="#090D12">
+        <local:SurfacePlot3D x:Name="SurfacePlot" />
+        <StackPanel IsVisible="{Binding !HasResult}" VerticalAlignment="Center"
+                    HorizontalAlignment="Center" MaxWidth="420" IsHitTestVisible="False">
+          <TextBlock Text="3D" FontSize="38" HorizontalAlignment="Center"
+                     Foreground="#6E7681" FontWeight="Light" />
+          <TextBlock Text="No surface yet" FontSize="15" FontWeight="SemiBold"
+                     HorizontalAlignment="Center" Margin="0,8,0,5" Foreground="#D0D7DE" />
+          <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="11.5" Foreground="#8B949E"
+                     Text="Configure the axes, then generate a one-shot surface or go live. Historical bars are required; the Simulated broker works offline." />
+        </StackPanel>
+        <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="14"
+                Background="#DA161B22" BorderBrush="#30363D" BorderThickness="1"
+                CornerRadius="4" Padding="9,6" IsHitTestVisible="False">
+          <StackPanel Spacing="4">
+            <TextBlock Text="drag orbit  |  wheel zoom  |  Shift-drag pan" Classes="micro" />
+            <Border Width="190" Height="8">
+              <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                  <GradientStop Offset="0" Color="#0D2B6B" />
+                  <GradientStop Offset="0.25" Color="#1274B8" />
+                  <GradientStop Offset="0.5" Color="#19B58A" />
+                  <GradientStop Offset="0.75" Color="#E8C52A" />
+                  <GradientStop Offset="1" Color="#E63C12" />
+                </LinearGradientBrush>
+              </Border.Background>
+            </Border>
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <GridSplitter Grid.Column="3" Background="#30363D" ResizeDirection="Columns" />
+
+      <ScrollViewer Grid.Column="4" Background="#11161D" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="13" Spacing="7">
+          <TextBlock Text="DISPLAY" Classes="section" />
+          <CheckBox IsChecked="{Binding ShowPeakMarker}" Content="Peak finder (pin the global maximum)" />
+          <CheckBox IsChecked="{Binding RobustnessColorMode}"
+                    Content="Robustness heatmap (green plateau, red spike)"
+                    ToolTip.Tip="Color by neighbor gradient instead of the W statistic" />
+          <Grid ColumnDefinitions="Auto,*,44" Margin="0,4,0,0">
+            <TextBlock Text="Height x" Classes="muted" FontSize="11" VerticalAlignment="Center" />
+            <Slider Grid.Column="1" Minimum="0.3" Maximum="3" Value="{Binding HeightScale}"
+                    Margin="9,0" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Text="{Binding HeightScale, StringFormat=0.0}"
+                       Classes="mono" VerticalAlignment="Center" TextAlignment="Right" />
+          </Grid>
+
+          <Separator Margin="0,6" />
+          <TextBlock Text="SURFACE STATS" Classes="section" />
+          <TextBlock Text="Global max" Classes="field-label" />
+          <TextBlock Text="{Binding GlobalMaxText}" Classes="mono" TextWrapping="Wrap" />
+          <TextBlock Text="Global min" Classes="field-label" Margin="0,3,0,0" />
+          <TextBlock Text="{Binding GlobalMinText}" Classes="mono" TextWrapping="Wrap" />
+          <TextBlock Text="Grid" Classes="field-label" Margin="0,3,0,0" />
+          <TextBlock Text="{Binding CellCountText}" Classes="mono" />
+
+          <Separator Margin="0,6" />
+          <TextBlock Text="2D SLICE VIEWER" Classes="section" />
+          <StackPanel IsEnabled="{Binding HasResult}" Spacing="5">
+            <Grid ColumnDefinitions="48,*,68">
+              <TextBlock Text="X slice" Classes="muted" FontSize="11" VerticalAlignment="Center" />
+              <Slider Grid.Column="1" Minimum="0" Maximum="{Binding SliceXMax}"
+                      Value="{Binding SliceXIndex}" IsSnapToTickEnabled="True" TickFrequency="1" />
+              <TextBlock Grid.Column="2" Text="{Binding SliceXLabel}" Classes="mono"
+                         TextAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
+            <local:SurfaceSlicePlot x:Name="SliceXPlot" Height="155" />
+
+            <Grid ColumnDefinitions="48,*,68" Margin="0,3,0,0">
+              <TextBlock Text="Y slice" Classes="muted" FontSize="11" VerticalAlignment="Center" />
+              <Slider Grid.Column="1" Minimum="0" Maximum="{Binding SliceYMax}"
+                      Value="{Binding SliceYIndex}" IsSnapToTickEnabled="True" TickFrequency="1" />
+              <TextBlock Grid.Column="2" Text="{Binding SliceYLabel}" Classes="mono"
+                         TextAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
+            <local:SurfaceSlicePlot x:Name="SliceYPlot" Height="155" />
+          </StackPanel>
+
+          <Separator Margin="0,6" />
+          <TextBlock Text="PEAK" Classes="section" />
+          <TextBlock Text="{Binding PeakLocationText}" Classes="mono" TextWrapping="Wrap" />
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+
+    <Border Grid.Row="2" Background="#161B22" BorderBrush="#30363D"
+            BorderThickness="0,1,0,0" Padding="10,6">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Text="{Binding RunStatus}" Classes="muted" FontSize="11"
+                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{Binding LiveStatus}" Foreground="#3FB950"
+                   FontSize="11" FontWeight="SemiBold" Margin="10,0"
+                   IsVisible="{Binding IsLive}" VerticalAlignment="Center" />
+        <Border Grid.Column="2" Background="#5A3B16" BorderBrush="#8C5C22"
+                BorderThickness="1" CornerRadius="3" Padding="7,2"
+                IsVisible="{Binding IsPaused}">
+          <TextBlock Text="PAUSED" FontSize="10" FontWeight="SemiBold" Foreground="#FFB74D" />
+        </Border>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

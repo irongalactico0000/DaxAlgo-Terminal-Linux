@@ -1,6 +1,6 @@
-# TradingTerminal.Backtest.Engine — public API surface (Linux/Avalonia)
+# TradingTerminal.Backtest.Engine — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Backtest/TradingTerminal.Backtest.Engine/Accounting/Portfolio.cs
@@ -35,10 +35,12 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/Backtest/TradingTerminal.Backtest.Engine/Execution/EngineOrderRouter.cs
 ```cs
-   22: public EngineOrderRouter(SimulatedOrderBook book, Universe universe)
-   29: public IObservable<OrderEvent> OrderEvents => _events;
-   31: public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default) =>
-   34: public Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default)
+   26: public EngineOrderRouter(SimulatedOrderBook book, Universe universe, IClock clock)
+   34: public IObservable<OrderEvent> OrderEvents => _events;
+   36: public IReadOnlyList<StrategySignalEvent> Signals => _signals;
+   38: public Task EmitSignalAsync(StrategySignal signal, CancellationToken ct = default)
+   48: public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default) =>
+   51: public Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default)
 ```
 
 ## src/linux/Backtest/TradingTerminal.Backtest.Engine/Execution/IFillModel.cs
@@ -108,29 +110,23 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/Backtest/TradingTerminal.Backtest.Engine/Kernels/BacktestStrategyKernelAdapter.cs
 ```cs
-   16: public sealed class BacktestStrategyKernelAdapter : IStrategyKernel
-   22: public BacktestStrategyKernelAdapter(IBacktestStrategy inner) => _inner = inner;
-   26: public BacktestStrategyKernelAdapter(Func<Contract, IBacktestStrategy> build) => _build = build;
-   30: public Task OnStartAsync(IStrategyContext ctx, CancellationToken ct)
-   36: public Task OnQuoteAsync(InstrumentId instrument, Tick quote, IStrategyContext ctx, CancellationToken ct) =>
-   39: public Task OnTradeAsync(InstrumentId instrument, TradePrint trade, IStrategyContext ctx, CancellationToken ct) =>
-   42: public Task OnDepthAsync(InstrumentId instrument, DepthSnapshot depth, IStrategyContext ctx, CancellationToken ct) =>
-   45: public Task OnOrderEventAsync(OrderEvent evt, IStrategyContext ctx, CancellationToken ct) =>
-   48: public Task OnEndAsync(IStrategyContext ctx, CancellationToken ct) =>
-```
-
-## src/linux/Backtest/TradingTerminal.Backtest.Engine/Kernels/MeanReversionKernel.cs
-```cs
-   13: public sealed class MeanReversionKernel : IStrategyKernel
-   22: public static StrategyKernelDescriptor Descriptor { get; } = new(
-   35: public Task OnStartAsync(IStrategyContext ctx, CancellationToken ct)
-   44: public async Task OnQuoteAsync(InstrumentId instrument, Tick quote, IStrategyContext ctx, CancellationToken ct)
+   17: public sealed class BacktestStrategyKernelAdapter : IStrategyKernel, IAsyncDisposable
+   24: public BacktestStrategyKernelAdapter(IBacktestStrategy inner) => _inner = inner;
+   28: public BacktestStrategyKernelAdapter(Func<Contract, IBacktestStrategy> build) => _build = build;
+   39: public Task OnStartAsync(IStrategyContext ctx, CancellationToken ct)
+   46: public Task OnQuoteAsync(InstrumentId instrument, Tick quote, IStrategyContext ctx, CancellationToken ct) =>
+   49: public Task OnTradeAsync(InstrumentId instrument, TradePrint trade, IStrategyContext ctx, CancellationToken ct) =>
+   52: public Task OnDepthAsync(InstrumentId instrument, DepthSnapshot depth, IStrategyContext ctx, CancellationToken ct) =>
+   55: public Task OnBarAsync(InstrumentId instrument, OhlcvBar bar, IStrategyContext ctx, CancellationToken ct) =>
+   58: public Task OnOrderEventAsync(OrderEvent evt, IStrategyContext ctx, CancellationToken ct) =>
+   61: public Task OnEndAsync(IStrategyContext ctx, CancellationToken ct) =>
+   64: public async ValueTask DisposeAsync()
 ```
 
 ## src/linux/Backtest/TradingTerminal.Backtest.Engine/Kernels/NativeKernels.cs
 ```cs
    10: public static class NativeKernels
-   12: public static IReadOnlyList<StrategyKernelDescriptor> All { get; } = new[]
+   13: public static IReadOnlyList<StrategyKernelDescriptor> All { get; } = [];
 ```
 
 ## src/linux/Backtest/TradingTerminal.Backtest.Engine/MarketEvent.cs
@@ -153,30 +149,6 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    15: public sealed class GeneticOptimizer
    20: public GeneticOptimizer(Func<IMarketDataFeed> feedFactory, Func<IStrategyKernel> kernelFactory)
    26: public async Task<OptimizationResult> RunAsync(
-```
-
-## src/linux/Backtest/TradingTerminal.Backtest.Engine/Optimization/Gpu/GpuUnavailableException.cs
-```cs
-    5: public sealed class GpuUnavailableException : Exception
-    7: public GpuUnavailableException(string message) : base(message) { }
-    8: public GpuUnavailableException(string message, Exception inner) : base(message, inner) { }
-```
-
-## src/linux/Backtest/TradingTerminal.Backtest.Engine/Optimization/Gpu/HybridGridOptimizer.cs
-```cs
-   12: public sealed class HybridGridOptimizer
-   18: public HybridGridOptimizer(
-   26: public bool WillUseGpu(OptimizationSpec spec) => _gpu.IsAvailable && ProcessGpuOptimizer.Supports(spec);
-   28: public async Task<(OptimizationResult Result, bool UsedGpu)> RunAsync(
-```
-
-## src/linux/Backtest/TradingTerminal.Backtest.Engine/Optimization/Gpu/ProcessGpuOptimizer.cs
-```cs
-   20: public sealed class ProcessGpuOptimizer
-   25: public ProcessGpuOptimizer(string exePath) => _exePath = exePath;
-   27: public bool IsAvailable => File.Exists(_exePath);
-   29: public static bool Supports(OptimizationSpec spec) =>
-   35: public async Task<OptimizationResult> RunAsync(
 ```
 
 ## src/linux/Backtest/TradingTerminal.Backtest.Engine/Optimization/GridOptimizer.cs

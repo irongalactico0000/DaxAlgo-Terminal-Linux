@@ -1,0 +1,93 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sp="clr-namespace:ScottPlot.Avalonia;assembly=ScottPlot.Avalonia"
+        x:Class="TradingTerminal.Backtest.AvaloniaUi.QuickBacktestAvaloniaWindow"
+        Width="1040" Height="700" MinWidth="820" MinHeight="560"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource Background.Primary}" Title="Quick backtest">
+  <Grid Margin="12" RowDefinitions="Auto,Auto,Auto,*,Auto,170">
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+      <Border Width="3" Height="16" Background="{StaticResource Accent.Brush}" />
+      <TextBlock Text="QUICK BACKTEST" FontWeight="Bold" FontSize="12" Foreground="{StaticResource Text.Header}" />
+      <TextBlock Text="{Binding StrategyDisplayName}" Foreground="{StaticResource Text.Secondary}" />
+    </StackPanel>
+
+    <Border Grid.Row="1" Background="{StaticResource Background.Surface}"
+            BorderBrush="{StaticResource Border.Brush}" BorderThickness="1" Padding="8">
+      <StackPanel Spacing="7">
+        <Grid ColumnDefinitions="2*,*,*,*,Auto">
+          <StackPanel Grid.Column="0" Spacing="2">
+            <TextBlock Text="Instrument" FontSize="11" Foreground="{StaticResource Text.Secondary}" />
+            <ComboBox ItemsSource="{Binding Instruments}" SelectedItem="{Binding SelectedInstrument}">
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+          <StackPanel Grid.Column="1" Spacing="2">
+            <TextBlock Text="Data" FontSize="11" Foreground="{StaticResource Text.Secondary}" />
+            <ComboBox ItemsSource="{Binding DataModes}" SelectedItem="{Binding SelectedDataMode}" />
+          </StackPanel>
+          <StackPanel Grid.Column="2" Spacing="2">
+            <TextBlock Text="Lookback" FontSize="11" Foreground="{StaticResource Text.Secondary}" />
+            <ComboBox ItemsSource="{Binding Lookbacks}" SelectedItem="{Binding SelectedLookback}" />
+          </StackPanel>
+          <StackPanel Grid.Column="3" Spacing="2">
+            <TextBlock Text="Data source" FontSize="11" Foreground="{StaticResource Text.Secondary}" />
+            <ComboBox ItemsSource="{Binding Brokers}" SelectedItem="{Binding SelectedBroker}" />
+          </StackPanel>
+          <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Bottom">
+            <Button Classes="accent" Content="Run" Command="{Binding RunCommand}" />
+            <Button Content="Cancel" Command="{Binding CancelCommand}" />
+          </StackPanel>
+        </Grid>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBox Width="110" Watermark="Tick size" Text="{Binding TickSize}" />
+          <TextBox Width="120" Watermark="Fee bps/side" Text="{Binding FeeBps}" />
+          <TextBox Width="120" Watermark="Max prints" Text="{Binding MaxTrades}" IsVisible="{Binding IsFullTape}" />
+          <ComboBox Width="130" ItemsSource="{Binding BarSizes}" SelectedItem="{Binding SelectedBarSize}"
+                    IsVisible="{Binding IsBarSynthetic}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <StackPanel Grid.Row="2" Margin="2,7,0,7" Spacing="2">
+      <TextBlock Text="{Binding Status}" Foreground="{StaticResource Text.Secondary}" TextWrapping="Wrap" />
+      <TextBlock Text="{Binding FeedQuality}" Foreground="{StaticResource Accent.Brush}" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <Border Grid.Row="3" BorderBrush="{StaticResource Border.Brush}" BorderThickness="1">
+      <sp:AvaPlot x:Name="EquityPlot" />
+    </Border>
+
+    <Border Grid.Row="4" Margin="0,7" Padding="8" Background="{StaticResource Background.Surface}"
+            BorderBrush="{StaticResource Border.Brush}" BorderThickness="1">
+      <Grid ColumnDefinitions="*,*,*,*,*,*,*,*">
+        <StackPanel Grid.Column="0"><TextBlock Text="P&amp;L" Foreground="{StaticResource Text.Secondary}" /><TextBlock Text="{Binding TotalPnl, StringFormat='{}{0:C2}'}" /></StackPanel>
+        <StackPanel Grid.Column="1"><TextBlock Text="Return" Foreground="{StaticResource Text.Secondary}" /><TextBlock Text="{Binding Stats.TotalReturn, StringFormat='{}{0:P2}'}" /></StackPanel>
+        <StackPanel Grid.Column="2"><TextBlock Text="Sharpe" Foreground="{StaticResource Text.Secondary}" /><TextBlock Text="{Binding Stats.Sharpe, StringFormat='{}{0:F2}'}" /></StackPanel>
+        <StackPanel Grid.Column="3"><TextBlock Text="Sortino" Foreground="{StaticResource Text.Secondary}" /><TextBlock Text="{Binding Stats.Sortino, StringFormat='{}{0:F2}'}" /></StackPanel>
+        <StackPanel Grid.Column="4"><TextBlock Text="Max DD" Foreground="{StaticResource Text.Secondary}" /><TextBlock Text="{Binding Stats.MaxDrawdown, StringFormat='{}{0:P2}'}" /></StackPanel>
+        <StackPanel Grid.Column="5"><TextBlock Text="Win rate" Foreground="{StaticResource Text.Secondary}" /><TextBlock Text="{Binding Stats.WinRate, StringFormat='{}{0:P1}'}" /></StackPanel>
+        <StackPanel Grid.Column="6"><TextBlock Text="Profit factor" Foreground="{StaticResource Text.Secondary}" /><TextBlock Text="{Binding Stats.ProfitFactor, StringFormat='{}{0:F2}'}" /></StackPanel>
+        <StackPanel Grid.Column="7"><TextBlock Text="Trades" Foreground="{StaticResource Text.Secondary}" /><TextBlock Text="{Binding Stats.TradeCount}" /></StackPanel>
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="5" BorderBrush="{StaticResource Border.Brush}" BorderThickness="1">
+      <ListBox ItemsSource="{Binding Trades}" Background="{StaticResource Background.Surface}">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid ColumnDefinitions="150,150,70,80,110,110,*" Margin="8,4">
+              <TextBlock Grid.Column="0" Text="{Binding EntryUtc, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" />
+              <TextBlock Grid.Column="1" Text="{Binding ExitUtc, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" />
+              <TextBlock Grid.Column="2" Text="{Binding Side}" />
+              <TextBlock Grid.Column="3" Text="{Binding Quantity}" />
+              <TextBlock Grid.Column="4" Text="{Binding EntryPrice, StringFormat='{}{0:F4}'}" />
+              <TextBlock Grid.Column="5" Text="{Binding ExitPrice, StringFormat='{}{0:F4}'}" />
+              <TextBlock Grid.Column="6" Text="{Binding GrossPnl, StringFormat='P&amp;L {0:F4}'}" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+  </Grid>
+</Window>

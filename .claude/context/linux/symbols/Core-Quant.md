@@ -1,6 +1,6 @@
-# TradingTerminal.Core / Quant — public API surface (Linux/Avalonia)
+# TradingTerminal.Core / Quant — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Core/TradingTerminal.Core/Quant/CurveFitting.cs
@@ -109,6 +109,105 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 ```cs
    15: public static class SignalWeights
    24: public static double[] Solve(double[,] signalCovariance, IReadOnlyList<double> informationCoefficients)
+```
+
+## src/linux/Core/TradingTerminal.Core/Quant/Surfaces/LiveBarSeries.cs
+```cs
+   12: public sealed class LiveBarSeries
+   23: public LiveBarSeries(TimeSpan interval, int maxBars)
+   31: public int Count => _bars.Count + (_hasForming ? 1 : 0);
+   33: public DateTime? LastUpdateUtc { get; private set; }
+   38: public void Seed(IReadOnlyList<Bar> history)
+   48: public void PushPrice(DateTime eventTimeUtc, double price)
+   79: public void PushVolume(long size)
+   86: public Bar[] Snapshot()
+```
+
+## src/linux/Core/TradingTerminal.Core/Quant/Surfaces/SurfaceAxes.cs
+```cs
+    5: public enum SurfaceMode
+   16: public enum SurfaceAxisRole { X, Y, Z, Color }
+   23: public sealed record SurfaceAxisOption(
+   34: public sealed record TemporalAxisDefinition(
+   40: public int BucketCount => Labels.Length;
+   44: public enum CrossSectionVariable
+   57: public sealed record CrossSectionAxisDefinition(
+   72: public static class SurfaceAxisCatalog
+   74: public static IReadOnlyList<TemporalAxisDefinition> TemporalAxes { get; } = new TemporalAxisDefinition[]
+   90: public static TemporalAxisDefinition? ResolveTemporal(string id) =>
+   93: public static IReadOnlyList<CrossSectionAxisDefinition> CrossSectionAxes { get; } = new CrossSectionAxisDefinition[]
+  101: public static CrossSectionAxisDefinition? ResolveCrossSection(string id) =>
+  106: public static IReadOnlyList<SurfaceAxisOption> OptionsFor(SurfaceMode mode, SurfaceAxisRole role)
+```
+
+## src/linux/Core/TradingTerminal.Core/Quant/Surfaces/SurfaceFormulaParser.cs
+```cs
+   17: public sealed class SurfaceFormula
+   28: public IReadOnlyList<string> Variables { get; }
+   32: public double Evaluate(Func<string, double> resolve) => _root.Eval(resolve);
+   36: public static SurfaceFormula? TryParse(string text, out string? error)
+   58: public abstract double Eval(Func<string, double> resolve);
+   63: public override double Eval(Func<string, double> resolve) => value;
+   68: public override double Eval(Func<string, double> resolve) => resolve(id);
+   73: public override double Eval(Func<string, double> resolve)
+   90: public override double Eval(Func<string, double> resolve) => -inner.Eval(resolve);
+   95: public override double Eval(Func<string, double> resolve)
+  125: public HashSet<string> Variables { get; } = new(StringComparer.Ordinal);
+  127: public Node ParseExpr()
+  240: public void ExpectEnd()
+```
+
+## src/linux/Core/TradingTerminal.Core/Quant/Surfaces/SurfaceGridBuilder.cs
+```cs
+    8: public sealed record SurfaceAxisSpec(string OptionId, double Min, double Max, double Step, string? Formula = null);
+   11: public sealed record SurfaceRequest(
+   21: public sealed record SurfaceGridResult(
+   29: public int Columns => XValues.Length;
+   30: public int Rows => YValues.Length;
+   38: public static class SurfaceGridBuilder
+   41: public const int MaxAxisPoints = 81;
+   46: public static SurfaceGridResult Build(IReadOnlyList<Bar> bars, SurfaceRequest request, CancellationToken ct = default)
+   61: public static double EstimatePeriodsPerYear(IReadOnlyList<Bar> bars)
+  349: public string Name { get; }
+  350: public SurfaceAxisFormat Format { get; }
+  360: public static CellEvaluator Create(SurfaceAxisSpec spec, string roleName)
+  373: public double Evaluate(SurfaceCellSample sample)
+  391: public static class SurfaceGridAnalysis
+  394: public readonly record struct GridPoint(int Row, int Col, double Value)
+  396: public bool IsValid => !double.IsNaN(Value);
+  399: public static GridPoint FindMax(double[,] z) => Find(z, max: true);
+  400: public static GridPoint FindMin(double[,] z) => Find(z, max: false);
+  424: public static double[,] Robustness(double[,] z)
+  470: public static double[] SliceAtColumn(double[,] z, int col)
+  479: public static double[] SliceAtRow(double[,] z, int row)
+```
+
+## src/linux/Core/TradingTerminal.Core/Quant/Surfaces/SurfaceMetrics.cs
+```cs
+    4: public enum SurfaceAxisFormat
+   17: public static class SurfaceAxisFormats
+   19: public static string Format(double value, SurfaceAxisFormat format)
+   38: public sealed record SurfaceCellSample(
+   43: public static readonly SurfaceCellSample Empty = new(Array.Empty<double>(), null, 252);
+   47: public enum SurfaceMetricCategory
+   57: public sealed record SurfaceMetricDefinition(
+   70: public static class SurfaceMetricRegistry
+   72: public static IReadOnlyList<SurfaceMetricDefinition> All { get; } = Build();
+   74: public static SurfaceMetricDefinition? Resolve(string id) =>
+  102: public static double Mean(SurfaceCellSample s) =>
+  105: public static double Median(SurfaceCellSample s)
+  114: public static double StdDev(SurfaceCellSample s) => StdDev(s.Returns);
+  125: public static double ProbUp(SurfaceCellSample s) =>
+  128: public static double RealizedVol(SurfaceCellSample s)
+  135: public static double ValueAtRisk(SurfaceCellSample s, double confidence)
+  146: public static double ConditionalVaR(SurfaceCellSample s, double confidence)
+  157: public static double Skewness(SurfaceCellSample s)
+  174: public static double Kurtosis(SurfaceCellSample s)
+  192: public static double ZScore(SurfaceCellSample s)
+  199: public static double NormalPdf(double z) =>
+  203: public static double NormalCdf(double z)
+  214: public static double Autocorr1(SurfaceCellSample s)
+  230: public static double Amihud(SurfaceCellSample s)
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Quant/TimeSeries/ArimaModel.cs

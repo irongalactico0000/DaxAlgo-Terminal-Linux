@@ -1,6 +1,6 @@
-# TradingTerminal.Core / Hosting — public API surface (Linux/Avalonia)
+# TradingTerminal.Core / Hosting — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Core/TradingTerminal.Core/Hosting/ISidecarController.cs
@@ -8,4 +8,11 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
     9: public interface ISidecarController
    12:     bool IsRunning { get; }
    16:     Task<bool> EnsureRunningAsync(CancellationToken ct = default);
+```
+
+## src/linux/Core/TradingTerminal.Core/Hosting/NullSidecarController.cs
+```cs
+    9: public sealed class NullSidecarController : ISidecarController
+   11: public bool IsRunning => false;
+   14: public Task<bool> EnsureRunningAsync(CancellationToken ct = default) => Task.FromResult(false);
 ```

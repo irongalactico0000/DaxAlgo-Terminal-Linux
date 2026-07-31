@@ -5,8 +5,16 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.Session;
 using TradingTerminal.Core.Strategies;
+using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Plugins;
+using TradingTerminal.Infrastructure.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Threading;
+using TradingTerminal.Recording;
+using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
+using TradingTerminal.UI.Strategies;
 
 namespace TradingTerminal.App.Avalonia.Shell;
 
@@ -21,19 +29,39 @@ namespace TradingTerminal.App.Avalonia.Shell;
 public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly IBrokerSelector _brokerSelector;
+    private readonly IStrategyFactory? _strategyFactory;
+    private readonly SessionContext _session;
+    private readonly ICliWorkspaceLauncher? _cliLauncher;
     private readonly DispatcherTimer _clockTimer;
+    private bool _simulatedWarningLogged;
 
     public MainWindowViewModel(
         IStrategyFactory factory,
         IBrokerSelector brokerSelector,
         BrokerApiMeterViewModel apiMeter,
-        InMemoryLogSink activityLog)
+        InMemoryLogSink activityLog,
+        PluginHostContext pluginHost,
+        SessionContext session,
+        ICliWorkspaceLauncher? cliLauncher = null,
+        TickRecordingService? recorder = null)
     {
         _brokerSelector = brokerSelector;
+        _strategyFactory = factory;
+        _session = session;
+        _cliLauncher = cliLauncher;
         ApiMeter = apiMeter;
+        Recorder = recorder;
         ActivityLog = activityLog;
+        PluginProblemCount = pluginHost.Report?.AttentionCount ?? 0;
+        var installedClis = cliLauncher?.AvailableClis() ?? [];
+        CliLaunchChoices = AgentCliAdapter.All
+            .Select(adapter => new CliLaunchChoice(adapter, installedClis.Contains(adapter)))
+            .ToList();
 
         Strategies = new ObservableCollection<ITradingStrategy>(factory.All);
+        CatalogItems = new ObservableCollection<StrategyCatalogItemViewModel>(
+            factory.All.Select(strategy => new StrategyCatalogItemViewModel(strategy)));
+        factory.Changed += OnStrategyCatalogChanged;
         VisibleLog = new ObservableCollection<LogEntry>(activityLog.Entries);
         activityLog.Entries.CollectionChanged += OnLogEntriesChanged;
 
@@ -45,6 +73,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         RefreshAggregateState();
         _brokerSelector.StateChanged += OnBrokerStateChanged;
+        _session.Changed += OnSessionChanged;
 
         activityLog.Append("Avalonia", "INFO", "Cross-platform shell started on the portable core (DI).");
         activityLog.Append("Avalonia", "INFO", $"{Strategies.Count} strategies loaded from the plug-in factory.");
@@ -54,10 +83,14 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     public MainWindowViewModel()
     {
         _brokerSelector = null!;
+        _session = null!;
+        _strategyFactory = null;
         _clockTimer = null!;
         ActivityLog = new InMemoryLogSink();
         Strategies = new ObservableCollection<ITradingStrategy>();
+        CatalogItems = new ObservableCollection<StrategyCatalogItemViewModel>();
         VisibleLog = new ObservableCollection<LogEntry>();
+        CliLaunchChoices = Array.Empty<CliLaunchChoice>();
     }
 
     // ── Strategy catalog ────────────────────────────────────────────────────────────────────────
@@ -67,16 +100,74 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     /// pills via the ported converters.</summary>
     public ObservableCollection<ITradingStrategy> Strategies { get; }
 
-    [ObservableProperty] private ITradingStrategy? _selectedStrategy;
+    public ObservableCollection<StrategyCatalogItemViewModel> CatalogItems { get; }
+
+    [ObservableProperty] private StrategyCatalogItemViewModel? _selectedCatalogItem;
+
+    public ITradingStrategy? SelectedStrategy => SelectedCatalogItem?.Strategy;
+    public bool HasNoStrategies => CatalogItems.Count == 0;
+    public bool HasStrategies => CatalogItems.Count > 0;
+
+    public IReadOnlyList<CliLaunchChoice> CliLaunchChoices { get; }
+
+    public void LaunchCli(CliLaunchChoice? choice)
+    {
+        if (choice is null) return;
+        if (_cliLauncher is null || !choice.IsAvailable)
+        {
+            ActivityLog.Append("Vibe Quant", "WARN",
+                $"{choice.DisplayName} is not available. Install it and ensure it is on PATH.");
+            return;
+        }
+
+        var result = _cliLauncher.Launch(
+            choice.Adapter,
+            "vibe-scratch",
+            "Vibe scratch strategy",
+            StrategyBuildEffort.Standard);
+        ActivityLog.Append("Vibe Quant", result.Success ? "INFO" : "WARN", result.Message);
+    }
 
     /// <summary>Description shown in the details panel for the selected strategy.</summary>
     public string SelectedDetails => SelectedStrategy?.Description ?? "Select a strategy to see its description.";
 
-    partial void OnSelectedStrategyChanged(ITradingStrategy? value) => OnPropertyChanged(nameof(SelectedDetails));
+    partial void OnSelectedCatalogItemChanged(StrategyCatalogItemViewModel? value)
+    {
+        OnPropertyChanged(nameof(SelectedStrategy));
+        OnPropertyChanged(nameof(SelectedDetails));
+    }
+
+    private void OnStrategyCatalogChanged(object? sender, StrategyCatalogChange change) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            var existingStrategy = Strategies.FirstOrDefault(strategy => strategy.Id == change.Strategy.Id);
+            if (existingStrategy is null) Strategies.Add(change.Strategy);
+            else Strategies[Strategies.IndexOf(existingStrategy)] = change.Strategy;
+
+            var replacement = new StrategyCatalogItemViewModel(change.Strategy);
+            var existingItem = CatalogItems.FirstOrDefault(item => item.Id == change.Strategy.Id);
+            if (existingItem is null)
+            {
+                CatalogItems.Add(replacement);
+            }
+            else
+            {
+                var wasSelected = ReferenceEquals(SelectedCatalogItem, existingItem);
+                CatalogItems[CatalogItems.IndexOf(existingItem)] = replacement;
+                if (wasSelected) SelectedCatalogItem = replacement;
+            }
+
+            OnPropertyChanged(nameof(HasNoStrategies));
+            OnPropertyChanged(nameof(HasStrategies));
+        });
 
     // ── Header API meter ────────────────────────────────────────────────────────────────────────
 
     public BrokerApiMeterViewModel? ApiMeter { get; }
+    public TickRecordingService? Recorder { get; }
+
+    public int PluginProblemCount { get; }
+    public bool HasPluginProblems => PluginProblemCount > 0;
 
     // ── Universal Activity Log (filtered) ─────────────────────────────────────────────────────────
 
@@ -88,6 +179,18 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _logFilter = string.Empty;
 
     [ObservableProperty] private bool _isLogVisible;
+    [ObservableProperty] private bool _isBusy;
+    [ObservableProperty] private string _busyTitle = "Loading...";
+    [ObservableProperty] private string _busyMessage = string.Empty;
+
+    public void BeginBusy(string title, string message)
+    {
+        BusyTitle = title;
+        BusyMessage = message;
+        IsBusy = true;
+    }
+
+    public void EndBusy() => IsBusy = false;
 
     partial void OnLogFilterChanged(string value) => RebuildVisibleLog();
 
@@ -128,12 +231,20 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _currentTimeUtc = DateTime.UtcNow.ToString("HH:mm:ss");
     [ObservableProperty] private bool _nyseOpen;
     [ObservableProperty] private bool _lseOpen;
+    [ObservableProperty] private bool _isSimulatedActive;
+    [ObservableProperty] private long _feedDropCount;
 
     public bool IsDisconnected => ConnectionState is not ConnectionState.Connected;
+    public bool HasFeedDrops => FeedDropCount > 0;
     public string DisconnectBannerText => "Disconnected — connect a broker to resume";
     public int ConnectedBrokerCount => _brokerSelector?.Connected.Count ?? 0;
+    public bool IsAuthenticated => _session?.IsAuthenticated == true;
+    public string SessionUserDisplay => !IsAuthenticated
+        ? "Not signed in"
+        : $"{(string.IsNullOrWhiteSpace(_session.Username) ? "Anonymous" : _session.Username)} | {_session.AccountType}";
 
     partial void OnConnectionStateChanged(ConnectionState value) => OnPropertyChanged(nameof(IsDisconnected));
+    partial void OnFeedDropCountChanged(long value) => OnPropertyChanged(nameof(HasFeedDrops));
 
     public string RuntimeInfo =>
         $"{RuntimeInformation.OSDescription}  ·  {RuntimeInformation.FrameworkDescription}  ·  {RuntimeInformation.ProcessArchitecture}";
@@ -151,7 +262,27 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             : states.Any(s => s == ConnectionState.Failed) ? ConnectionState.Failed
             : ConnectionState.Disconnected;
         OnPropertyChanged(nameof(ConnectedBrokerCount));
+        RefreshSimulatedState();
     }
+
+    private void RefreshSimulatedState()
+    {
+        var active = _brokerSelector.Connected.Contains(BrokerKind.Simulated);
+        IsSimulatedActive = active;
+        SimulatedDataState.Set(active);
+        if (active && !_simulatedWarningLogged)
+        {
+            _simulatedWarningLogged = true;
+            ActivityLog.Append("System", "WARN",
+                "SIMULATED DATA - the Simulated broker is connected. This is not a live market feed.");
+        }
+    }
+
+    private void OnSessionChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
+    {
+        OnPropertyChanged(nameof(IsAuthenticated));
+        OnPropertyChanged(nameof(SessionUserDisplay));
+    });
 
     /// <summary>File → Reconnect: re-arm every available broker's connect loop (mirrors the WPF
     /// ReconnectAsync). Failures are swallowed per broker so one bad broker can't abort the rest.</summary>
@@ -168,6 +299,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private void UpdateClocks()
     {
         CurrentTime = DateTime.Now.ToString("HH:mm:ss");
+        FeedDropCount = FeedDropMeter.GlobalDropped;
         var utc = DateTime.UtcNow;
         CurrentTimeUtc = utc.ToString("HH:mm:ss");
         NyseOpen = IsSessionOpen(utc, 14, 30, 21, 0);  // ~09:30–16:00 ET
@@ -185,7 +317,18 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         _clockTimer?.Stop();
         if (_brokerSelector is not null) _brokerSelector.StateChanged -= OnBrokerStateChanged;
+        if (_session is not null) _session.Changed -= OnSessionChanged;
+        if (_strategyFactory is not null) _strategyFactory.Changed -= OnStrategyCatalogChanged;
         ActivityLog.Entries.CollectionChanged -= OnLogEntriesChanged;
         ApiMeter?.Dispose();
     }
+}
+
+/// <summary>One discoverable entry in the Vibe Code CLI launcher.</summary>
+public sealed class CliLaunchChoice(AgentCliAdapter adapter, bool isAvailable)
+{
+    public AgentCliAdapter Adapter { get; } = adapter;
+    public bool IsAvailable { get; } = isAvailable;
+    public string DisplayName => Adapter.DisplayName;
+    public string MenuHeader => IsAvailable ? Adapter.DisplayName : $"{Adapter.DisplayName} - not installed";
 }

@@ -1,6 +1,6 @@
-# TradingTerminal.Backtest.Cli — public API surface (Linux/Avalonia)
+# TradingTerminal.Backtest.Cli — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Backtest/TradingTerminal.Backtest.Cli/Args.cs
@@ -16,6 +16,13 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 ## src/linux/Backtest/TradingTerminal.Backtest.Cli/Output/ResultWriter.cs
 ```cs
    15: public static async Task WriteAsync(string outputDir, BacktestResult result, CancellationToken ct)
+```
+
+## src/linux/Backtest/TradingTerminal.Backtest.Cli/PluginStrategies.cs
+```cs
+   20: public static IReadOnlyList<BacktestStrategyOption> Options => Loaded.Value;
+   23: public static IReadOnlyList<string> AvailableIds => Options.Select(o => o.Id).ToArray();
+   27: public static IBacktestStrategy? TryCreate(string id, Contract contract)
 ```
 
 ## src/linux/Backtest/TradingTerminal.Backtest.Cli/StoreFactory.cs

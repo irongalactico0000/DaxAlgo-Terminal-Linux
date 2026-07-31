@@ -12,7 +12,8 @@ namespace TradingTerminal.Tests.Backtesting;
 /// kernel with schema defaults actually runs through the engine.</summary>
 public sealed class KernelRegistryTests
 {
-    private static IStrategyKernelRegistry Registry() => new StrategyKernelRegistry(NativeKernels.All);
+    private static IStrategyKernelRegistry Registry() =>
+        new StrategyKernelRegistry([MeanReversionKernel.Descriptor]);
 
     [Fact]
     public void Registry_resolves_kernel_and_exposes_its_schema()

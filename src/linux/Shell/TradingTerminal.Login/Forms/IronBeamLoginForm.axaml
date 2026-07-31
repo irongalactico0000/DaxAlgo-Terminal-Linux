@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TradingTerminal.App.Login.Forms.IronBeamLoginForm">
+  <StackPanel Spacing="8">
+    <TextBlock Text="Username" Classes="fieldLabel" />
+    <TextBox Text="{Binding Username}" />
+    <TextBlock Text="API key" Classes="fieldLabel" />
+    <TextBox Text="{Binding ApiKey}" PasswordChar="●" Watermark="Stored in macOS Keychain" />
+    <CheckBox Content="Live account (live.ironbeamapi.com)" IsChecked="{Binding IsLive}" />
+    <Border Classes="formNote">
+      <TextBlock Text="Keys are issued by Ironbeam; demo accounts use demo.ironbeamapi.com."
+                 TextWrapping="Wrap" />
+    </Border>
+  </StackPanel>
+</UserControl>

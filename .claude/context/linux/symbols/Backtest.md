@@ -1,12 +1,18 @@
-# TradingTerminal.Backtest — public API surface (Linux/Avalonia)
+# TradingTerminal.Backtest — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Tools/TradingTerminal.Backtest/AvaloniaUi/BacktestAvaloniaWindow.axaml.cs
 ```cs
    12: public partial class BacktestAvaloniaWindow : Window
    16: public BacktestAvaloniaWindow()
+```
+
+## src/linux/Tools/TradingTerminal.Backtest/AvaloniaUi/QuickBacktestAvaloniaWindow.axaml.cs
+```cs
+    7: public partial class QuickBacktestAvaloniaWindow : Window
+   11: public QuickBacktestAvaloniaWindow()
 ```
 
 ## src/linux/Tools/TradingTerminal.Backtest/BacktestServiceCollectionExtensions.cs

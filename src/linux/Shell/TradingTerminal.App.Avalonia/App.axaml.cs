@@ -5,10 +5,16 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using TradingTerminal.Accounts;
+using TradingTerminal.App.Login;
 using TradingTerminal.App.Avalonia.Composition;
-using TradingTerminal.App.Avalonia.Login;
+using TradingTerminal.App.Avalonia.Diagnostics;
 using TradingTerminal.App.Avalonia.Shell;
+using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Configuration;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
 
@@ -16,12 +22,15 @@ namespace TradingTerminal.App.Avalonia;
 
 public partial class App : Application
 {
-    /// <summary>The composed DI graph; views resolve ported per-strategy VMs from here.</summary>
+    private IHost? _host;
+    private IDisposable? _pluginFaultWatchdog;
+
+    /// <summary>The composed DI graph for the macOS terminal.</summary>
     public IServiceProvider? Services { get; private set; }
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
-    public override void OnFrameworkInitializationCompleted()
+    public override async void OnFrameworkInitializationCompleted()
     {
         // Point the shared (WPF-free) UI-thread marshallers at Avalonia's dispatcher — the same
         // hooks the WPF shell sets to its Dispatcher. This is what lets the portable view-models
@@ -29,9 +38,80 @@ public partial class App : Application
         InMemoryLogSink.UiPost = action => Dispatcher.UIThread.Post(action);
         UiThread.Marshal = MarshalToUiThread;
         WireFilePicker();
+        CrashGuard.Install(
+            "DaxAlgo Terminal for macOS",
+            (source, level, message) =>
+                Services?.GetService<InMemoryLogSink>()?.Append(source, level, message));
+
+        Window? startupWindow = null;
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime startupDesktop)
+        {
+            startupWindow = new Window
+            {
+                Width = 430,
+                Height = 170,
+                CanResize = false,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                Background = Resources["Background.Primary"] as global::Avalonia.Media.IBrush,
+                Title = "Starting DaxAlgo Terminal",
+                Content = new TextBlock
+                {
+                    Text = "Checking strategy plugins and preparing the terminal...",
+                    TextWrapping = global::Avalonia.Media.TextWrapping.Wrap,
+                    Margin = new Thickness(24),
+                    VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Center,
+                    Foreground = Resources["Text.Primary"] as global::Avalonia.Media.IBrush,
+                },
+            };
+            startupDesktop.MainWindow = startupWindow;
+            startupWindow.Show();
+        }
+
+        // Finish the Avalonia lifetime before plugin discovery yields to an informed-consent dialog.
+        base.OnFrameworkInitializationCompleted();
+        await Task.Yield();
 
         // Compose the headless DI graph and resolve the root VM from it (mirrors the WPF App).
-        Services = ServiceConfiguration.Build();
+        try
+        {
+            var consent = startupWindow is null ? null : new TradingTerminal.App.Plugins.PluginConsentPrompt();
+            _host = await Task.Run(() => ServiceConfiguration.BuildHost(consent));
+            await _host.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            if (startupWindow?.Content is TextBlock message)
+            {
+                startupWindow.Title = "DaxAlgo Terminal could not start";
+                message.Text = $"Startup failed safely.\n\n{ex.Message}";
+                return;
+            }
+            throw;
+        }
+        Services = _host.Services;
+
+        var activityLog = Services.GetRequiredService<InMemoryLogSink>();
+        var pluginHost = Services.GetRequiredService<
+            TradingTerminal.Infrastructure.Plugins.PluginHostContext>();
+        if (pluginHost.State is { } pluginFaultState)
+        {
+            _pluginFaultWatchdog = PluginFaultWatchdog.Attach(
+                Dispatcher.UIThread,
+                strikeLimit: 3,
+                onStrikeOut: (plugin, reason) =>
+                {
+                    pluginFaultState.Quarantine(plugin, reason);
+                    activityLog.Append(
+                        "Plugins",
+                        "Warning",
+                        $"Strategy plugin '{plugin}' was quarantined after repeated faults and will " +
+                        $"not load next start until re-enabled. {reason}");
+                },
+                log: activityLog.Append);
+        }
+
+        // Load custom themes and apply the persisted palette before any product window is created.
+        Services.GetRequiredService<TradingTerminal.App.Avalonia.Theming.IThemeManager>().ApplySaved();
 
         // Point every instrument picker at the canonical registry instead of the hardcoded fallback
         // (mirrors the WPF shell). The registry fills at startup + as brokers connect.
@@ -41,21 +121,183 @@ public partial class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // Show the login screen first; hand off to the main shell once a broker connects
-            // (mirrors the WPF ILoginShellFactory/IMainShellFactory handoff).
-            var loginVm = Services.GetRequiredService<LoginViewModel>();
-            var login = new LoginWindow { DataContext = loginVm };
-            loginVm.Connected += _ => Dispatcher.UIThread.Post(() =>
+            desktop.Exit += (_, _) =>
             {
-                var main = new MainWindow { DataContext = Services!.GetRequiredService<MainWindowViewModel>() };
+                _pluginFaultWatchdog?.Dispose();
+                _pluginFaultWatchdog = null;
+                _host?.StopAsync().GetAwaiter().GetResult();
+                _host?.Dispose();
+                _host = null;
+            };
+
+            var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
+            if (args.Any(argument => string.Equals(
+                    argument,
+                    "--smoke-strategies",
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                var diagnosticsDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "DaxAlgoTerminal",
+                    "diagnostics");
+                var reportPath = Path.Combine(diagnosticsDirectory, "smoke-strategies.txt");
+                var exitCode = await StrategyWindowSmoke.RunAsync(
+                    Services.GetRequiredService<TradingTerminal.Core.Strategies.IStrategyFactory>(),
+                    reportPath,
+                    pluginHost.LoadedPlugins.Select(plugin => plugin.Name));
+                activityLog.Append(
+                    "Diagnostics",
+                    exitCode == 0 ? "Information" : "Error",
+                    $"Strategy smoke finished with exit code {exitCode}; report: {reportPath}");
+                startupWindow?.Close();
+                desktop.Shutdown(exitCode);
+                return;
+            }
+
+            var configuration = Services.GetRequiredService<IConfiguration>();
+            var startupDevOptions = configuration
+                .GetSection(DevOptions.SectionName)
+                .Get<DevOptions>() ?? new DevOptions();
+            var googleAuthOptions = configuration
+                .GetSection(GoogleAuthOptions.SectionName)
+                .Get<GoogleAuthOptions>() ?? new GoogleAuthOptions();
+            if (startupDevOptions.ResetAccountOnStart)
+                AccountGateRunner.ClearStoredAccount();
+
+            var bypassLoginRequested = args.Any(a =>
+                string.Equals(a, "--bypass-login", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(a, "--no-login", StringComparison.OrdinalIgnoreCase));
+            var bypassAccountLoginRequested = args.Any(a =>
+                string.Equals(a, "--bypass-account-login", StringComparison.OrdinalIgnoreCase));
+            var skipAccountGate = false;
+#if DEBUG
+            skipAccountGate = bypassLoginRequested || bypassAccountLoginRequested;
+#endif
+
+            MainWindow CreateMainWindow()
+            {
+                var main = new MainWindow
+                {
+                    DataContext = Services!.GetRequiredService<MainWindowViewModel>(),
+                };
+                main.Opened += (_, _) => Services
+                    .GetRequiredService<TradingTerminal.App.Support.ISupportPrompt>()
+                    .MaybeShowOnLaunch(main);
+                return main;
+            }
+
+            LoginWindow CreateLoginWindow()
+            {
+                var loginVm = Services!.GetRequiredService<LoginViewModel>();
+                var login = Services.GetRequiredService<LoginWindow>();
+                loginVm.LoginCompleted += (_, success) => Dispatcher.UIThread.Post(() =>
+                {
+                    if (!success)
+                    {
+                        desktop.Shutdown();
+                        return;
+                    }
+
+                    var main = CreateMainWindow();
+                    desktop.MainWindow = main;
+                    main.Show();
+                    login.Close();
+                });
+                login.DataContext = loginVm;
+                return login;
+            }
+
+            bool ShouldBypassBrokerLogin() =>
+                !bypassAccountLoginRequested &&
+                (startupDevOptions.BypassLogin || bypassLoginRequested);
+
+            async Task ConnectAndShowMainAsync()
+            {
+                var selector = Services!.GetRequiredService<IBrokerSelector>();
+                BrokerKind[] brokers = startupDevOptions.AutoConnectBrokers.Length == 0
+                    ? [BrokerKind.Simulated]
+                    : startupDevOptions.AutoConnectBrokers;
+
+                foreach (var kind in brokers)
+                {
+                    if (!selector.IsAvailable(kind))
+                    {
+                        activityLog.Append(
+                            "Dev",
+                            "Warning",
+                            $"Auto-connect skipped — broker {kind} is not available in this build.");
+                        continue;
+                    }
+
+                    try
+                    {
+                        activityLog.Append(
+                            "Dev",
+                            "Information",
+                            $"Login bypassed — auto-connecting {kind}…");
+                        await selector.ConnectAsync(kind);
+                    }
+                    catch (Exception ex)
+                    {
+                        activityLog.Append(
+                            "Dev",
+                            "Error",
+                            $"Auto-connect failed for {kind}: {ex.Message}");
+                    }
+                }
+
+                var main = CreateMainWindow();
                 desktop.MainWindow = main;
                 main.Show();
-                login.Close();
-            });
-            desktop.MainWindow = login;
-        }
+            }
 
-        base.OnFrameworkInitializationCompleted();
+            if (skipAccountGate)
+            {
+                // Matches the Windows developer escape hatches: one flag skips only the product
+                // account gate; the broader flag also skips broker login. Both are Debug-only.
+                if (ShouldBypassBrokerLogin())
+                {
+                    await ConnectAndShowMainAsync();
+                }
+                else
+                {
+                    var login = CreateLoginWindow();
+                    desktop.MainWindow = login;
+                    login.Show();
+                }
+                startupWindow?.Close();
+            }
+            else
+            {
+                var accountGate = AccountGateRunner.CreateWindow(
+                    AppEdition.Professional,
+                    googleAuthOptions);
+                accountGate.AccessCompleted += async granted =>
+                {
+                    if (!granted)
+                    {
+                        desktop.Shutdown();
+                        return;
+                    }
+
+                    if (ShouldBypassBrokerLogin())
+                    {
+                        await ConnectAndShowMainAsync();
+                    }
+                    else
+                    {
+                        // Show the broker login before closing the gate so OnLastWindowClose cannot
+                        // end the desktop lifetime between the two pre-shell stages.
+                        var login = CreateLoginWindow();
+                        desktop.MainWindow = login;
+                        login.Show();
+                    }
+                };
+                desktop.MainWindow = accountGate;
+                accountGate.Show();
+                startupWindow?.Close();
+            }
+        }
     }
 
     // Points the portable UiFile seam at Avalonia's StorageProvider (the cross-platform file picker),

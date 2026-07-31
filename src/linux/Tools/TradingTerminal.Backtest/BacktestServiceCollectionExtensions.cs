@@ -18,6 +18,9 @@ public static class BacktestServiceCollectionExtensions
 #if WINDOWS
         services.AddTransient<BacktestView>();
         services.AddTransient<QuickBacktestView>();
+#else
+        services.AddTransient<AvaloniaUi.BacktestAvaloniaWindow>();
+        services.AddTransient<AvaloniaUi.QuickBacktestAvaloniaWindow>();
 #endif
         return services;
     }

@@ -1,111 +1,134 @@
-# TradingTerminal.Core / Strategies — public API surface (Linux/Avalonia)
+# TradingTerminal.Core / Strategies — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
-## src/linux/Core/TradingTerminal.Core/Strategies/Apex/ApexLineFit.cs
+## src/linux/Core/TradingTerminal.Core/Strategies/Authoring/AiModelChoice.cs
 ```cs
-   15: public sealed record ApexLineFit(
-   24: public static ApexLineFit Empty => new(0, 0, 0, 0, 0, 0);
-   27: public double SlopeTStat => NeweyWestStandardError > 1e-300 ? Slope / NeweyWestStandardError : 0.0;
+   14: public sealed record AiModelChoice(string ProviderId, string ProviderLabel, string ModelId)
+   18: public bool IsAvailable { get; init; } = true;
+   22: public string Display => string.IsNullOrEmpty(ModelId) ? ProviderLabel : $"{ModelId} · {ProviderLabel}";
 ```
 
-## src/linux/Core/TradingTerminal.Core/Strategies/Apex/ApexSnapshotV2.cs
+## src/linux/Core/TradingTerminal.Core/Strategies/Authoring/IAiKeyResolver.cs
 ```cs
-   17: public sealed record ApexSignalState(
-   27: public double TtlRemaining => TtlMs > 1e-9 ? Math.Clamp(1.0 - AgeMs / TtlMs, 0.0, 1.0) : 0.0;
-   73: public sealed record ApexSnapshotV2(
+    9: public interface IAiKeyResolver
+   13:     string? Resolve(string providerId);
+   16:     public static IAiKeyResolver Null { get; } = new NullAiKeyResolver();
+   21: public string? Resolve(string providerId) => null;
+   29: public interface IAiKeyStore
+   32:     IReadOnlyCollection<string> ConfiguredProviders { get; }
+   34:     bool HasKey(string providerId);
+   35:     void Set(string providerId, string apiKey);
+   36:     void Remove(string providerId);
 ```
 
-## src/linux/Core/TradingTerminal.Core/Strategies/Apex/ApexTradeRecord.cs
+## src/linux/Core/TradingTerminal.Core/Strategies/Authoring/IAuthoredStrategyViewComposer.cs
 ```cs
-   17: public sealed record ApexTradeRecord(
+   18: public interface IAuthoredStrategyViewComposer
+   23:     object ComposeView(ITradingStrategy descriptor);
 ```
 
-## src/linux/Core/TradingTerminal.Core/Strategies/Apex/ApexV2Options.cs
+## src/linux/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCodegenClient.cs
 ```cs
-   15: public enum ApexBarMode
-   31: public readonly record struct ApexTtlMultipliers(
-   40: public static ApexTtlMultipliers Default => new(DeltaFootprint: 1.5, ObiTapeSpeed: 0.5, PocLines: 3.0);
-   58: public sealed record ApexV2Options
-   66: public double ReferenceSpanSeconds { get; init; } = 60.0;
-   70: public ApexBarMode BarMode { get; init; } = ApexBarMode.Time;
-   76: public long VolumeBarSize { get; init; } = 2_000;
-   80: public ApexTtlMultipliers TtlMultipliers { get; init; } = ApexTtlMultipliers.Default;
-   84: public double EwDelta { get; init; } = 0.9;
-   90: public int? NeweyWestLag { get; init; }
-   96: public int CovarianceWindow { get; init; } = 1_500;
-  103: public int WeightRecalcEveryBars { get; init; } = 50;
-  106: public int ForwardReturnHorizon { get; init; } = 5;
-  109: public int KyleWindow { get; init; } = 50;
-  116: public int IsotonicMinSamples { get; init; } = 500;
-  122: public int BootstrapSampleThreshold { get; init; } = 500;
-  129: public double KellyFraction { get; init; } = 0.25;
-  132: public double KellyFractionOverlap { get; init; } = 0.25;
-  135: public double KellyFractionAsian { get; init; } = 0.10;
-  138: public double RiskFraction { get; init; } = 0.005;
-  142: public int RowsPerBarTarget { get; init; } = 20;
-  148: public double? TickSizeOverride { get; init; }
-  151: public double ImbalanceRatio { get; init; } = 3.0;
-  155: public int VpinLookbackBuckets { get; init; } = 50;
-  159: public double StopSigmaCoefficient { get; init; } = 1.5;
-  162: public double TargetSigmaCoefficient { get; init; } = 2.25;
-  168: public double ValueAreaSigmaCoefficient { get; init; } = 1.0;
-  172: public double AbsorptionVolumeFraction { get; init; } = 0.5;
-  176: public double CompositeThreshold { get; init; } = 1.0;
-  179: public IReadOnlyDictionary<string, double> RegimeMultipliers { get; init; } =
-  191: public bool TradeAsian { get; init; }
-  194: public bool TradeLondon { get; init; } = true;
-  197: public bool TradeNewYork { get; init; } = true;
-  200: public bool TradeLondonNy { get; init; } = true;
-  204: public int CooldownSeconds { get; init; } = 30;
-  207: public double MaxDailyLossFraction { get; init; } = 0.02;
-  210: public double MaxDrawdownFraction { get; init; } = 0.05;
-  214: public double CommissionPerSide { get; init; }
-  217: public double SpreadCostTicks { get; init; } = 1.0;
-  223: public double SlippageCoefficient { get; init; } = 1.0;
-  227: public int PredictedNodeHorizon { get; init; } = 5;
-  234: public double PredictionExitMinConfidence { get; init; } = 0.3;
-  237: public double KalmanProcessNoise { get; init; } = 1e-4;
-  240: public double KalmanMeasurementNoise { get; init; } = 1e-2;
-  244: public double HawkesBaselineMu { get; init; }
-  247: public double HawkesAlpha { get; init; } = 0.3;
-  250: public double HawkesBeta { get; init; } = 0.5;
-  253: public static ApexV2Options Default => new();
-  263: public static ApexV2Options Backtest => Default with
+    4: public enum CodegenRole
+   16: public enum CodegenEffort
+   32: public static class CodegenEfforts
+   35: public static string? Wire(this CodegenEffort effort) => effort switch
+   47: public static CodegenEffort Parse(string? value) => value?.Trim().ToLowerInvariant() switch
+   59: public sealed record CodegenMessage(CodegenRole Role, string Content);
+   72: public sealed record CodegenUsage(int InputTokens, int OutputTokens, int CachedInputTokens = 0)
+   74: public static CodegenUsage None { get; } = new(0, 0);
+   76: public int TotalTokens => InputTokens + OutputTokens;
+   79: public bool IsReported => InputTokens > 0 || OutputTokens > 0;
+   81: public CodegenUsage Add(CodegenUsage? other) => other is null
+   94: public sealed record StrategyCodegenRequest(string SystemContext, IReadOnlyList<CodegenMessage> Messages);
+  108: public sealed record StrategyCodegenResponse(
+  117: public IReadOnlyList<StrategyFile> FileList => Files ?? (string.IsNullOrWhiteSpace(Code)
+  122: public bool HasFiles => FileList.Count > 0;
+  124: public static StrategyCodegenResponse Ok(string code, string rawText) => new(true, code, rawText, null);
+  126: public static StrategyCodegenResponse Ok(IReadOnlyList<StrategyFile> files, string rawText, CodegenUsage? usage = null) =>
+  130: public static StrategyCodegenResponse Reply(string rawText, CodegenUsage? usage = null) =>
+  133: public static StrategyCodegenResponse Fail(string error) => new(false, null, null, error);
+  142: public abstract record CodegenEvent
+  147: public sealed record TextDelta(string Text) : CodegenEvent;
+  151: public sealed record UsageUpdate(CodegenUsage Usage) : CodegenEvent;
+  154: public sealed record Completed(StrategyCodegenResponse Response) : CodegenEvent;
+  169: public interface IStrategyCodegenClient
+  173:     string ProviderId { get; }
+  176:     string DisplayName { get; }
+  180:     bool IsAvailable { get; }
+  184:     string Model => string.Empty;
+  188:     CodegenEffort Effort => CodegenEffort.Default;
+  192:     IReadOnlyList<string> KnownModels => [];
+  197:     Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default) =>
+  198:     Task.FromResult<IReadOnlyList<string>>([]);
+  200:     Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default);
+  213:     async IAsyncEnumerable<CodegenEvent> StreamAsync(
+  214:     StrategyCodegenRequest request,
+  217:     var response = await GenerateAsync(request, ct).ConfigureAwait(false);
+  218:     if (response.Usage is { IsReported: true } usage) yield return new CodegenEvent.UsageUpdate(usage);
+  219:     yield return new CodegenEvent.Completed(response);
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCompiler.cs
 ```cs
-   15: public interface IStrategyCompiler
-   17:     StrategyCompileResult Compile(StrategyScript script);
+   18: public interface IStrategyCompiler
+   20:     StrategyCompileResult Compile(StrategyScript script);
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Authoring/StrategyBuildEffort.cs
+```cs
+   10: public enum StrategyBuildEffort
+   27: public static class StrategyBuildEfforts
+   31: public static string Wire(this StrategyBuildEffort effort) => effort switch
+   41: public static StrategyBuildEffort Parse(string? value) => value?.Trim().ToLowerInvariant() switch
+   60: public sealed record StrategyBuildProfile(int MaxSkills, int MaxFixAttempts, bool SelfReview, bool BacktestSmoke)
+   63: public static StrategyBuildProfile For(StrategyBuildEffort effort) => effort switch
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Strategies/Authoring/StrategyCompileResult.cs
 ```cs
-   12: public sealed record StrategyCompileResult(
-   17: public IEnumerable<StrategyDiagnostic> Errors =>
-   20: public static StrategyCompileResult Failed(IReadOnlyList<StrategyDiagnostic> diagnostics) =>
-   23: public static StrategyCompileResult Succeeded(
+   23: public sealed record AuthoredStrategyAssembly(
+   33: public bool HasLiveWindow => DescriptorType is not null && ViewModelType is not null && ViewType is not null;
+   38: public bool CanComposeLiveWindow => DescriptorType is not null && ViewModelType is not null;
+   43: public IReadOnlyList<string> MissingForCatalog =>
+   57: public sealed record StrategyCompileResult(
+   63: public IEnumerable<StrategyDiagnostic> Errors =>
+   66: public static StrategyCompileResult Failed(IReadOnlyList<StrategyDiagnostic> diagnostics) =>
+   69: public static StrategyCompileResult Succeeded(
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Strategies/Authoring/StrategyDiagnostic.cs
 ```cs
     4: public enum StrategyDiagnosticSeverity
-   16: public sealed record StrategyDiagnostic(
-   23: public override string ToString() =>
+   21: public sealed record StrategyDiagnostic(
+   30: public string Location => string.IsNullOrEmpty(File)
+   34: public override string ToString() =>
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Strategies/Authoring/StrategyScript.cs
 ```cs
-   13: public sealed record StrategyScript(
+   10: public sealed record StrategyFile(string Name, string Content)
+   13: public const string DefaultName = "Strategy.cs";
+   26: public sealed record StrategyScript(
+   32: public StrategyScript(string id, string displayName, string sourceCode)
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/IPluginFaultAttribution.cs
+```cs
+    7: public interface IPluginFaultAttribution
+    9:     string PluginName { get; }
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Strategies/IStrategyFactory.cs
 ```cs
-    7: public interface IStrategyFactory
-    9:     IReadOnlyList<ITradingStrategy> All { get; }
-   15:     StrategyHost Create(string strategyId);
+   13: public interface IStrategyFactory
+   15:     IReadOnlyList<ITradingStrategy> All { get; }
+   21:     StrategyHost Create(string strategyId);
+   28:     void Register(ITradingStrategy strategy, StrategyFactoryRegistration registration);
+   31:     event EventHandler<StrategyCatalogChange>? Changed;
+   36: public sealed record StrategyCatalogChange(ITradingStrategy Strategy, bool Replaced);
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Strategies/ITradingStrategy.cs
@@ -118,9 +141,10 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    36:     StrategyDataRequirement DataRequirement =>
    37:     StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
    44:     string? ResearchPaperUrl => null;
-   53:     IReadOnlyList<AssetClass> AssetClasses => Array.Empty<AssetClass>();
-   61:     StrategyAssetScope AssetScope => StrategyAssetScope.SingleAsset;
-   71:     IReadOnlyList<BrokerKind> SupportedBrokers => StrategyBrokerCapability.ForRequirement(DataRequirement);
+   52:     string? LinkUrl => ResearchPaperUrl;
+   61:     IReadOnlyList<AssetClass> AssetClasses => Array.Empty<AssetClass>();
+   69:     StrategyAssetScope AssetScope => StrategyAssetScope.SingleAsset;
+   79:     IReadOnlyList<BrokerKind> SupportedBrokers => StrategyBrokerCapability.ForRequirement(DataRequirement);
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Strategies/Parameters/ParameterKind.cs
@@ -177,6 +201,13 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    72: public IReadOnlyList<string> Validate()
 ```
 
+## src/linux/Core/TradingTerminal.Core/Strategies/PluginFaultEvents.cs
+```cs
+    8: public static class PluginFaultEvents
+   10: public static event Action<Exception>? Reported;
+   12: public static void Report(Exception exception)
+```
+
 ## src/linux/Core/TradingTerminal.Core/Strategies/StrategyAssetScope.cs
 ```cs
     9: public enum StrategyAssetScope
@@ -203,4 +234,13 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 ## src/linux/Core/TradingTerminal.Core/Strategies/StrategyHost.cs
 ```cs
     8: public sealed record StrategyHost(
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/StrategySignal.cs
+```cs
+    4: public enum StrategySignalKind : long
+   15: public readonly record struct StrategySignal(
+   21: public readonly record struct StrategySignalEvent(
+   30: public interface IStrategySignalSink
+   32:     Task EmitSignalAsync(StrategySignal signal, CancellationToken ct = default);
 ```

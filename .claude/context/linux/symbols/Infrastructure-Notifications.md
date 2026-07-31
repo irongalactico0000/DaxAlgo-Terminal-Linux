@@ -1,21 +1,27 @@
-# TradingTerminal.Infrastructure / Notifications — public API surface (Linux/Avalonia)
+# TradingTerminal.Infrastructure / Notifications — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
+
+## src/linux/Pipeline/TradingTerminal.Infrastructure/Notifications/AiAnalystCredentialProtection.cs
+```cs
+   33: public static string? Encrypt(string? plaintext)
+   76: public static string? Decrypt(string? cipherBase64)
+```
 
 ## src/linux/Pipeline/TradingTerminal.Infrastructure/Notifications/AiAnalystOptions.cs
 ```cs
-   13: public sealed class AiAnalystOptions
-   17: public bool Enabled { get; set; }
-   21: public string Endpoint { get; set; } = "http://127.0.0.1:8765";
-   25: public string Provider { get; set; } = "openai";
-   28: public string Model { get; set; } = "gpt-4o";
-   32: public string VisionModel { get; set; } = "gpt-4o";
-   36: public int BarCount { get; set; } = 50;
-   40: public int TimeoutSeconds { get; set; } = 60;
-   44: public bool IncludeInEnricher { get; set; }
-   48: public string? ApiKeyEncryptedBase64 { get; set; }
-   54: public string? ApiKey
+    9: public sealed class AiAnalystOptions
+   12: public bool Enabled { get; set; }
+   15: public string Endpoint { get; set; } = "http://127.0.0.1:8765";
+   18: public string Provider { get; set; } = "openai";
+   21: public string Model { get; set; } = "gpt-4o";
+   24: public string VisionModel { get; set; } = "gpt-4o";
+   27: public int BarCount { get; set; } = 50;
+   30: public int TimeoutSeconds { get; set; } = 60;
+   33: public bool IncludeInEnricher { get; set; }
+   38: public string? ApiKeyEncryptedBase64 { get; set; }
+   42: public string? ApiKey
 ```
 
 ## src/linux/Pipeline/TradingTerminal.Infrastructure/Notifications/AllowAllSignalGate.cs

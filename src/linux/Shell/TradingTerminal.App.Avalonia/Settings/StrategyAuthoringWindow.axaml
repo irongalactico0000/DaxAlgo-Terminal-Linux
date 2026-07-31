@@ -1,28 +1,722 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:TradingTerminal.App.Avalonia.Settings"
         x:Class="TradingTerminal.App.Avalonia.Settings.StrategyAuthoringWindow"
-        Width="820" Height="640"
-        Background="{StaticResource Background.Primary}"
-        Title="Strategy authoring">
-  <DockPanel Margin="14">
-    <StackPanel DockPanel.Dock="Top" Spacing="6">
-      <TextBlock Text="Strategy authoring (Roslyn)" FontSize="18" FontWeight="Bold" Foreground="{StaticResource Text.Header}"/>
+        Width="1100" Height="760"
+        MinWidth="1000" MinHeight="680"
+        Background="{DynamicResource Background.Primary}"
+        Foreground="{DynamicResource Text.Primary}"
+        Title="Vibe Quant — AI strategy builder"
+        WindowStartupLocation="CenterOwner">
+
+  <Window.Resources>
+    <local:ParameterKindMatchConverter x:Key="ParameterKindMatch" />
+    <local:PositiveCountConverter x:Key="PositiveCount" />
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="Border.rail">
+      <Setter Property="Background" Value="{StaticResource Gradient.Surface}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Border.Brush}" />
+      <Setter Property="BorderThickness" Value="0,0,1,0" />
+    </Style>
+    <Style Selector="Border.workbench">
+      <Setter Property="Background" Value="{StaticResource Background.Surface}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Border.Brush}" />
+      <Setter Property="BorderThickness" Value="1,0,0,0" />
+    </Style>
+    <Style Selector="Border.composer">
+      <Setter Property="Background" Value="{StaticResource Background.Elevated}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Ai.Glow.Brush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="Border.message">
+      <Setter Property="Padding" Value="12,9" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Margin" Value="0,3" />
+      <Setter Property="MaxWidth" Value="650" />
+    </Style>
+    <Style Selector="Border.userMessage">
+      <Setter Property="Background" Value="{StaticResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Accent.Brush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.assistantMessage">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Border.systemMessage">
+      <Setter Property="Background" Value="{StaticResource Ai.Soft}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Border.Strong}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.chip">
+      <Setter Property="Background" Value="{StaticResource Background.Elevated}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Border.Strong}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="8,3" />
+    </Style>
+    <Style Selector="TextBlock.eyebrow">
+      <Setter Property="FontSize" Value="9" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{StaticResource Text.Secondary}" />
+    </Style>
+    <Style Selector="TextBlock.caption">
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="Foreground" Value="{StaticResource Text.Secondary}" />
+    </Style>
+    <Style Selector="Button.ghost">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{StaticResource Border.Brush}" />
+      <Setter Property="Padding" Value="8,3" />
+    </Style>
+    <Style Selector="Button.pill">
+      <Setter Property="Background" Value="{StaticResource Background.Elevated}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Border.Strong}" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="FontSize" Value="10.5" />
+    </Style>
+    <Style Selector="Button.pill.aiPill">
+      <Setter Property="BorderBrush" Value="{StaticResource Ai.Glow.Brush}" />
+      <Setter Property="Foreground" Value="{StaticResource Ai.Text.Brush}" />
+    </Style>
+    <Style Selector="Button.aiAction">
+      <Setter Property="Background" Value="{StaticResource Gradient.Ai}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Ai.Accent.Brush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+    <Style Selector="ListBox.chromeLess">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBoxItem.session">
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,2" />
+    </Style>
+    <Style Selector="ListBoxItem.fileTab">
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="Margin" Value="0,0,4,0" />
+      <Setter Property="FontFamily" Value="{StaticResource Font.Data}" />
+    </Style>
+    <Style Selector="TabItem">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,*">
+    <Border x:Name="SimulatedDataBanner" Grid.Row="0" Background="#B45309"
+            Padding="12,6" IsVisible="False">
       <StackPanel Orientation="Horizontal" Spacing="8">
-        <TextBox Width="160" Watermark="Strategy id" Text="{Binding StrategyId}"/>
-        <TextBox Width="220" Watermark="Display name" Text="{Binding DisplayName}"/>
-        <Button Classes="accent" Content="Compile" Command="{Binding CompileCommand}"/>
+        <TextBlock Text="&#x26A0;" Foreground="White" FontWeight="Bold" />
+        <TextBlock Text="SIMULATED DATA — not a live feed"
+                   Foreground="White" FontWeight="SemiBold" />
       </StackPanel>
-      <TextBlock Text="{Binding Status}" Foreground="{StaticResource Text.Secondary}" TextWrapping="Wrap"/>
-    </StackPanel>
-
-    <Border DockPanel.Dock="Bottom" Height="140" Margin="0,8,0,0" BorderBrush="{StaticResource Border.Brush}" BorderThickness="1" CornerRadius="3">
-      <ListBox ItemsSource="{Binding Diagnostics}" Background="{StaticResource Background.Surface}" FontSize="11"/>
     </Border>
 
-    <Border Margin="0,8,0,0" BorderBrush="{StaticResource Border.Brush}" BorderThickness="1" CornerRadius="3">
-      <TextBox Text="{Binding SourceCode}" AcceptsReturn="True" AcceptsTab="True"
-               FontFamily="{StaticResource Font.Mono}" FontSize="12"
-               TextWrapping="NoWrap" />
-    </Border>
-  </DockPanel>
+    <Grid Grid.Row="1" ColumnDefinitions="Auto,*,4,390">
+      <!-- Session rail: an expanded history view and a compact icon strip share one column. -->
+      <Border Grid.Column="0" Classes="rail" Width="234"
+              IsVisible="{Binding !RailCollapsed}">
+        <DockPanel Margin="10,12,10,10">
+          <StackPanel DockPanel.Dock="Top" Spacing="10">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <Border Grid.Column="0" Width="30" Height="30" Background="{StaticResource Gradient.Ai}"
+                      CornerRadius="7">
+                <TextBlock Text="VQ" Foreground="White" FontWeight="Bold" FontSize="10"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="Vibe Quant" Classes="header" FontSize="13" />
+                <TextBlock Text="AI strategy builder" Classes="caption" />
+              </StackPanel>
+              <Button Grid.Column="2" Classes="ghost" Content="‹" FontSize="18"
+                      Command="{Binding ToggleRailCommand}" ToolTip.Tip="Collapse session rail" />
+            </Grid>
+
+            <Button Classes="aiAction" Content="＋  New strategy"
+                    Command="{Binding NewChatCommand}" />
+          </StackPanel>
+
+          <StackPanel DockPanel.Dock="Bottom" Spacing="5" Margin="0,10,0,0">
+            <Border BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0"
+                    Padding="2,9,2,0">
+              <StackPanel Spacing="5">
+                <TextBlock Text="PROVIDERS" Classes="eyebrow" />
+                <ItemsControl ItemsSource="{Binding AiProviders}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Grid ColumnDefinitions="Auto,*" Margin="0,2">
+                        <Grid Grid.Column="0" Width="12" Height="12">
+                          <Ellipse Width="6" Height="6" Fill="{StaticResource Text.Secondary}"
+                                   IsVisible="{Binding !IsAvailable}" />
+                          <Ellipse Width="6" Height="6" Fill="{StaticResource Bullish.Brush}"
+                                   IsVisible="{Binding IsAvailable}" />
+                        </Grid>
+                        <TextBlock Grid.Column="1" Text="{Binding DisplayName}" Classes="caption"
+                                   TextTrimming="CharacterEllipsis" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <ListBox Classes="chromeLess" ItemsSource="{Binding SavedSessions}"
+                   SelectedItem="{Binding SelectedSavedSession, Mode=TwoWay}">
+            <ListBox.Styles>
+              <Style Selector="ListBoxItem">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="0,2" />
+              </Style>
+            </ListBox.Styles>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Border Background="{StaticResource Background.Elevated}"
+                        BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                        CornerRadius="5" Padding="9,7" Margin="0,2">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0">
+                      <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Classes="caption" FontFamily="{StaticResource Font.Data}">
+                        <Run Text="{Binding StrategyId}" /><Run Text="  ·  " /><Run Text="{Binding Age}" />
+                      </TextBlock>
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="ghost" Content="×" Padding="5,1"
+                            Tag="{Binding}" Click="OnDeleteSession"
+                            ToolTip.Tip="Delete this conversation only" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </Border>
+
+      <Border Grid.Column="0" Classes="rail" Width="50"
+              IsVisible="{Binding RailCollapsed}">
+        <StackPanel Margin="7,12" Spacing="10">
+          <Border Width="34" Height="34" Background="{StaticResource Gradient.Ai}" CornerRadius="7">
+            <Button Content="VQ" Foreground="White" FontSize="9" FontWeight="Bold"
+                    Background="Transparent" BorderThickness="0" Padding="0"
+                    Command="{Binding ToggleRailCommand}" ToolTip.Tip="Expand session rail" />
+          </Border>
+          <Button Classes="aiAction" Content="＋" Padding="0" Width="34" Height="34"
+                  Command="{Binding NewChatCommand}" ToolTip.Tip="New strategy" />
+        </StackPanel>
+      </Border>
+
+      <!-- Agent canvas. -->
+      <Grid Grid.Column="1" Margin="16,10,12,12" RowDefinitions="Auto,*,Auto,Auto">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="2,0,2,8"
+              IsVisible="{Binding HasConversation}">
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="{Binding DisplayName}" Classes="header" FontSize="14"
+                       TextTrimming="CharacterEllipsis" />
+            <Border Classes="chip">
+              <TextBlock Text="{Binding ModelPillText}" FontSize="9.5"
+                         Foreground="{StaticResource Ai.Text.Brush}" />
+            </Border>
+          </StackPanel>
+          <Border Grid.Column="1" Classes="chip" BorderBrush="{StaticResource Ai.Glow.Brush}"
+                  IsVisible="{Binding IsGenerating}">
+            <TextBlock FontFamily="{StaticResource Font.Data}" FontSize="10"
+                       Foreground="{StaticResource Ai.Text.Brush}">
+              <Run Text="WORKING  " /><Run Text="{Binding ElapsedCompact}" />
+            </TextBlock>
+          </Border>
+        </Grid>
+
+        <Grid Grid.Row="1">
+          <ScrollViewer x:Name="ChatScroll" VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Disabled"
+                        IsVisible="{Binding HasConversation}">
+            <ItemsControl ItemsSource="{Binding Messages}" Margin="2,0,8,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Grid>
+                    <Border Classes="message userMessage" HorizontalAlignment="Right"
+                            IsVisible="{Binding IsUser}">
+                      <TextBlock Text="{Binding Text}" TextWrapping="Wrap" LineHeight="18" />
+                    </Border>
+                    <Border Classes="message assistantMessage" HorizontalAlignment="Left"
+                            IsVisible="{Binding IsAssistant}">
+                      <TextBlock Text="{Binding Text}" TextWrapping="Wrap" LineHeight="18" />
+                    </Border>
+                    <Border Classes="message systemMessage" HorizontalAlignment="Left"
+                            IsVisible="{Binding IsSystem}">
+                      <StackPanel Spacing="3">
+                        <TextBlock Text="{Binding ToolTitle}" FontSize="9" FontWeight="Bold"
+                                   Foreground="{StaticResource Ai.Text.Brush}" />
+                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding ToolDetail}" Classes="caption" TextWrapping="Wrap" />
+                        <ItemsControl ItemsSource="{Binding PlanTasks}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Grid ColumnDefinitions="72,*" Margin="0,2">
+                                <TextBlock Text="{Binding State}" FontFamily="{StaticResource Font.Data}"
+                                           FontSize="10" Foreground="{StaticResource Ai.Text.Brush}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="10.5" />
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding FileChanges}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Classes="chip" Margin="0,3,5,0">
+                                <TextBlock FontFamily="{StaticResource Font.Data}" FontSize="10">
+                                  <Run Text="{Binding Name}" /><Run Text="  " />
+                                  <Run Text="{Binding Counts}" Foreground="{StaticResource Bullish.Brush}" />
+                                </TextBlock>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </Border>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+
+          <StackPanel IsVisible="{Binding !HasConversation}" VerticalAlignment="Center"
+                      HorizontalAlignment="Center" MaxWidth="560">
+            <Border Width="46" Height="46" Background="{StaticResource Gradient.Ai}"
+                    CornerRadius="12" HorizontalAlignment="Center">
+              <TextBlock Text="VQ" FontSize="16" FontWeight="Bold" Foreground="White"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <TextBlock Text="Describe the strategy. Watch it get built."
+                       Classes="header" FontSize="16.5" HorizontalAlignment="Center" Margin="0,14,0,4" />
+            <TextBlock Text="Vibe Quant plans, writes, compiles and smoke-tests it — you review and register."
+                       Classes="muted" FontSize="11.5" TextWrapping="Wrap" TextAlignment="Center"
+                       HorizontalAlignment="Center" />
+
+            <ItemsControl ItemsSource="{Binding SuggestionBriefs}" Margin="0,18,0,0"
+                          IsVisible="{Binding AiHasProvider}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button Classes="pill" Margin="0,3" HorizontalAlignment="Stretch"
+                          Tag="{Binding}" Click="OnUseSuggestion">
+                    <TextBlock Text="{Binding}" TextWrapping="Wrap" MaxWidth="530" />
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Border Background="{StaticResource Ai.Soft}" BorderBrush="{StaticResource Ai.Glow.Brush}"
+                    BorderThickness="1" CornerRadius="7" Padding="12,10" Margin="0,18,0,0"
+                    IsVisible="{Binding !AiHasProvider}">
+              <TextBlock TextWrapping="Wrap" FontSize="11.5">
+                <Run Text="No AI provider is set up yet. " FontWeight="SemiBold" />
+                <Run Text="Add an API key or install an agent CLI under Settings → AI providers, then come back — or write the strategy yourself in the workbench and press Compile &amp; Register." />
+              </TextBlock>
+            </Border>
+          </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Margin="4,8,4,0" Spacing="4">
+          <Border Background="{StaticResource Ai.Soft}" BorderBrush="{StaticResource Ai.Glow.Brush}"
+                  BorderThickness="1" CornerRadius="4" Padding="8,5"
+                  IsVisible="{Binding AwaitingAnswer}">
+            <TextBlock Text="The model needs an answer before it writes the strategy — reply below."
+                       FontWeight="SemiBold" TextWrapping="Wrap" />
+          </Border>
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="9"
+                        IsVisible="{Binding IsGenerating}">
+              <TextBlock Text="{Binding WorkingVerb}" Foreground="{StaticResource Ai.Text.Brush}"
+                         FontWeight="SemiBold" />
+              <TextBlock Text="{Binding StepText}" Classes="caption" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding ElapsedText}" Classes="caption" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Grid.Column="1" Text="{Binding UsageText}" Classes="caption"
+                       FontFamily="{StaticResource Font.Data}" />
+          </Grid>
+          <TextBlock Text="{Binding AiStatus}" Classes="caption" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Border Grid.Row="3" Classes="composer" Padding="11,9" Margin="0,10,0,0">
+          <Grid RowDefinitions="Auto,Auto">
+            <TextBox x:Name="ComposerBox" Grid.Row="0" MinHeight="58" MaxHeight="190"
+                     AcceptsReturn="True" TextWrapping="Wrap"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     Background="Transparent" BorderThickness="0" Padding="2"
+                     FontSize="12.5" Watermark="Describe the strategy — or refine what's there. ⌘/Ctrl+Enter sends."
+                     Text="{Binding Composer, Mode=TwoWay}"
+                     KeyDown="OnComposerKeyDown" />
+
+            <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+              <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <Button Classes="pill aiPill" ToolTip.Tip="Choose the provider and model.">
+                  <TextBlock>
+                    <Run Text="◇ " /><Run Text="{Binding ModelPillText}" /><Run Text="  ▾" />
+                  </TextBlock>
+                  <Button.Flyout>
+                    <Flyout Placement="Top">
+                      <Border MinWidth="340" MaxWidth="440" Padding="10"
+                              Background="{StaticResource Background.Surface}"
+                              BorderBrush="{StaticResource Border.Strong}" BorderThickness="1" CornerRadius="7">
+                        <StackPanel Spacing="7">
+                          <ComboBox ItemsSource="{Binding AiProviders}"
+                                    SelectedItem="{Binding SelectedAiProvider, Mode=TwoWay}">
+                            <ComboBox.ItemTemplate>
+                              <DataTemplate>
+                                <TextBlock Text="{Binding Label}" FontSize="10.5" />
+                              </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                          </ComboBox>
+                          <ListBox ItemsSource="{Binding AllModels}"
+                                   SelectedItem="{Binding SelectedModelChoice, Mode=TwoWay}"
+                                   MaxHeight="260" Background="Transparent" BorderThickness="0">
+                            <ListBox.ItemTemplate>
+                              <DataTemplate>
+                                <TextBlock Text="{Binding Display}" FontFamily="{StaticResource Font.Data}"
+                                           FontSize="10.5" TextTrimming="CharacterEllipsis" />
+                              </DataTemplate>
+                            </ListBox.ItemTemplate>
+                          </ListBox>
+                          <Grid ColumnDefinitions="Auto,*,Auto">
+                            <TextBlock Text="Custom id:" Classes="caption" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBox Grid.Column="1" FontFamily="{StaticResource Font.Data}" FontSize="10.5"
+                                     Text="{Binding SelectedModel, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <Button Grid.Column="2" Classes="ghost" Content="↻"
+                                    Command="{Binding RefreshModelsCommand}" ToolTip.Tip="Refresh models" />
+                          </Grid>
+                        </StackPanel>
+                      </Border>
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+
+                <Button Classes="pill" ToolTip.Tip="Builder effort.">
+                  <TextBlock><Run Text="Build: " /><Run Text="{Binding BuildEffort}" /><Run Text="  ▾" /></TextBlock>
+                  <Button.Flyout>
+                    <Flyout Placement="Top">
+                      <ListBox MinWidth="150" Padding="6" ItemsSource="{Binding BuildEfforts}"
+                               SelectedItem="{Binding BuildEffort, Mode=TwoWay}" />
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+
+                <Button Classes="pill" IsEnabled="{Binding EffortSupported}" ToolTip.Tip="Model reasoning effort.">
+                  <TextBlock><Run Text="Reasoning: " /><Run Text="{Binding SelectedEffort}" /><Run Text="  ▾" /></TextBlock>
+                  <Button.Flyout>
+                    <Flyout Placement="Top">
+                      <ListBox MinWidth="150" Padding="6" ItemsSource="{Binding Efforts}"
+                               SelectedItem="{Binding SelectedEffort, Mode=TwoWay}" />
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                <Button Content="■  Stop" Command="{Binding StopCommand}"
+                        IsVisible="{Binding IsGenerating}" />
+                <Button Classes="aiAction" Content="Send  ⌘↵" Command="{Binding SendCommand}"
+                        IsVisible="{Binding !IsGenerating}" />
+              </StackPanel>
+            </Grid>
+          </Grid>
+        </Border>
+      </Grid>
+
+      <GridSplitter Grid.Column="2" Width="4" HorizontalAlignment="Stretch"
+                    Background="Transparent" />
+
+      <!-- Multi-file workbench. -->
+      <Border Grid.Column="3" Classes="workbench">
+        <DockPanel>
+          <Border DockPanel.Dock="Top" Padding="13,12,13,10"
+                  BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,0,0,1">
+            <StackPanel Spacing="8">
+              <Grid ColumnDefinitions="2*,8,3*">
+                <StackPanel Grid.Column="0" Spacing="3">
+                  <TextBlock Text="STRATEGY ID" Classes="eyebrow" />
+                  <TextBox Text="{Binding StrategyId, Mode=TwoWay}"
+                           FontFamily="{StaticResource Font.Data}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="3">
+                  <TextBlock Text="DISPLAY NAME" Classes="eyebrow" />
+                  <TextBox Text="{Binding DisplayName, Mode=TwoWay}" />
+                </StackPanel>
+              </Grid>
+
+              <Button Classes="aiAction" Content="⚡  Compile &amp; Register"
+                      Command="{Binding CompileCommand}"
+                      ToolTip.Tip="Compile every file, then review before registration" />
+
+              <Grid ColumnDefinitions="Auto,*">
+                <Border Grid.Column="0" Classes="chip" Background="{StaticResource Warning.Soft}">
+                  <Grid>
+                    <TextBlock Text="DRAFT" FontSize="9" FontWeight="Bold"
+                               Foreground="{StaticResource Warning.Brush}"
+                               IsVisible="{Binding !IsRegistered}" />
+                    <TextBlock Text="REGISTERED" FontSize="9" FontWeight="Bold"
+                               Foreground="{StaticResource Bullish.Brush}"
+                               IsVisible="{Binding IsRegistered}" />
+                  </Grid>
+                </Border>
+                <TextBlock Grid.Column="1" Text="reviewed code runs in-process" Classes="caption"
+                           HorizontalAlignment="Right" VerticalAlignment="Center" />
+              </Grid>
+              <TextBlock Text="{Binding Status}" Classes="caption" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border DockPanel.Dock="Bottom" Padding="12,7"
+                  BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0"
+                  IsVisible="{Binding AvailableClis.Count, Converter={StaticResource PositiveCount}}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="OPEN WORKSPACE IN" Classes="eyebrow" VerticalAlignment="Center" />
+              <ItemsControl ItemsSource="{Binding AvailableClis}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Classes="ghost" Margin="0,0,5,0" Content="{Binding DisplayName}"
+                            Tag="{Binding}" Click="OnLaunchCli" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <TabControl SelectedIndex="{Binding WorkbenchTab, Mode=TwoWay}"
+                      Margin="10,5,10,8" Background="Transparent">
+            <TabItem Header="Code">
+              <Grid Margin="0,6,0,0" RowDefinitions="Auto,*,Auto">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                  <ListBox Grid.Column="0" Classes="chromeLess"
+                           ItemsSource="{Binding Files}"
+                           SelectedItem="{Binding SelectedFile, Mode=TwoWay}"
+                           HorizontalAlignment="Stretch">
+                    <ListBox.Styles>
+                      <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="10,4" />
+                        <Setter Property="Margin" Value="0,0,4,0" />
+                        <Setter Property="FontFamily" Value="{StaticResource Font.Data}" />
+                      </Style>
+                    </ListBox.Styles>
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <TextBlock Text="{Binding Name}" FontFamily="{StaticResource Font.Data}"
+                                   FontSize="10.5" />
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <Button Classes="ghost" Content="＋" Command="{Binding AddFileCommand}"
+                            ToolTip.Tip="Add helper file" />
+                    <Button Classes="ghost" Content="−" Command="{Binding RemoveFileCommand}"
+                            CommandParameter="{Binding SelectedFile}" ToolTip.Tip="Remove selected file" />
+                  </StackPanel>
+                </Grid>
+
+                <Border Grid.Row="1" Background="{StaticResource Background.Elevated}"
+                        BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                        CornerRadius="4" Margin="0,6,0,0">
+                  <TextBox Text="{Binding SelectedFile.Content, Mode=TwoWay}"
+                           AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
+                           ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                           ScrollViewer.VerticalScrollBarVisibility="Auto"
+                           Background="Transparent" BorderThickness="0" Padding="11,9"
+                           FontFamily="{StaticResource Font.Data}" FontSize="12.2" />
+                </Border>
+
+                <Expander Grid.Row="2" Margin="0,6,0,0" IsExpanded="True"
+                          IsVisible="{Binding Diagnostics.Count, Converter={StaticResource PositiveCount}}">
+                  <Expander.Header>
+                    <TextBlock FontSize="10.5" Foreground="{StaticResource Warning.Brush}">
+                      <Run Text="⚠ Diagnostics · " /><Run Text="{Binding Diagnostics.Count}" />
+                      <Run Text="  (select a row to jump to its file)" Foreground="{StaticResource Text.Secondary}" />
+                    </TextBlock>
+                  </Expander.Header>
+                  <ListBox ItemsSource="{Binding Diagnostics}" MaxHeight="130"
+                           SelectedItem="{Binding SelectedDiagnostic, Mode=TwoWay}">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <Grid ColumnDefinitions="52,88,34,*" Margin="0,2">
+                          <TextBlock Grid.Column="0" Text="{Binding Severity}" FontSize="10"
+                                     Foreground="{StaticResource Warning.Brush}" />
+                          <TextBlock Grid.Column="1" Text="{Binding File}" Classes="caption"
+                                     FontFamily="{StaticResource Font.Data}" />
+                          <TextBlock Grid.Column="2" Text="{Binding Line}" Classes="caption"
+                                     FontFamily="{StaticResource Font.Data}" />
+                          <TextBlock Grid.Column="3" Text="{Binding Message}" FontSize="10.5"
+                                     TextTrimming="CharacterEllipsis" />
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </Expander>
+              </Grid>
+            </TabItem>
+
+            <TabItem Header="Parameters">
+              <Grid Margin="0,8,0,0" RowDefinitions="Auto,*">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,7">
+                  <TextBlock Grid.Column="0" Text="Compile a strategy with a static Schema to edit its tunables."
+                             Classes="caption" TextWrapping="Wrap" />
+                  <Button Grid.Column="1" Classes="ghost" Content="Reset defaults"
+                          Command="{Binding Parameters.ResetToDefaultsCommand}" />
+                </Grid>
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                  <ItemsControl ItemsSource="{Binding Parameters.Items}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Background="{StaticResource Background.Elevated}"
+                                BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                CornerRadius="4" Padding="9,7" Margin="0,0,0,6">
+                          <Grid ColumnDefinitions="*,150">
+                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                              <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                              <TextBlock Text="{Binding Description}" Classes="caption" TextWrapping="Wrap" />
+                              <TextBlock Classes="caption" FontFamily="{StaticResource Font.Data}">
+                                <Run Text="{Binding Key}" /><Run Text="  " /><Run Text="{Binding Unit}" />
+                              </TextBlock>
+                            </StackPanel>
+                            <Grid Grid.Column="1" VerticalAlignment="Center">
+                              <NumericUpDown Value="{Binding NumberValue, Mode=TwoWay}"
+                                             Minimum="{Binding Min}" Maximum="{Binding Max}"
+                                             Increment="{Binding Step}"
+                                             IsVisible="{Binding Kind, Converter={StaticResource ParameterKindMatch}, ConverterParameter=Integer|Number}" />
+                              <CheckBox IsChecked="{Binding BoolValue, Mode=TwoWay}" Content="Enabled"
+                                        IsVisible="{Binding Kind, Converter={StaticResource ParameterKindMatch}, ConverterParameter=Boolean}" />
+                              <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
+                                        IsVisible="{Binding Kind, Converter={StaticResource ParameterKindMatch}, ConverterParameter=Choice}" />
+                              <TextBox Text="{Binding TextValue, Mode=TwoWay}"
+                                       IsVisible="{Binding Kind, Converter={StaticResource ParameterKindMatch}, ConverterParameter=Text}" />
+                            </Grid>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </Grid>
+            </TabItem>
+
+            <TabItem Header="Activity">
+              <Grid Margin="0,8,0,0" RowDefinitions="Auto,*">
+                <StackPanel Grid.Row="0" Spacing="5" Margin="0,0,0,8">
+                  <TextBlock Text="BUILD TASKS" Classes="eyebrow" />
+                  <ItemsControl ItemsSource="{Binding Tasks}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Grid ColumnDefinitions="70,*" Margin="0,2">
+                          <TextBlock Grid.Column="0" Text="{Binding State}" FontSize="10"
+                                     FontFamily="{StaticResource Font.Data}"
+                                     Foreground="{StaticResource Ai.Text.Brush}" />
+                          <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="10.5" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+                <Border Grid.Row="1" Background="{StaticResource Background.Elevated}"
+                        BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                        CornerRadius="4" Padding="9">
+                  <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Activity}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding}" Classes="caption" TextWrapping="Wrap"
+                                     FontFamily="{StaticResource Font.Data}" Margin="0,2" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
+              </Grid>
+            </TabItem>
+
+          </TabControl>
+        </DockPanel>
+      </Border>
+    </Grid>
+
+    <!-- Registration consent gate. No successful compile can register around this overlay. -->
+    <Grid Grid.Row="1" IsVisible="{Binding ReviewOpen}">
+      <Border Background="#C8101218" />
+      <Border Width="900" MaxHeight="680" Margin="40"
+              HorizontalAlignment="Center" VerticalAlignment="Center"
+              Background="{StaticResource Background.Elevated}"
+              BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="1"
+              CornerRadius="9" Padding="18,15">
+        <Grid RowDefinitions="Auto,Auto,*,Auto">
+          <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,11">
+            <TextBlock Text="Review before registering" Classes="header" FontSize="17" />
+            <TextBlock Text="{Binding ReviewSummary}" Classes="muted" TextWrapping="Wrap" />
+          </StackPanel>
+
+          <ListBox Grid.Row="1" Classes="chromeLess"
+                   ItemsSource="{Binding ReviewFiles}"
+                   SelectedItem="{Binding SelectedReviewFile, Mode=TwoWay}">
+            <ListBox.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock FontFamily="{StaticResource Font.Data}" FontSize="10.5">
+                  <Run Text="{Binding Name}" /><Run Text="  " />
+                  <Run Text="{Binding Counts}" Foreground="{StaticResource Bullish.Brush}" />
+                </TextBlock>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <Border Grid.Row="2" Background="{StaticResource Background.Surface}"
+                  BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                  CornerRadius="4" Margin="0,7,0,0" Padding="8,5">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+              <ItemsControl ItemsSource="{Binding SelectedReviewFile.Lines}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="48,*" Margin="0,1">
+                      <TextBlock Grid.Column="0" Text="{Binding Kind}" Classes="caption"
+                                 FontFamily="{StaticResource Font.Data}" />
+                      <TextBlock Grid.Column="1" Text="{Binding Text}"
+                                 FontFamily="{StaticResource Font.Data}" FontSize="11"
+                                 Foreground="{StaticResource Text.Primary}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Border>
+
+          <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+            <TextBlock Grid.Column="0" VerticalAlignment="Center" MaxWidth="590"
+                       Text="Registering runs this code in-process. The policy scan has already rejected P/Invoke, process and registry access."
+                       Classes="caption" TextWrapping="Wrap" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <Button Content="Back" Command="{Binding CancelReviewCommand}" />
+              <Button Classes="aiAction" Content="Register strategy"
+                      Command="{Binding ConfirmRegisterCommand}" />
+            </StackPanel>
+          </Grid>
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
 </Window>

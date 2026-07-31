@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TradingTerminal.App.Avalonia.Strategies.StrategyImageTile"
+             ClipToBounds="True">
+  <UserControl.Resources>
+    <LinearGradientBrush x:Key="LogoBackdrop" StartPoint="0%,0%" EndPoint="100%,100%">
+      <GradientStop Color="#D2D7E0" Offset="0" />
+      <GradientStop Color="#7E8798" Offset="1" />
+    </LinearGradientBrush>
+  </UserControl.Resources>
+  <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" ClipToBounds="True">
+    <Grid>
+      <Border x:Name="FallbackPanel" Background="{StaticResource LogoBackdrop}">
+        <Grid Margin="16">
+          <Image x:Name="FallbackLogo" Stretch="Uniform" />
+          <TextBlock x:Name="FallbackText" Text="DAXALGO" Foreground="#111318"
+                     FontWeight="Bold" FontSize="22"
+                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+      <Image x:Name="CustomPicture" Stretch="Uniform" Margin="4" IsVisible="False" />
+    </Grid>
+  </Border>
+</UserControl>

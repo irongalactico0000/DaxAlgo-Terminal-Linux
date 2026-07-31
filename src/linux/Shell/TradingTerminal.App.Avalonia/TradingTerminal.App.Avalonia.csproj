@@ -2,30 +2,22 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <!-- Cross-platform Avalonia shell (Phase 1 of the Linux port). net9.0 runs on Windows, Linux,
-         and Raspberry Pi (ARM64) â€” Avalonia needs no WPF. Overrides the net9.0-windows7.0 default
-         from Directory.Build.props. The WPF TradingTerminal.App stays the Windows shell. -->
+    <!-- Independent Avalonia shell for macOS. All reusable projects compile from copied source
+         inside this repository and never reference the Windows checkout. -->
     <TargetFramework>net9.0</TargetFramework>
-    <Description>Cross-platform (Avalonia) desktop shell on the portable headless core â€” Phase 1 of the Linux/ARM64 port.</Description>
+    <RuntimeIdentifiers>osx-arm64;osx-x64</RuntimeIdentifiers>
+    <Description>DaxAlgo Terminal for macOS, implemented with Avalonia on the copied portable core.</Description>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TradingTerminal.Accounts\TradingTerminal.Accounts.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
     <ProjectReference Include="..\..\..\linux\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <!-- Portable VM layer shared with the WPF shell â€” proves view-models port across unchanged. -->
     <ProjectReference Include="..\..\..\linux\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
     <!-- The headless stack (brokers, backtest engine + strategy catalog) â€” WPF-free on net9.0. -->
     <ProjectReference Include="..\..\..\linux\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\linux\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
-    <!-- Ported per-strategy projects: reuse their portable VMs (net9.0 leg, no WPF). -->
-    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" />
-    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
-    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
-    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" />
-    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj" />
-    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
-    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
-    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj" />
-    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
     <!-- AI tool windows (portable VMs; file dialogs via the UiFile seam) + the shared analyst seam. -->
     <ProjectReference Include="..\..\..\linux\AI\TradingTerminal.Ai\TradingTerminal.Ai.csproj" />
     <ProjectReference Include="..\..\..\linux\AI\TradingTerminal.Ai.MarketAnalyst\TradingTerminal.Ai.MarketAnalyst.csproj" />
@@ -33,6 +25,8 @@
     <ProjectReference Include="..\..\..\linux\AI\TradingTerminal.Ai.MlFeatures\TradingTerminal.Ai.MlFeatures.csproj" />
     <ProjectReference Include="..\..\..\linux\AI\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj" />
     <ProjectReference Include="..\..\..\linux\AI\TradingTerminal.Ai.PaperLab\TradingTerminal.Ai.PaperLab.csproj" />
+    <ProjectReference Include="..\..\..\linux\AI\DaxAlgo.Daxq.Host\DaxAlgo.Daxq.Host.csproj" />
+    <ProjectReference Include="..\..\..\linux\AI\DaxAlgo.FootprintTransformer\DaxAlgo.FootprintTransformer.csproj" />
     <!-- Tools windows. -->
     <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
     <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj" />
@@ -41,9 +35,14 @@
     <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
     <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.QuantConnect\TradingTerminal.QuantConnect.csproj" />
     <ProjectReference Include="..\..\..\linux\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
+    <ProjectReference Include="..\..\..\linux\UI\TradingTerminal.StrategyComposer\TradingTerminal.StrategyComposer.csproj" />
+    <ProjectReference Include="..\..\..\linux\UI\TradingTerminal.UI.Avalonia\TradingTerminal.UI.Avalonia.csproj" />
     <ProjectReference Include="..\..\..\linux\Charts\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
     <ProjectReference Include="..\..\..\linux\Charts\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj" />
     <ProjectReference Include="..\..\..\linux\Charts\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj" />
+    <ProjectReference Include="..\..\..\linux\Charts\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
+    <ProjectReference Include="..\..\..\linux\Charts\TradingTerminal.BubbleChart\TradingTerminal.BubbleChart.csproj" />
+    <ProjectReference Include="..\..\..\linux\Charts\TradingTerminal.SurfaceLab\TradingTerminal.SurfaceLab.csproj" />
     <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
   </ItemGroup>
 
@@ -51,15 +50,39 @@
     <PackageReference Include="Avalonia" Version="11.2.1" />
     <PackageReference Include="Avalonia.Desktop" Version="11.2.1" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.1" />
-    <!-- Cross-platform charting (the ScottPlot 5 Avalonia control) â€” replaces the WPF ScottPlot/WebView2
-         charts. Runs on Windows + Linux + ARM64 via SkiaSharp. -->
-    <PackageReference Include="ScottPlot.Avalonia" Version="5.0.55" />
     <!-- Same MVVM toolkit the WPF VMs use, so view-models port across unchanged. -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <!-- DI container + config/logging for the shell composition root (mirrors the WPF App's MS.DI host). -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.0" />
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shipped, non-secret defaults and Debug profiles. Local/user overrides remain optional and
+         are layered later by ServiceConfiguration; appsettings.local.json stays gitignored. -->
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <None Update="appsettings.Dev*.json" Condition="'$(Configuration)' == 'Debug'">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <None Update="appsettings.local.json" Condition="Exists('appsettings.local.json')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+  <Import Project="BacktestWorker.Staging.targets" />
 
 </Project>

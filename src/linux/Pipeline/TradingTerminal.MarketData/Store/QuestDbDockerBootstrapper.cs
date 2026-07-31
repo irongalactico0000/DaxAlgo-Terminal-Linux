@@ -1,6 +1,5 @@
 using System.Diagnostics;
-using System.IO;
-using System.Threading;
+using System.Net;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using TradingTerminal.Core.Configuration;
@@ -8,54 +7,73 @@ using TradingTerminal.Core.Configuration;
 namespace TradingTerminal.Infrastructure.MarketData.Store;
 
 /// <summary>
-/// Best-effort helpers for bringing the QuestDB Docker container up. Unlike the Postgres path, the
-/// QuestDB backend has <b>no SQLite fallback for ticks</b> — so rather than silently disabling L1/L2
-/// persistence, we try to start the container the repo's <c>docker-compose.yml</c> defines (single
-/// source of truth for ports/env/volume).
-///
-/// <para>These helpers back the asynchronous QuestDB warm-up — the login-screen auto-start and the
-/// manual <c>File → Start QuestDB</c> command, both in <c>QuestDbDockerService</c> (which can also
-/// start the Docker engine itself — headless via <c>docker desktop start</c>, GUI app as a fallback).
-/// They're never called on the UI thread synchronously; the store
-/// factory only probes reachability. Everything is defensive: anything missing is logged and skipped
-/// so the app always launches.</para>
+/// Starts a loopback-only QuestDB container without depending on a repository checkout or compose
+/// file. Docker Desktop may be started headlessly on macOS when its daemon is not yet available.
 /// </summary>
 internal static class QuestDbDockerBootstrapper
 {
-    public static TimeSpan StartupTimeout(MarketDataStoreOptions opts) =>
-        TimeSpan.FromSeconds(Math.Max(5, opts.DockerStartupTimeoutSeconds));
+    public static TimeSpan StartupTimeout(MarketDataStoreOptions options) =>
+        TimeSpan.FromSeconds(Math.Max(5, options.QuestDbStartupTimeoutSeconds));
 
-    /// <summary>True when the <c>docker</c> CLI is on PATH.</summary>
-    public static bool DockerCliPresent() => TryRunDocker("--version", TimeSpan.FromSeconds(15), out _, log: null);
+    public static bool DockerCliPresent() =>
+        TryRunDocker(new[] { "--version" }, TimeSpan.FromSeconds(15), out _, log: null);
 
-    /// <summary>True when the Docker daemon answers — <c>docker info</c> fails fast if it's down.</summary>
-    public static bool DockerDaemonReady() => TryRunDocker("info", TimeSpan.FromSeconds(20), out _, log: null);
+    public static bool DockerDaemonReady() =>
+        TryRunDocker(new[] { "info" }, TimeSpan.FromSeconds(20), out _, log: null);
 
-    /// <summary>
-    /// Starts the Docker engine <b>headlessly via the CLI</b> — <c>docker desktop start</c> (the Docker
-    /// Desktop CLI plugin, Docker Desktop 4.37+). No GUI window pops up; the command returns once the
-    /// engine is up. Returns false when the <c>desktop</c> plugin is unavailable (older Docker Desktop)
-    /// or the command fails, so the caller can fall back to launching the Docker Desktop app.
-    /// </summary>
     public static bool TryStartDockerEngineCli(ILogger log)
     {
-        if (TryRunDocker("desktop start", TimeSpan.FromSeconds(180), out var output, log: null))
+        if (TryRunDocker(
+                new[] { "desktop", "start" },
+                TimeSpan.FromSeconds(180),
+                out var output,
+                log: null))
         {
-            log.LogInformation("Started the Docker engine headlessly via `docker desktop start` (no GUI).");
+            log.LogInformation("Started the Docker engine through the Docker Desktop CLI.");
             return true;
         }
+
         if (!string.IsNullOrWhiteSpace(output))
-            log.LogDebug("`docker desktop start` unavailable/failed: {Out}", output.Trim());
+            log.LogDebug("Docker Desktop CLI start was unavailable: {Output}", output.Trim());
         return false;
     }
 
-    /// <summary>Best-effort PG-wire probe — opens and closes a connection to decide availability.</summary>
-    public static bool IsReachable(string conn)
+    public static bool TryLaunchDockerDesktop(ILogger log)
+    {
+        if (!OperatingSystem.IsMacOS() || !File.Exists("/usr/bin/open")) return false;
+
+        try
+        {
+            var startInfo = new ProcessStartInfo("/usr/bin/open")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            startInfo.ArgumentList.Add("-g");
+            startInfo.ArgumentList.Add("-j");
+            startInfo.ArgumentList.Add("-a");
+            startInfo.ArgumentList.Add("Docker");
+            using var process = Process.Start(startInfo);
+            if (process is null) return false;
+            process.WaitForExit(15000);
+            if (!process.HasExited || process.ExitCode != 0) return false;
+
+            log.LogInformation("Launched Docker Desktop in the background.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            log.LogDebug(ex, "Could not launch Docker Desktop through macOS Launch Services.");
+            return false;
+        }
+    }
+
+    public static bool IsReachable(string connectionString)
     {
         try
         {
-            using var cn = new NpgsqlConnection(conn);
-            cn.Open();
+            using var connection = new NpgsqlConnection(connectionString);
+            connection.Open();
             return true;
         }
         catch
@@ -64,51 +82,101 @@ internal static class QuestDbDockerBootstrapper
         }
     }
 
-    /// <summary>Brings up the container: prefer <c>docker compose up -d</c> against the repo's compose
-    /// file (source of truth), else <c>docker start</c> the named container. Logs the docker error on
-    /// failure so the user can see why (e.g. daemon not running).</summary>
-    public static bool TryStartContainer(MarketDataStoreOptions opts, ILogger log)
+    public static bool HasSafeEndpoints(MarketDataStoreOptions options, out string? reason)
     {
-        var composeFile = FindComposeFile();
-        if (composeFile is not null)
+        NpgsqlConnectionStringBuilder pg;
+        try
         {
-            if (TryRunDocker($"compose -f \"{composeFile}\" up -d {opts.DockerComposeService}",
-                    TimeSpan.FromSeconds(180), out var composeOut, log: null))
-                return true;
-            if (!string.IsNullOrWhiteSpace(composeOut))
-                log.LogWarning("docker compose up failed: {Error}", composeOut.Trim());
+            pg = new NpgsqlConnectionStringBuilder(options.QuestDbPgConnectionString);
+        }
+        catch (Exception ex) when (ex is ArgumentException or FormatException)
+        {
+            reason = "QuestDB PG-wire connection string is invalid.";
+            return false;
         }
 
-        // Fallback for published builds shipped without the compose file: start an existing container.
-        return TryRunDocker($"start {opts.DockerContainerName}", TimeSpan.FromSeconds(60), out _, log: null);
+        if (!TryParseIlpEndpoint(options.QuestDbIlpConfig, out var scheme, out var ilpEndpoint))
+        {
+            reason = "QuestDB ILP-over-HTTP configuration is invalid.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(pg.Host) || !IsLoopbackHost(pg.Host))
+        {
+            reason = "QuestDB PG-wire must use a loopback host.";
+            return false;
+        }
+
+        if ((!string.Equals(scheme, "http", StringComparison.OrdinalIgnoreCase)
+             && !string.Equals(scheme, "https", StringComparison.OrdinalIgnoreCase))
+            || !IsLoopbackHost(ilpEndpoint.Host))
+        {
+            reason = "QuestDB ILP-over-HTTP must use a loopback host.";
+            return false;
+        }
+
+        if (options.QuestDbLaunchMode == QuestDbLaunchMode.Native
+            && (pg.Port != 8812
+                || !string.Equals(scheme, "http", StringComparison.OrdinalIgnoreCase)
+                || ilpEndpoint.Port != 9000))
+        {
+            reason = "App-managed QuestDB requires PG-wire port 8812 and HTTP ILP port 9000.";
+            return false;
+        }
+
+        reason = null;
+        return true;
     }
 
-    /// <summary>Launches Docker Desktop (configured path or a known install location). Returns false if
-    /// no executable could be found/started.</summary>
-    public static bool TryLaunchDockerDesktop(MarketDataStoreOptions opts, ILogger log)
+    public static bool TryStartContainer(MarketDataStoreOptions options, ILogger log)
     {
-        foreach (var path in DockerDesktopCandidates(opts))
+        if (string.IsNullOrWhiteSpace(options.QuestDbContainerName)
+            || string.IsNullOrWhiteSpace(options.QuestDbContainerImage)
+            || string.IsNullOrWhiteSpace(options.QuestDbVolumeName))
         {
-            if (!File.Exists(path)) continue;
-            try
-            {
-                Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
-                log.LogInformation("Launched Docker Desktop ({Path}). Waiting for the engine to come up…", path);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                log.LogDebug(ex, "Failed to launch Docker Desktop at {Path}", path);
-            }
+            log.LogWarning("QuestDB container name, image, and volume must all be configured.");
+            return false;
         }
+
+        var inspectArguments = new[] { "container", "inspect", options.QuestDbContainerName };
+        if (TryRunDocker(inspectArguments, TimeSpan.FromSeconds(30), out _, log: null))
+        {
+            if (TryRunDocker(
+                    new[] { "start", options.QuestDbContainerName },
+                    TimeSpan.FromSeconds(60),
+                    out var startOutput,
+                    log: null))
+                return true;
+
+            log.LogWarning(
+                "Docker could not start the existing QuestDB container {Container}: {Error}",
+                options.QuestDbContainerName,
+                startOutput.Trim());
+            return false;
+        }
+
+        var runArguments = new[]
+        {
+            "run", "-d", "--pull=missing",
+            "--name", options.QuestDbContainerName,
+            "--restart", "unless-stopped",
+            "-p", "127.0.0.1:9000:9000",
+            "-p", "127.0.0.1:8812:8812",
+            "-v", $"{options.QuestDbVolumeName}:/var/lib/questdb",
+            "-e", "QDB_TELEMETRY_ENABLED=false",
+            options.QuestDbContainerImage,
+        };
+        if (TryRunDocker(runArguments, TimeSpan.FromMinutes(5), out var runOutput, log: null))
+            return true;
+
+        log.LogWarning("Docker could not create the QuestDB container: {Error}", runOutput.Trim());
         return false;
     }
 
-    /// <summary>Polls <c>docker info</c> until the daemon answers or the timeout elapses.</summary>
-    public static bool WaitForDaemon(TimeSpan timeout, CancellationToken ct)
+    public static bool WaitForDaemon(TimeSpan timeout, CancellationToken cancellationToken)
     {
         var deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
+        while (DateTime.UtcNow < deadline && !cancellationToken.IsCancellationRequested)
         {
             if (DockerDaemonReady()) return true;
             Thread.Sleep(2000);
@@ -116,89 +184,111 @@ internal static class QuestDbDockerBootstrapper
         return false;
     }
 
-    /// <summary>Polls the QuestDB PG-wire port until it accepts a connection or the timeout elapses.</summary>
-    public static bool WaitUntilReachable(string conn, TimeSpan timeout, CancellationToken ct)
+    public static bool WaitUntilReachable(
+        string connectionString,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
     {
         var deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
+        while (DateTime.UtcNow < deadline && !cancellationToken.IsCancellationRequested)
         {
-            if (IsReachable(conn)) return true;
+            if (IsReachable(connectionString)) return true;
             Thread.Sleep(1000);
+        }
+        return IsReachable(connectionString);
+    }
+
+    private static bool TryParseIlpEndpoint(string config, out string scheme, out Uri endpoint)
+    {
+        scheme = string.Empty;
+        endpoint = null!;
+        if (string.IsNullOrWhiteSpace(config)) return false;
+
+        var schemeSeparator = config.IndexOf("::", StringComparison.Ordinal);
+        if (schemeSeparator <= 0) return false;
+        scheme = config[..schemeSeparator].Trim();
+
+        var address = config[(schemeSeparator + 2)..]
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(property => property.Split('=', 2, StringSplitOptions.TrimEntries))
+            .FirstOrDefault(parts => parts.Length == 2
+                && string.Equals(parts[0], "addr", StringComparison.OrdinalIgnoreCase))?[1];
+
+        if (string.IsNullOrWhiteSpace(address)
+            || !Uri.TryCreate($"{scheme}://{address}", UriKind.Absolute, out var parsed)
+            || parsed.Port is <= 0 or > 65535)
+            return false;
+
+        endpoint = parsed;
+        return true;
+    }
+
+    private static bool IsLoopbackHost(string host)
+    {
+        var normalized = host.Trim().TrimStart('[').TrimEnd(']');
+        if (string.Equals(normalized, "localhost", StringComparison.OrdinalIgnoreCase)) return true;
+        return IPAddress.TryParse(normalized, out var address) && IPAddress.IsLoopback(address);
+    }
+
+    private static bool TryRunDocker(
+        IReadOnlyList<string> arguments,
+        TimeSpan timeout,
+        out string output,
+        ILogger? log)
+    {
+        output = string.Empty;
+        foreach (var executable in DockerCliCandidates())
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo(executable)
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);
+
+                using var process = Process.Start(startInfo);
+                if (process is null) continue;
+                var standardOutput = process.StandardOutput.ReadToEndAsync();
+                var standardError = process.StandardError.ReadToEndAsync();
+
+                if (!process.WaitForExit((int)timeout.TotalMilliseconds))
+                {
+                    try { process.Kill(entireProcessTree: true); } catch { }
+                    output = "Docker command timed out.";
+                    return false;
+                }
+
+                var stdout = standardOutput.GetAwaiter().GetResult();
+                var stderr = standardError.GetAwaiter().GetResult();
+                output = string.IsNullOrWhiteSpace(stdout) ? stderr : stdout;
+                if (process.ExitCode == 0) return true;
+
+                log?.LogDebug(
+                    "Docker command exited {ExitCode}: {Error}",
+                    process.ExitCode,
+                    stderr.Trim());
+                return false;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                log?.LogDebug(ex, "Docker CLI candidate {Path} could not be started.", executable);
+            }
         }
         return false;
     }
 
-    private static IEnumerable<string> DockerDesktopCandidates(MarketDataStoreOptions opts)
+    private static IEnumerable<string> DockerCliCandidates()
     {
-        if (!string.IsNullOrWhiteSpace(opts.DockerDesktopPath))
-            yield return opts.DockerDesktopPath;
-
-        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-        var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-
-        yield return Path.Combine(programFiles, "Docker", "Docker", "Docker Desktop.exe");
-        yield return Path.Combine(programFilesX86, "Docker", "Docker", "Docker Desktop.exe");
-        yield return Path.Combine(localAppData, "Docker", "Docker Desktop.exe");
-    }
-
-    /// <summary>Walk up from the app's base directory to locate the repo's docker-compose.yml.</summary>
-    private static string? FindComposeFile()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        for (var i = 0; i < 8 && dir is not null; i++, dir = dir.Parent)
+        if (OperatingSystem.IsMacOS())
         {
-            var candidate = Path.Combine(dir.FullName, "docker-compose.yml");
-            if (File.Exists(candidate)) return candidate;
+            yield return "/Applications/Docker.app/Contents/Resources/bin/docker";
+            yield return "/opt/homebrew/bin/docker";
+            yield return "/usr/local/bin/docker";
         }
-        return null;
-    }
-
-    /// <summary>Runs <c>docker &lt;arguments&gt;</c>, returns true on exit code 0. <paramref name="output"/>
-    /// gets stdout (or stderr when stdout is empty). Never throws.</summary>
-    private static bool TryRunDocker(string arguments, TimeSpan timeout, out string output, ILogger? log)
-    {
-        output = string.Empty;
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = "docker",
-                Arguments = arguments,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-
-            using var proc = Process.Start(psi);
-            if (proc is null) return false;
-
-            // Drain both pipes asynchronously so a full stderr buffer can't deadlock a blocked stdout read.
-            var stdoutTask = proc.StandardOutput.ReadToEndAsync();
-            var stderrTask = proc.StandardError.ReadToEndAsync();
-
-            if (!proc.WaitForExit((int)timeout.TotalMilliseconds))
-            {
-                try { proc.Kill(entireProcessTree: true); } catch { /* best-effort */ }
-                return false;
-            }
-
-            var stdout = stdoutTask.GetAwaiter().GetResult();
-            var stderr = stderrTask.GetAwaiter().GetResult();
-            output = string.IsNullOrWhiteSpace(stdout) ? stderr : stdout;
-
-            if (proc.ExitCode != 0)
-            {
-                log?.LogDebug("docker {Args} exited {Code}: {Err}", arguments, proc.ExitCode, stderr.Trim());
-                return false;
-            }
-            return true;
-        }
-        catch (Exception ex)
-        {
-            log?.LogDebug(ex, "docker {Args} failed to launch", arguments);
-            return false;
-        }
+        yield return "docker";
     }
 }

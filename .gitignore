@@ -29,6 +29,9 @@ artifacts/
 *.swp
 *.tmp
 
+# Local validation, publish, and visual-comparison scratch
+tmp/
+
 # Test output
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*

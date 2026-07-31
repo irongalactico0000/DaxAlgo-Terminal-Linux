@@ -1,6 +1,6 @@
-# TradingTerminal.UI.Core — public API surface (Linux/Avalonia)
+# TradingTerminal.UI.Core — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/UI/TradingTerminal.UI.Core/BarIndicators.cs
@@ -18,6 +18,14 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
   151: public static double[] BarCloses(IReadOnlyList<Bar> bars)
 ```
 
+## src/linux/UI/TradingTerminal.UI.Core/BrokerInstrumentUniverse.cs
+```cs
+   24: public static class BrokerInstrumentUniverse
+   33: public static async Task<IReadOnlyList<SignalInstrument>> LoadAsync(
+   66: public static string BrokerLabel(BrokerKind broker) => broker switch
+   78: public static SignalInstrument? Reselect(
+```
+
 ## src/linux/UI/TradingTerminal.UI.Core/BusyState.cs
 ```cs
    28: public sealed partial class BusyState : ObservableObject
@@ -28,12 +36,19 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/UI/TradingTerminal.UI.Core/Catalog/StrategyCatalogViewModel.cs
 ```cs
-   14: public sealed partial class StrategyCatalogViewModel : ObservableObject
-   18: public StrategyCatalogViewModel(IEnumerable<BacktestStrategyOption> options, Action<string>? onLog = null)
-   30: public ObservableCollection<StrategyCatalogItem> Items { get; }
-   32: public int Count => Items.Count;
-   38: public string Details => SelectedItem is { } s
-   53: public sealed record StrategyCatalogItem(string Id, string DisplayName, int ParameterCount, bool Fast);
+   13: public sealed partial class StrategyCatalogViewModel : ObservableObject
+   17: public StrategyCatalogViewModel(IEnumerable<BacktestStrategyOption> options, Action<string>? onLog = null)
+   29: public ObservableCollection<StrategyCatalogItem> Items { get; }
+   31: public int Count => Items.Count;
+   37: public string Details => SelectedItem is { } s
+   52: public sealed record StrategyCatalogItem(string Id, string DisplayName, int ParameterCount, bool Fast);
+```
+
+## src/linux/UI/TradingTerminal.UI.Core/Diagnostics/PluginFaultTracker.cs
+```cs
+   10: public sealed class PluginFaultTracker(int strikeLimit)
+   16: public int StrikeLimit { get; } = strikeLimit;
+   20: public (int Strikes, bool StruckOutNow) RecordFault(string plugin)
 ```
 
 ## src/linux/UI/TradingTerminal.UI.Core/ISignalGeneratorRouterFactory.cs
@@ -44,28 +59,54 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    17: public SignalGeneratorRouter Create() => new();
 ```
 
+## src/linux/UI/TradingTerminal.UI.Core/InstrumentPickerFilter.cs
+```cs
+   20: public static class InstrumentPickerFilter
+   26: public bool IsApplying { get; set; }
+   27: public object? PendingDesired { get; set; }
+   31: public static List<SignalInstrument> Visible(
+   51: public static List<T> Visible<T>(
+   71: public static List<SignalInstrument> Visible(
+   91: public static void Apply<T>(ObservableCollection<T> target, IReadOnlyList<T> desired)
+  166: public static SignalInstrument? Remembered(string key, IReadOnlyList<SignalInstrument> all)
+  172: public static T? Remembered<T>(string key, IReadOnlyList<T> all, Func<T, string> symbolOf) where T : class
+  184: public static SignalInstrument? InitialSelection(
+  189: public static T? InitialSelection<T>(
+```
+
+## src/linux/UI/TradingTerminal.UI.Core/LastInstrumentStore.cs
+```cs
+   17: public static class LastInstrumentStore
+   28: public static string? Load(string key)
+   40: public static void Save(string key, string? symbol)
+```
+
 ## src/linux/UI/TradingTerminal.UI.Core/LiveSignalStrategyViewModelBase.cs
 ```cs
-   38: public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, IDisposable
-   40: public const int MaxSignalsRetained = 200;
-   41: public const int MaxBarsRetained = 300;
-   45: public const int MaxInstrumentsDisplayed = 500;
-   55: protected virtual int WarmupBarCount => 120;
-   83: protected LiveSignalStrategyViewModelBase(
-  133: public string StrategyId { get; }
-  134: public string StrategyDisplayName { get; }
-  138: public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
-  140: public ObservableCollection<SignalEntry> Signals { get; }
-  143: public ObservableCollection<Bar> Bars { get; }
-  145: public event EventHandler? BarsChanged;
-  151: public event EventHandler? TickProcessed;
-  177: protected virtual StrategyDataRequirement DataRequirement =>
-  344: protected abstract IBacktestStrategy BuildStrategy(Contract contract);
-  348: protected virtual string? ValidateSetup() => null;
-  352: protected virtual void OnBarsUpdated() { }
-  358: protected virtual Task OnWarmupBarsLoadedAsync(IReadOnlyList<Bar> bars) => Task.CompletedTask;
-  362: protected void Log(string category, string message) =>
-  767: public void Dispose()
+   41: public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, IDisposable
+   43: public const int MaxSignalsRetained = 200;
+   44: public const int MaxBarsRetained = 300;
+   48: public const int MaxInstrumentsDisplayed = 500;
+   58: protected virtual int WarmupBarCount => 120;
+   87: protected LiveSignalStrategyViewModelBase(
+  143: public string StrategyId { get; }
+  144: public string StrategyDisplayName { get; }
+  148: public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
+  150: public ObservableCollection<SignalEntry> Signals { get; }
+  153: public ObservableCollection<Bar> Bars { get; }
+  155: public event EventHandler? BarsChanged;
+  161: public event EventHandler? TickProcessed;
+  187: protected virtual StrategyDataRequirement DataRequirement =>
+  272: protected virtual void OnPauseReleased() { }
+  391: protected abstract IBacktestStrategy BuildStrategy(Contract contract);
+  395: protected virtual string? ValidateSetup() => null;
+  399: protected virtual void OnBarsUpdated() { }
+  405: protected virtual Task OnWarmupBarsLoadedAsync(IReadOnlyList<Bar> bars) => Task.CompletedTask;
+  409: protected void Log(string category, string message) =>
+  896: public ObservableCollection<string> PresetNames { get; }
+  911: protected virtual Dictionary<string, string>? CaptureExtraPreset() => null;
+  915: protected virtual void ApplyExtraPreset(IReadOnlyDictionary<string, string> extras) { }
+ 1007: public void Dispose()
 ```
 
 ## src/linux/UI/TradingTerminal.UI.Core/LiveStrategyHostServices.cs
@@ -75,33 +116,59 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/UI/TradingTerminal.UI.Core/Logging/InMemoryLogSink.cs
 ```cs
-   19: public sealed class InMemoryLogSink : INotifyPropertyChanged
-   28: public static Action<Action> UiPost { get; set; } = static action => action();
-   30: public InMemoryLogSink(int capacity = CapacityDefault)
-   36: public int Capacity { get; }
-   37: public ObservableCollection<LogEntry> Entries { get; }
-   39: public event PropertyChangedEventHandler? PropertyChanged;
-   41: public void Append(LogEntry entry) => UiPost(() => DoAppend(entry));
-   46: public void Append(string source, string level, string message) =>
-   59: public sealed record LogEntry(DateTime TimestampUtc, string Source, string Level, string Message);
+   23: public sealed class InMemoryLogSink : INotifyPropertyChanged
+   31: public static Action<Action> UiPost { get; set; } = static action => action();
+   37: public InMemoryLogSink(int capacity = CapacityDefault)
+   43: public int Capacity { get; }
+   44: public ObservableCollection<LogEntry> Entries { get; }
+   46: public event PropertyChangedEventHandler? PropertyChanged;
+   48: public void Append(LogEntry entry)
+   66: public void Append(string source, string level, string message) =>
+   89: public sealed record LogEntry(DateTime TimestampUtc, string Source, string Level, string Message);
+```
+
+## src/linux/UI/TradingTerminal.UI.Core/Presets/StrategyViewPreset.cs
+```cs
+   13: public sealed record StrategyViewPreset(
+```
+
+## src/linux/UI/TradingTerminal.UI.Core/Presets/ToolPresetStore.cs
+```cs
+   16: public sealed class ToolPresetStore<T> where T : class
+   24: public ToolPresetStore(string toolKey)
+   32: public ToolPresetStore(string toolKey, string directory)
+   39: public IReadOnlyList<string> Names
+   47: public T? Get(string name)
+   53: public void Save(string name, T preset)
+   65: public bool Delete(string name)
 ```
 
 ## src/linux/UI/TradingTerminal.UI.Core/SignalEntry.cs
 ```cs
-   10: public sealed record SignalEntry(
-   19: public string SideText => Side == OrderSide.Buy ? "BUY" : "SELL";
-   20: public string TypeText => OrderType.ToString();
-   21: public string TimeText => TimestampUtc.ToLocalTime().ToString("HH:mm:ss.fff");
+   11: public sealed record SignalEntry(
+   21: public string SideText => DirectSignal?.Kind switch
+   29: public string TypeText => DirectSignal is null ? OrderType.ToString() : "Signal";
+   31: public string QuantityText => DirectSignal is { } signal
+   35: public string TimeText => TimestampUtc.ToLocalTime().ToString("HH:mm:ss.fff");
 ```
 
 ## src/linux/UI/TradingTerminal.UI.Core/SignalGeneratorRouter.cs
 ```cs
-   23: public sealed class SignalGeneratorRouter : IOrderRouter
-   29: public IObservable<OrderEvent> OrderEvents => _events.AsObservable();
-   31: public event Action<SignalEntry>? SignalEmitted;
-   34: public void UpdateMarketContext(Tick tick) => _lastTick = tick;
-   36: public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default)
-   65: public Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default)
+   24: public sealed class SignalGeneratorRouter : IOrderRouter, IStrategySignalSink
+   30: public IObservable<OrderEvent> OrderEvents => _events.AsObservable();
+   32: public event Action<SignalEntry>? SignalEmitted;
+   35: public void UpdateMarketContext(Tick tick) => _lastTick = tick;
+   37: public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default)
+   70: public Task EmitSignalAsync(StrategySignal signal, CancellationToken ct = default)
+  103: public Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default)
+```
+
+## src/linux/UI/TradingTerminal.UI.Core/SimulatedDataState.cs
+```cs
+    7: public static class SimulatedDataState
+   11: public static bool IsActive => _isActive;
+   13: public static event EventHandler? Changed;
+   15: public static void Set(bool active)
 ```
 
 ## src/linux/UI/TradingTerminal.UI.Core/Strategies/ParameterEditorItem.cs
@@ -129,13 +196,30 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    84: public void Refresh()
 ```
 
+## src/linux/UI/TradingTerminal.UI.Core/Strategies/StrategyCatalogItemViewModel.cs
+```cs
+   14: public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
+   16: public StrategyCatalogItemViewModel(ITradingStrategy strategy)
+   19: public StrategyCatalogItemViewModel(ITradingStrategy strategy, StrategyPresentation presentation)
+   29: public ITradingStrategy Strategy { get; }
+   31: public string Id => Strategy.Id;
+   40: public ObservableCollection<string> CustomTags { get; } = [];
+   42: public bool HasFormula => !string.IsNullOrWhiteSpace(Formula);
+   43: public bool HasCustomTags => CustomTags.Count > 0;
+   44: public Uri? LinkUri => Uri.TryCreate(LinkUrl, UriKind.Absolute, out var uri)
+   48: public bool HasLink => LinkUri is not null;
+   58: public void Apply(StrategyPresentation presentation)
+```
+
 ## src/linux/UI/TradingTerminal.UI.Core/Strategies/StrategyFactory.cs
 ```cs
-   14: public sealed class StrategyFactory : IStrategyFactory
-   22: public static Action<object, object> BindViewModel { get; set; } = DefaultBind;
-   27: public StrategyFactory(
-   37: public IReadOnlyList<ITradingStrategy> All { get; }
-   39: public StrategyHost Create(string strategyId)
+   19: public sealed class StrategyFactory : IStrategyFactory
+   26: public static Action<object, object> BindViewModel { get; set; } = DefaultBind;
+   33: public StrategyFactory(
+   43: public IReadOnlyList<ITradingStrategy> All
+   48: public event EventHandler<StrategyCatalogChange>? Changed;
+   50: public void Register(ITradingStrategy strategy, StrategyFactoryRegistration registration)
+   74: public StrategyHost Create(string strategyId)
 ```
 
 ## src/linux/UI/TradingTerminal.UI.Core/Strategies/StrategyParametersViewModel.cs
@@ -146,6 +230,20 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    33: public StrategyParameters Parameters { get; }
    35: public ObservableCollection<ParameterEditorItem> Items { get; }
    37: public bool HasParameters => Items.Count > 0;
+```
+
+## src/linux/UI/TradingTerminal.UI.Core/Strategies/StrategyPresentation.cs
+```cs
+   12: public sealed record StrategyPresentation(
+   20: public static readonly StrategyPresentation Empty = new();
+```
+
+## src/linux/UI/TradingTerminal.UI.Core/Strategies/StrategyPresentationStore.cs
+```cs
+   14: public static class StrategyPresentationStore
+   24: public static StrategyPresentation Get(string strategyId) =>
+   29: public static void Save(string strategyId, StrategyPresentation presentation)
+   40: public static void Remove(string strategyId)
 ```
 
 ## src/linux/UI/TradingTerminal.UI.Core/TaskExtensions.cs
@@ -166,9 +264,9 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/UI/TradingTerminal.UI.Core/UiFile.cs
 ```cs
-   10: public static class UiFile
-   15: public static Func<string, IReadOnlyList<string>, Task<string?>> OpenAsync { get; set; }
-   20: public static Func<string, IReadOnlyList<string>, string, Task<string?>> SaveAsync { get; set; }
+    9: public static class UiFile
+   14: public static Func<string, IReadOnlyList<string>, Task<string?>> OpenAsync { get; set; }
+   19: public static Func<string, IReadOnlyList<string>, string, Task<string?>> SaveAsync { get; set; }
 ```
 
 ## src/linux/UI/TradingTerminal.UI.Core/UiThread.cs
@@ -178,7 +276,8 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    20: public static Task RunAsync(Func<Task> action) => Marshal(action);
    23: public static Task RunAsync(Action action) => Marshal(() => { action(); return Task.CompletedTask; });
    33: public static Func<TimeSpan, Action, IDisposable> CreateRenderTimer { get; set; } = DefaultRenderTimer;
-   48: public void Dispose() => timer.Dispose();
+   50: public CoalescingRenderTimer(TimeSpan interval, Action tick)
+   85: public void Dispose()
 ```
 
 ## src/linux/UI/TradingTerminal.UI.Core/ViewModelBase.cs

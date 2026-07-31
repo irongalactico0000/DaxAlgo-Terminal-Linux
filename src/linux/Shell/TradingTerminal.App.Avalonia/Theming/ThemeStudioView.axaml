@@ -1,0 +1,224 @@
+<UserControl x:Class="TradingTerminal.App.Avalonia.Theming.ThemeStudioView"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource Background.Primary}"
+             Foreground="{DynamicResource Text.Primary}"
+             MinWidth="760"
+             MinHeight="640">
+  <UserControl.Styles>
+    <Style Selector="Slider.channel">
+      <Setter Property="Minimum" Value="0" />
+      <Setter Property="Maximum" Value="255" />
+      <Setter Property="Width" Value="150" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="IsSnapToTickEnabled" Value="True" />
+      <Setter Property="TickFrequency" Value="1" />
+    </Style>
+    <Style Selector="TextBlock.channel-label">
+      <Setter Property="Width" Value="14" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.channel-value">
+      <Setter Property="Width" Value="30" />
+      <Setter Property="Margin" Value="6,0,0,0" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBox.hex">
+      <Setter Property="FontFamily" Value="{DynamicResource Font.Data}" />
+      <Setter Property="MinWidth" Value="116" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top"
+            Background="{DynamicResource Background.Surface}"
+            BorderBrush="{DynamicResource Border.Brush}"
+            BorderThickness="0,0,0,1"
+            Padding="16,12">
+      <StackPanel Spacing="2">
+        <TextBlock Text="Theme Studio" FontSize="18" FontWeight="SemiBold" />
+        <TextBlock Text="Edit any colour and watch every open window re-skin live. Save the result as a custom theme, or import and export portable JSON themes."
+                   Foreground="{DynamicResource Text.Secondary}"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,10" />
+
+        <Grid ColumnDefinitions="Auto,Auto,*">
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,0,20,0">
+            <TextBlock Text="Start from"
+                       Foreground="{DynamicResource Text.Secondary}"
+                       VerticalAlignment="Center" />
+            <ComboBox ItemsSource="{Binding BaseThemes}"
+                      SelectedItem="{Binding SelectedBaseTheme, Mode=TwoWay}"
+                      MinWidth="180">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,0,20,0">
+            <TextBlock Text="Name"
+                       Foreground="{DynamicResource Text.Secondary}"
+                       VerticalAlignment="Center" />
+            <TextBox Text="{Binding NewThemeName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     MinWidth="170" />
+          </StackPanel>
+
+          <StackPanel Grid.Column="2"
+                      Orientation="Horizontal"
+                      Spacing="8"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Center">
+            <Button Content="Reset"
+                    Command="{Binding ResetAllCommand}"
+                    ToolTip.Tip="Discard edits and return to the selected base preset." />
+            <Button Content="Import…" Command="{Binding ImportCommand}" />
+            <Button Content="Export…" Command="{Binding ExportCommand}" />
+            <Button Content="Save theme"
+                    Classes="accent"
+                    Command="{Binding SaveCommand}"
+                    ToolTip.Tip="Add this look to the application Theme menu." />
+          </StackPanel>
+        </Grid>
+      </StackPanel>
+    </Border>
+
+    <Border DockPanel.Dock="Bottom"
+            Background="{DynamicResource Background.Surface}"
+            BorderBrush="{DynamicResource Border.Brush}"
+            BorderThickness="0,1,0,0"
+            Padding="16,8">
+      <TextBlock Text="{Binding StatusMessage}"
+                 Foreground="{DynamicResource Text.Secondary}"
+                 TextWrapping="Wrap" />
+    </Border>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,12">
+      <ItemsControl ItemsSource="{Binding Groups}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Expander Header="{Binding Name}"
+                      IsExpanded="True"
+                      Margin="0,0,0,8"
+                      Foreground="{DynamicResource Text.Header}"
+                      FontWeight="SemiBold">
+              <ItemsControl ItemsSource="{Binding Tokens}" Margin="6,6,0,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border BorderBrush="{DynamicResource Border.Brush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="0,8"
+                            ToolTip.Tip="{Binding PrimaryKey}">
+                      <StackPanel>
+                        <StackPanel IsVisible="{Binding IsSolid}">
+                          <Grid ColumnDefinitions="34,220,120,*">
+                            <Border Grid.Column="0"
+                                    Width="26"
+                                    Height="18"
+                                    Background="{Binding Swatch}"
+                                    BorderBrush="{DynamicResource Border.Strong}"
+                                    BorderThickness="1"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding DisplayName}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBox Grid.Column="2"
+                                     Classes="hex"
+                                     Text="{Binding Hex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,12,0" />
+                          </Grid>
+
+                          <Expander Header="RGBA"
+                                    Margin="34,4,0,0"
+                                    Foreground="{DynamicResource Text.Secondary}"
+                                    FontWeight="Normal">
+                            <StackPanel Margin="0,4,0,0" Spacing="2">
+                              <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="A" Classes="channel-label" />
+                                <Slider Value="{Binding A, Mode=TwoWay}" Classes="channel" />
+                                <TextBlock Text="{Binding A}" Classes="channel-value" />
+                              </StackPanel>
+                              <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="R" Classes="channel-label" />
+                                <Slider Value="{Binding R, Mode=TwoWay}" Classes="channel" />
+                                <TextBlock Text="{Binding R}" Classes="channel-value" />
+                              </StackPanel>
+                              <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="G" Classes="channel-label" />
+                                <Slider Value="{Binding G, Mode=TwoWay}" Classes="channel" />
+                                <TextBlock Text="{Binding G}" Classes="channel-value" />
+                              </StackPanel>
+                              <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="B" Classes="channel-label" />
+                                <Slider Value="{Binding B, Mode=TwoWay}" Classes="channel" />
+                                <TextBlock Text="{Binding B}" Classes="channel-value" />
+                              </StackPanel>
+                            </StackPanel>
+                          </Expander>
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding IsGradient}">
+                          <Grid ColumnDefinitions="220,*">
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding DisplayName}"
+                                       VerticalAlignment="Center" />
+                            <Border Grid.Column="1"
+                                    Height="20"
+                                    Background="{Binding GradientPreview}"
+                                    BorderBrush="{DynamicResource Border.Strong}"
+                                    BorderThickness="1" />
+                          </Grid>
+
+                          <Expander Header="Stops"
+                                    Margin="0,4,0,0"
+                                    Foreground="{DynamicResource Text.Secondary}"
+                                    FontWeight="Normal">
+                            <ItemsControl ItemsSource="{Binding Stops}" Margin="0,4,0,0">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                  <StackPanel Margin="0,2">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                      <Border Width="26"
+                                              Height="16"
+                                              Background="{Binding Swatch}"
+                                              BorderBrush="{DynamicResource Border.Strong}"
+                                              BorderThickness="1"
+                                              VerticalAlignment="Center" />
+                                      <TextBlock Text="{Binding Label}" Width="60" VerticalAlignment="Center" />
+                                      <TextBox Classes="hex"
+                                               Width="120"
+                                               Text="{Binding Hex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="34,2,0,0">
+                                      <TextBlock Text="R" Classes="channel-label" />
+                                      <Slider Value="{Binding R, Mode=TwoWay}" Classes="channel" />
+                                      <TextBlock Text="G" Classes="channel-label" Margin="8,0,0,0" />
+                                      <Slider Value="{Binding G, Mode=TwoWay}" Classes="channel" />
+                                      <TextBlock Text="B" Classes="channel-label" Margin="8,0,0,0" />
+                                      <Slider Value="{Binding B, Mode=TwoWay}" Classes="channel" />
+                                    </StackPanel>
+                                  </StackPanel>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </Expander>
+                        </StackPanel>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </Expander>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

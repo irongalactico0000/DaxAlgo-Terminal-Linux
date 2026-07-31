@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="TradingTerminal.BacktestStudio.AvaloniaUi.BacktestStudioAvaloniaWindow"
-        Width="900" Height="640"
+        Width="980" Height="680"
         Background="{DynamicResource Background.Primary}"
         Title="Backtest Studio">
   <DockPanel Margin="14">
@@ -17,7 +17,8 @@
         </ComboBox>
 
         <TextBlock Text="Data source" FontWeight="SemiBold" Margin="0,8,0,0"/>
-        <ComboBox HorizontalAlignment="Stretch" SelectedItem="{Binding SelectedDataSource}"/>
+        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding DataSources}"
+                  SelectedItem="{Binding SelectedDataSource}"/>
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBox Width="170" Watermark="Parquet path…" Text="{Binding ParquetPath}"/>
           <Button Content="Browse…" Command="{Binding BrowseParquetCommand}"/>
@@ -27,6 +28,13 @@
           <TextBlock Text="Cash" VerticalAlignment="Center"/>
           <NumericUpDown Width="120" Value="{Binding StartingCash}"/>
         </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="Events" VerticalAlignment="Center"/>
+          <NumericUpDown Width="110" Minimum="1" Value="{Binding SyntheticTicks}"/>
+          <TextBlock Text="Seed" VerticalAlignment="Center"/>
+          <NumericUpDown Width="80" Value="{Binding Seed}"/>
+        </StackPanel>
+        <CheckBox Content="Record visual replay" IsChecked="{Binding RecordVisual}"/>
 
         <TextBlock Text="Parameters" FontWeight="SemiBold" Margin="0,8,0,0"/>
         <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3" Height="140">
@@ -34,14 +42,26 @@
         </Border>
 
         <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-          <Button Classes="accent" Content="Run" Command="{Binding RunCommand}"/>
-          <Button Content="Cancel" Command="{Binding CancelCommand}"/>
+          <Button Classes="accent" Content="Run" Command="{Binding RunCommand}"
+                  IsEnabled="{Binding IsNotRunning}"/>
+          <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding IsRunning}"/>
         </StackPanel>
+        <TextBlock Text="{Binding ExecutionTarget}" FontSize="10" FontWeight="Bold"
+                   Foreground="{DynamicResource Accent.Brush}"/>
+        <ProgressBar Minimum="0" Maximum="100" Value="{Binding RunProgress}" Height="4"
+                     IsVisible="{Binding IsRunning}"/>
         <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"/>
       </StackPanel>
 
       <!-- Report -->
       <DockPanel Grid.Column="1">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+          <Button Content="Export trades CSV" Command="{Binding ExportTradesCsvCommand}"/>
+          <Button Content="Export trials CSV" Command="{Binding ExportTrialsCsvCommand}"/>
+          <TextBlock Text="{Binding LastRunStrategyName}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+          <TextBlock Text="{Binding LastRunDataSource}" VerticalAlignment="Center"
+                     Foreground="{DynamicResource Text.Secondary}"/>
+        </StackPanel>
         <Border DockPanel.Dock="Top" Background="{DynamicResource Background.Surface}" BorderBrush="{DynamicResource Border.Brush}"
                 BorderThickness="1" CornerRadius="3" Padding="12" Margin="0,0,0,8">
           <WrapPanel>

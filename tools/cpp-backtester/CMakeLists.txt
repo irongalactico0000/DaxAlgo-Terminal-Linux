@@ -27,16 +27,6 @@ find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)
 find_package(Threads REQUIRED)
 
-# JSON for the tick_backtester (--json) polyglot bridge. Header-only; pulled
-# from upstream at configure time so users don't need a vcpkg install.
-include(FetchContent)
-FetchContent_Declare(
-    json
-    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
-    URL_HASH SHA256=d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d
-)
-FetchContent_MakeAvailable(json)
-
 # Optional Boost
 find_package(Boost OPTIONAL_COMPONENTS program_options)
 
@@ -50,7 +40,6 @@ add_library(backtester_core STATIC
     metrics/performance_metrics.cpp
     data/csv_loader.cpp
     data/parquet_loader.cpp
-    strategy/mean_reversion.cpp
 )
 
 target_include_directories(backtester_core PUBLIC
@@ -72,10 +61,6 @@ if(Boost_FOUND)
   target_compile_definitions(backtester_core PUBLIC HAS_BOOST)
 endif()
 
-# Main executable
-add_executable(backtester app/backtest_runner.cpp)
-target_link_libraries(backtester PRIVATE backtester_core)
-
 # Benchmark executable
 add_executable(benchmark app/benchmark.cpp)
 target_link_libraries(benchmark PRIVATE backtester_core)
@@ -84,13 +69,8 @@ target_link_libraries(benchmark PRIVATE backtester_core)
 add_executable(data_fetcher app/data_fetcher.cpp)
 target_link_libraries(data_fetcher PRIVATE backtester_core fmt::fmt spdlog::spdlog)
 
-# JSON-mode runner — polyglot bridge for the DaxAlgo Terminal C# parent.
-# Reads FastBacktestRequest on stdin, writes FastBacktestResult on stdout.
-add_executable(tick_backtester app/backtest_json.cpp)
-target_link_libraries(tick_backtester PRIVATE backtester_core nlohmann_json::nlohmann_json)
-
 # Install
-install(TARGETS backtester benchmark tick_backtester DESTINATION bin)
+install(TARGETS benchmark DESTINATION bin)
 
 # Enable testing
 enable_testing()

@@ -1,0 +1,202 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TradingTerminal.App.Plugins.PluginManagerView"
+             x:Name="ManagerRoot"
+             x:CompileBindings="False"
+             Width="900" Height="600">
+  <Grid Margin="18" RowDefinitions="Auto,Auto,*">
+
+    <!-- Header -->
+    <StackPanel Grid.Row="0">
+      <TextBlock Text="Strategy Manager" FontSize="18" FontWeight="Bold" />
+      <TextBlock Text="{Binding TrustPolicySummary}" Opacity="0.8" Margin="0,4,0,0"
+                 TextWrapping="Wrap" />
+    </StackPanel>
+
+    <!-- Loaded assemblies cannot be replaced in place; every lifecycle mutation is explicit. -->
+    <Border Grid.Row="1" Margin="0,12,0,0" Padding="10,7"
+            Background="{StaticResource Warning.Soft}"
+            BorderBrush="{StaticResource Warning.Brush}" BorderThickness="1"
+            IsVisible="{Binding RestartRequired}">
+      <TextBlock FontWeight="SemiBold" TextWrapping="Wrap"
+                 Text="Changes pending — restart DaxAlgo Terminal to apply them." />
+    </Border>
+
+    <TabControl Grid.Row="2" Margin="0,14,0,0" BorderThickness="0">
+
+      <!-- Every plugin observed at startup, including disabled/quarantined/failed entries. -->
+      <TabItem Header="Installed">
+        <Grid Margin="0,12,0,0" RowDefinitions="Auto,Auto,*,Auto,Auto">
+          <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <Button Content="Install Strategies" Command="{Binding InstallPluginCommand}"
+                    Padding="14,6" Margin="0,0,8,0" />
+            <Button Content="Open Strategies folder" Command="{Binding OpenPluginsFolderCommand}"
+                    Padding="14,6" />
+          </StackPanel>
+
+          <TextBlock Grid.Row="1" Margin="0,10,0,0" Opacity="0.65"
+                     TextWrapping="Wrap" FontSize="11">
+            <Run Text="Plugins folder:  " />
+            <Run Text="{Binding PluginsRoot, Mode=OneWay}" />
+          </TextBlock>
+
+          <Border Grid.Row="2" Margin="0,14,0,0"
+                  BorderBrush="{StaticResource Border.Brush}" BorderThickness="1">
+            <Grid RowDefinitions="Auto,*">
+              <Border Grid.Row="0" Background="{StaticResource Background.Elevated}"
+                      BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,0,0,1"
+                      Padding="10,7">
+                <Grid ColumnDefinitions="170,210,*,220">
+                  <TextBlock Grid.Column="0" Text="STATUS" FontSize="10" FontWeight="Bold"
+                             Foreground="{StaticResource Text.Secondary}" />
+                  <TextBlock Grid.Column="1" Text="NAME" FontSize="10" FontWeight="Bold"
+                             Foreground="{StaticResource Text.Secondary}" />
+                  <TextBlock Grid.Column="2" Text="DETAILS" FontSize="10" FontWeight="Bold"
+                             Foreground="{StaticResource Text.Secondary}" />
+                  <TextBlock Grid.Column="3" Text="ACTIONS" FontSize="10" FontWeight="Bold"
+                             Foreground="{StaticResource Text.Secondary}" />
+                </Grid>
+              </Border>
+
+              <ListBox Grid.Row="1" ItemsSource="{Binding Rows}" BorderThickness="0"
+                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemContainerTheme>
+                  <ControlTheme TargetType="ListBoxItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Focusable" Value="False" />
+                  </ControlTheme>
+                </ListBox.ItemContainerTheme>
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <Border Padding="10,9" BorderBrush="{StaticResource Border.Brush}"
+                            BorderThickness="0,0,0,1">
+                      <Grid ColumnDefinitions="170,210,*,220">
+                        <TextBlock Grid.Column="0" Text="{Binding StatusLabel}"
+                                   FontWeight="SemiBold" TextWrapping="Wrap"
+                                   Foreground="{StaticResource Text.Secondary}"
+                                   Classes.problem="{Binding IsProblem}">
+                          <TextBlock.Styles>
+                            <Style Selector="TextBlock.problem">
+                              <Setter Property="Foreground" Value="{StaticResource Warning.Brush}" />
+                            </Style>
+                          </TextBlock.Styles>
+                        </TextBlock>
+                        <TextBlock Grid.Column="1" Text="{Binding Name}" TextWrapping="Wrap"
+                                   Margin="0,0,12,0" />
+                        <TextBlock Grid.Column="2" Text="{Binding Detail}" TextWrapping="Wrap"
+                                   Opacity="0.85" Margin="0,0,12,0"
+                                   ToolTip.Tip="{Binding Detail}" />
+                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                          <Button Content="Enable" Padding="8,2" Margin="0,0,6,0" FontSize="11"
+                                  IsVisible="{Binding CanEnable}"
+                                  Command="{Binding DataContext.EnableCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  CommandParameter="{Binding}" />
+                          <Button Content="Disable" Padding="8,2" Margin="0,0,6,0" FontSize="11"
+                                  IsVisible="{Binding CanDisable}"
+                                  Command="{Binding DataContext.DisableCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  CommandParameter="{Binding}" />
+                          <Button Content="Uninstall" Padding="8,2" FontSize="11"
+                                  IsVisible="{Binding CanUninstall}"
+                                  Command="{Binding DataContext.UninstallCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  CommandParameter="{Binding}" />
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
+
+          <TextBlock Grid.Row="3" Text="{Binding Status}" Margin="0,12,0,0"
+                     TextWrapping="Wrap" FontWeight="SemiBold" />
+
+          <TextBlock Grid.Row="4" Margin="0,10,0,0" Opacity="0.6"
+                     TextWrapping="Wrap" FontSize="11"
+                     Text="Developing a strategy? Reference DaxAlgo.Sdk, implement IStrategyPlugin, build, then install it here or drop its folder into the plugins directory and restart. See docs/plugins.md." />
+        </Grid>
+      </TabItem>
+
+      <!-- Signed, offline-first marketplace. Hidden when no feed is configured. -->
+      <TabItem Header="Catalog" IsVisible="{Binding FeedConfigured}">
+        <Grid Margin="0,12,0,0" RowDefinitions="Auto,Auto,*,Auto">
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto">
+            <TextBox Grid.Column="0" VerticalContentAlignment="Center" Padding="8,6"
+                     Text="{Binding CatalogSearch}"
+                     Watermark="Search plugins by name, publisher, or tag…" />
+            <Button Grid.Column="1" Content="Update all" Padding="14,6" Margin="8,0,0,0"
+                    Command="{Binding UpdateAllCommand}" IsEnabled="{Binding HasUpdates}" />
+            <Button Grid.Column="2" Content="Refresh" Padding="14,6" Margin="8,0,0,0"
+                    Command="{Binding RefreshCatalogCommand}" />
+          </Grid>
+
+          <ProgressBar Grid.Row="1" Margin="0,8,0,0" Height="2" IsIndeterminate="True"
+                       IsVisible="{Binding CatalogBusy}" />
+
+          <ListBox Grid.Row="2" Margin="0,12,0,0" ItemsSource="{Binding CatalogItems}"
+                   BorderThickness="0"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemContainerTheme>
+              <ControlTheme TargetType="ListBoxItem">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Focusable" Value="False" />
+              </ControlTheme>
+            </ListBox.ItemContainerTheme>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Border BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                        Padding="14,10" Margin="0,0,0,8">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                      <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="14" />
+                        <TextBlock Text=" · " Opacity="0.6" Margin="6,0,0,1"
+                                   VerticalAlignment="Bottom" />
+                        <TextBlock Text="{Binding Publisher}" Opacity="0.6" Margin="0,0,0,1"
+                                   VerticalAlignment="Bottom" />
+                      </StackPanel>
+                      <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Opacity="0.85"
+                                 Margin="0,4,0,0" />
+                      <TextBlock Text="{Binding StateLabel}" FontSize="11" Margin="0,6,0,0"
+                                 Foreground="{StaticResource Text.Secondary}"
+                                 Classes.update="{Binding CanUpdate}"
+                                 Classes.revoked="{Binding Revoked}">
+                        <TextBlock.Styles>
+                          <Style Selector="TextBlock.update">
+                            <Setter Property="Foreground" Value="{StaticResource Warning.Brush}" />
+                          </Style>
+                          <Style Selector="TextBlock.revoked">
+                            <Setter Property="Foreground" Value="{StaticResource Bearish.Brush}" />
+                          </Style>
+                        </TextBlock.Styles>
+                      </TextBlock>
+                      <TextBlock Text="{Binding RevokedReason}" FontSize="11" TextWrapping="Wrap"
+                                 Margin="0,2,0,0" Foreground="{StaticResource Bearish.Brush}"
+                                 IsVisible="{Binding Revoked}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                      <Button Content="Install" Padding="16,6" MinWidth="90"
+                              IsVisible="{Binding CanInstall}"
+                              Command="{Binding DataContext.InstallFromCatalogCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                              CommandParameter="{Binding}" />
+                      <Button Content="Update" Padding="16,6" MinWidth="90"
+                              IsVisible="{Binding CanUpdate}"
+                              Command="{Binding DataContext.InstallFromCatalogCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                              CommandParameter="{Binding}" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <TextBlock Grid.Row="3" Text="{Binding CatalogStatus}" Margin="0,10,0,0"
+                     TextWrapping="Wrap" FontWeight="SemiBold" />
+        </Grid>
+      </TabItem>
+    </TabControl>
+  </Grid>
+</UserControl>

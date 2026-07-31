@@ -1,12 +1,12 @@
-# TradingTerminal.BacktestStudio — public API surface (Linux/Avalonia)
+# TradingTerminal.BacktestStudio — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Tools/TradingTerminal.BacktestStudio/AvaloniaUi/BacktestStudioAvaloniaWindow.axaml.cs
 ```cs
-    9: public partial class BacktestStudioAvaloniaWindow : Window
-   11: public BacktestStudioAvaloniaWindow() => InitializeComponent();
+    8: public partial class BacktestStudioAvaloniaWindow : Window
+   10: public BacktestStudioAvaloniaWindow() => InitializeComponent();
 ```
 
 ## src/linux/Tools/TradingTerminal.BacktestStudio/AxisRowViewModel.cs
@@ -21,8 +21,8 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/Tools/TradingTerminal.BacktestStudio/BacktestStudioServiceCollectionExtensions.cs
 ```cs
-   14: public static class BacktestStudioServiceCollectionExtensions
-   16: public static IServiceCollection AddBacktestStudioSurface(this IServiceCollection services)
+   15: public static class BacktestStudioServiceCollectionExtensions
+   17: public static IServiceCollection AddBacktestStudioSurface(this IServiceCollection services)
 ```
 
 ## src/linux/Tools/TradingTerminal.BacktestStudio/BacktestStudioView.xaml.cs
@@ -33,29 +33,31 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/Tools/TradingTerminal.BacktestStudio/BacktestStudioViewModel.cs
 ```cs
-   25: public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
-   37: public BacktestStudioViewModel(
-   59: public ObservableCollection<StrategyKernelDescriptor> Strategies { get; }
-   60: public ObservableCollection<ParamRowViewModel> Parameters { get; }
-   61: public ObservableCollection<RoundTripTrade> Trades { get; }
-   62: public ObservableCollection<AxisRowViewModel> Axes { get; }
-   63: public ObservableCollection<TrialRowViewModel> OptimizationTrials { get; }
-   64: public ObservableCollection<WalkForwardRowViewModel> WalkForwardRows { get; }
-   65: public IReadOnlyList<OptimizationCriterion> Criteria { get; }
-   66: public IReadOnlyList<OptimizationMethod> Methods { get; }
-   67: public IReadOnlyList<DataSourceKind> DataSources { get; } = Enum.GetValues<DataSourceKind>();
-   68: public IReadOnlyList<BrokerKind> Brokers { get; } = Enum.GetValues<BrokerKind>();
-   81: public BacktestReport? Report { get; private set; }
-  133: public double[,]? SurfaceScores { get; private set; }
-  134: public AxisRowViewModel? SurfaceXAxis { get; private set; }
-  135: public AxisRowViewModel? SurfaceYAxis { get; private set; }
-  137: public bool IsNotRunning => !IsRunning;
-  138: public bool IsNotOptimizing => !IsOptimizing;
-  139: public string CurrentBarText => $"{CurrentBar} / {BarCount}";
-  142: public event EventHandler? OptimizationReady;
-  145: public event EventHandler? ReportReady;
-  148: public event EventHandler? ReplayFrameChanged;
-  522: public void Dispose()
+   31: public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
+   46: public BacktestStudioViewModel(
+  115: public ObservableCollection<StrategyKernelDescriptor> Strategies { get; }
+  116: public ObservableCollection<ParamRowViewModel> Parameters { get; }
+  117: public ObservableCollection<RoundTripTrade> Trades { get; }
+  118: public ObservableCollection<AxisRowViewModel> Axes { get; }
+  119: public ObservableCollection<TrialRowViewModel> OptimizationTrials { get; }
+  120: public ObservableCollection<WalkForwardRowViewModel> WalkForwardRows { get; }
+  121: public IReadOnlyList<OptimizationCriterion> Criteria { get; }
+  122: public IReadOnlyList<OptimizationMethod> Methods { get; }
+  123: public IReadOnlyList<DataSourceKind> DataSources { get; } = Enum.GetValues<DataSourceKind>();
+  124: public IReadOnlyList<BrokerKind> Brokers { get; } = Enum.GetValues<BrokerKind>();
+  137: public BacktestReport? Report { get; private set; }
+  200: public double[,]? SurfaceScores { get; private set; }
+  201: public AxisRowViewModel? SurfaceXAxis { get; private set; }
+  202: public AxisRowViewModel? SurfaceYAxis { get; private set; }
+  204: public bool IsBusy => IsRunning || IsOptimizing;
+  205: public bool IsNotRunning => !IsBusy;
+  206: public bool IsNotOptimizing => !IsBusy;
+  207: public string CurrentBarText => $"{CurrentBar} / {BarCount}";
+  208: public string ExecutionTarget => SelectedStrategy is { } strategy && SupportsWorker(strategy)
+  213: public event EventHandler? OptimizationReady;
+  216: public event EventHandler? ReportReady;
+  219: public event EventHandler? ReplayFrameChanged;
+  815: public void Dispose()
 ```
 
 ## src/linux/Tools/TradingTerminal.BacktestStudio/DataSourceKind.cs

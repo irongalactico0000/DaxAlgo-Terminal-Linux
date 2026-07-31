@@ -1,6 +1,6 @@
-# TradingTerminal.Infrastructure / CTrader — public API surface (Linux/Avalonia)
+# TradingTerminal.Infrastructure / CTrader — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Pipeline/TradingTerminal.Infrastructure/CTrader/CTraderAccountDiscoveryService.cs
@@ -12,21 +12,21 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/Pipeline/TradingTerminal.Infrastructure/CTrader/RealCTraderClient.cs
 ```cs
-   26: public sealed class RealCTraderClient : IBrokerClient
-   45: public RealCTraderClient(ILogger<RealCTraderClient> logger, IOptions<CTraderOptions> options)
-   51: public BrokerKind Kind => BrokerKind.CTrader;
-   53: public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
-   55: public async Task ConnectAsync(CancellationToken ct = default)
-  148: public Task DisconnectAsync(CancellationToken ct = default)
-  162: public Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default)
-  257: public async Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
-  293: public async IAsyncEnumerable<Bar> SubscribeBarsAsync(
-  341: public async IAsyncEnumerable<Tick> SubscribeTicksAsync(
-  404: public async IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
-  535: public IAsyncEnumerable<TradeTick> SubscribeTradesAsync(
-  626: public ValueTask DisposeAsync()
-  645: public MessageDispatcher(RealCTraderClient owner) => _owner = owner;
-  647: public void OnNext(IMessage value)
-  660: public void OnError(Exception error)
-  666: public void OnCompleted()
+   27: public sealed class RealCTraderClient : IBrokerClient
+   46: public RealCTraderClient(ILogger<RealCTraderClient> logger, IOptions<CTraderOptions> options)
+   52: public BrokerKind Kind => BrokerKind.CTrader;
+   54: public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
+   56: public async Task ConnectAsync(CancellationToken ct = default)
+  149: public Task DisconnectAsync(CancellationToken ct = default)
+  163: public Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default)
+  258: public async Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
+  294: public async IAsyncEnumerable<Bar> SubscribeBarsAsync(
+  345: public async IAsyncEnumerable<Tick> SubscribeTicksAsync(
+  411: public async IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
+  545: public IAsyncEnumerable<TradeTick> SubscribeTradesAsync(
+  636: public ValueTask DisposeAsync()
+  655: public MessageDispatcher(RealCTraderClient owner) => _owner = owner;
+  657: public void OnNext(IMessage value)
+  670: public void OnError(Exception error)
+  676: public void OnCompleted()
 ```

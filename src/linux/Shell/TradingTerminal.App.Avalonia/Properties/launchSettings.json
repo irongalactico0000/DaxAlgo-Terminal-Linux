@@ -3,15 +3,55 @@
     "Avalonia Shell (Desktop)": {
       "commandName": "Project"
     },
-    "Avalonia Shell (Dev: Simulated)": {
+    "Dev — Login (Google → Broker → Terminal)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevLogin"
+      }
+    },
+    "Dev — Simulated (Google → Broker → Terminal)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevSimLogin"
+      }
+    },
+    "Dev — New User (signup/login test)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevNewUser"
+      }
+    },
+    "Dev — No Strategies": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevNoStrategies"
+      }
+    },
+    "Dev — Bypass login (broker only)": {
+      "commandName": "Project",
+      "commandLineArgs": "--bypass-account-login",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevLive"
+      }
+    },
+    "Dev — Live crypto + installed plugins": {
+      "commandName": "Project",
+      "commandLineArgs": "--bypass-login",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevLiveAll"
+      }
+    },
+    "Dev — Simulated (offline)": {
       "commandName": "Project",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "DevSim"
       }
     },
-    "WSL": {
-      "commandName": "WSL2",
-      "distributionName": ""
+    "Dev — Replay (local DB)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevReplay"
+      }
     }
   }
 }

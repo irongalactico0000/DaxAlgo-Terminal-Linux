@@ -9,8 +9,6 @@ namespace TradingTerminal.Backtest.Engine.Kernels;
 /// </summary>
 public static class NativeKernels
 {
-    public static IReadOnlyList<StrategyKernelDescriptor> All { get; } = new[]
-    {
-        MeanReversionKernel.Descriptor,
-    };
+    /// <summary>Intentionally empty: macOS loads kernels from authored or installed bundles.</summary>
+    public static IReadOnlyList<StrategyKernelDescriptor> All { get; } = [];
 }

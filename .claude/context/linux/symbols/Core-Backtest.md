@@ -1,6 +1,6 @@
-# TradingTerminal.Core / Backtest — public API surface (Linux/Avalonia)
+# TradingTerminal.Core / Backtest — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Core/TradingTerminal.Core/Backtest/BacktestConfig.cs
@@ -11,7 +11,7 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/Core/TradingTerminal.Core/Backtest/BacktestResult.cs
 ```cs
-    8: public sealed record BacktestResult(
+   10: public sealed record BacktestResult(
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Backtest/BacktestStatistics.cs
@@ -26,10 +26,11 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    24: public Func<Contract, StrategyParameters, IBacktestStrategy>? ParameterizedBuild { get; init; }
    32: public Func<Contract, IBacktestStrategy>? BacktestBuild { get; init; }
    36: public IBacktestStrategy CreateForBacktest(Contract contract) =>
-   40: public bool HasParameters => !Schema.IsEmpty;
-   48: public StrategyDataRequirement DataRequirement { get; init; } =
-   57: public string? ResearchPaperUrl { get; init; }
-   64: public IBacktestStrategy Create(Contract contract, StrategyParameters? parameters = null) =>
+   47: public Func<WalkForwardAxes, IReadOnlyList<WalkForwardCandidate>>? WalkForwardGrid { get; init; }
+   50: public bool HasParameters => !Schema.IsEmpty;
+   58: public StrategyDataRequirement DataRequirement { get; init; } =
+   67: public string? ResearchPaperUrl { get; init; }
+   74: public IBacktestStrategy Create(Contract contract, StrategyParameters? parameters = null) =>
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Backtest/EquityPoint.cs
@@ -77,12 +78,14 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    16: public interface IBacktestStrategy
    19:     Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct);
    22:     Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct);
-   31:     Task OnDepthAsync(DepthSnapshot depth, IClock clock, IOrderRouter router, CancellationToken ct)
-   32:     => Task.CompletedTask;
-   42:     Task OnTradeAsync(TradePrint trade, IClock clock, IOrderRouter router, CancellationToken ct)
-   43:     => Task.CompletedTask;
-   46:     Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct);
-   49:     Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct);
+   28:     Task OnBarAsync(Bar bar, IClock clock, IOrderRouter router, CancellationToken ct)
+   29:     => Task.CompletedTask;
+   38:     Task OnDepthAsync(DepthSnapshot depth, IClock clock, IOrderRouter router, CancellationToken ct)
+   39:     => Task.CompletedTask;
+   49:     Task OnTradeAsync(TradePrint trade, IClock clock, IOrderRouter router, CancellationToken ct)
+   50:     => Task.CompletedTask;
+   53:     Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct);
+   56:     Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct);
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Backtest/IParquetQueryService.cs
@@ -122,4 +125,12 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    17: public sealed record Report(
    33: public sealed record HourBucket(int Hour, int Fills, double MeanSlippage, double MakerFraction);
    35: public static Report Compute(IReadOnlyList<FillRecord> fills)
+```
+
+## src/linux/Core/TradingTerminal.Core/Backtest/WalkForward.cs
+```cs
+   10: public sealed record WalkForwardCandidate(string Label, Func<Contract, IBacktestStrategy> Build);
+   17: public sealed record WalkForwardAxes(
+   28: public static WalkForwardAxes Defaults { get; } = new([], [], [], [], [], [], [], 1);
+   33: public static T[] Or<T>(T[] axis, params T[] fallback) => axis is { Length: > 0 } ? axis : fallback;
 ```

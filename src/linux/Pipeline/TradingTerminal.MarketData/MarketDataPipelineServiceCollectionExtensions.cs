@@ -8,6 +8,7 @@ using Npgsql;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Ml;
 using TradingTerminal.Infrastructure.MarketData.Store;
 
 namespace TradingTerminal.Infrastructure.MarketData;
@@ -35,6 +36,19 @@ public static class MarketDataPipelineServiceCollectionExtensions
         var usePostgres = opts.Provider == MarketDataProvider.Postgres && CanReachPostgres(pgConn);
 
         services.AddSingleton<IMarketDataHub, MarketDataHub>();
+
+        var modelSection = configuration.GetSection(ModelRegistryOptions.SectionName);
+        services.Configure<ModelRegistryOptions>(modelSection);
+        var modelOptions = modelSection.Get<ModelRegistryOptions>() ?? new ModelRegistryOptions();
+        services.AddSingleton<IModelRegistry>(_ =>
+        {
+            var path = string.IsNullOrWhiteSpace(modelOptions.DatabasePath)
+                ? ResolveModelDatabasePath()
+                : modelOptions.DatabasePath;
+            var registry = new SqliteModelRegistry(path);
+            if (modelOptions.RetentionDays > 0) registry.PruneOlderThan(modelOptions.RetentionDays);
+            return registry;
+        });
 
         // The canonical identity registry stays single-file (the shared marketdata.db) regardless of
         // backend — including the per-broker store, whose split is only of the time-series tables.
@@ -117,7 +131,7 @@ public static class MarketDataPipelineServiceCollectionExtensions
 
         // Probe only — never block here. The store is resolved on the UI thread (the login screen
         // pulls in the launcher), so the actual Docker start runs asynchronously from the login screen
-        // (QuestDbDockerService, honouring AutoStartDocker) or File → Start QuestDB, then re-arms the
+        // (QuestDbDockerService, honouring AutoStartQuestDb) or File → Start QuestDB, then re-arms the
         // store live via IReactivatableTickStore. If QuestDB is already up we wire the sender now.
         var reachable = CanReachQuestDb(opts.QuestDbPgConnectionString);
         if (!reachable)
@@ -161,6 +175,15 @@ public static class MarketDataPipelineServiceCollectionExtensions
             "DaxAlgoTerminal");
         Directory.CreateDirectory(dir);
         return Path.Combine(dir, "marketdata.db");
+    }
+
+    private static string ResolveModelDatabasePath()
+    {
+        var dir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DaxAlgoTerminal");
+        Directory.CreateDirectory(dir);
+        return Path.Combine(dir, "ml-models.db");
     }
 
     private static string BuildSqliteConnectionString(string path)

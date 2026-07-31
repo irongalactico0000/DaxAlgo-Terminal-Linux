@@ -14,13 +14,53 @@
     <ProjectReference Include="..\..\..\src\linux\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\..\..\src\linux\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
     <ProjectReference Include="..\..\..\src\linux\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
+    <ProjectReference Include="..\..\..\src\linux\Backtest\TradingTerminal.Backtest.Client\TradingTerminal.Backtest.Client.csproj" />
+    <ProjectReference Include="..\..\..\src\linux\Backtest\TradingTerminal.Backtest.Protocol\TradingTerminal.Backtest.Protocol.csproj" />
+    <ProjectReference Include="..\..\..\src\linux\Backtest\TradingTerminal.Backtest.Worker\TradingTerminal.Backtest.Worker.csproj"
+                      ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\..\src\linux\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\linux\Sdk\DaxAlgo.Strategy.Bundle\DaxAlgo.Strategy.Bundle.csproj" />
+    <ProjectReference Include="..\..\..\src\linux\AI\TradingTerminal.Ai.Coordinator.Contracts\TradingTerminal.Ai.Coordinator.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\src\linux\AI\TradingTerminal.Ai.Coordinator\TradingTerminal.Ai.Coordinator.csproj" />
     <ProjectReference Include="..\..\..\src\linux\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\linux\Shell\TradingTerminal.Accounts\TradingTerminal.Accounts.csproj" />
+    <ProjectReference Include="..\..\..\src\linux\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
     <!-- Ported per-strategy projects (net9.0 leg) â€” verify their portable VMs resolve headless. -->
-    <ProjectReference Include="..\..\..\src\linux\Strategies\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" />
-    <ProjectReference Include="..\..\..\src\linux\Strategies\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
-    <ProjectReference Include="..\..\..\src\linux\Strategies\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
-    <ProjectReference Include="..\..\..\src\linux\Strategies\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <_SamplePluginProject>$(MSBuildThisFileDirectory)..\Fixtures\DaxAlgo.SamplePlugin\DaxAlgo.SamplePlugin.csproj</_SamplePluginProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(_SamplePluginProject)" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="StageSamplePlugin" AfterTargets="Build">
+    <MSBuild Projects="$(_SamplePluginProject)"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework)">
+      <Output TaskParameter="TargetOutputs" ItemName="_SamplePluginTargetPath" />
+    </MSBuild>
+    <Copy SourceFiles="@(_SamplePluginTargetPath)"
+          DestinationFolder="$(OutDir)TestPlugins/DaxAlgo.SamplePlugin/"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="StageBacktestWorkerForTests" AfterTargets="Build">
+    <MSBuild Projects="$(MSBuildProjectDirectory)\..\..\..\src\linux\Backtest\TradingTerminal.Backtest.Worker\TradingTerminal.Backtest.Worker.csproj"
+             Targets="GetBacktestWorkerStagingFiles"
+             Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework);RuntimeIdentifier=$(RuntimeIdentifier)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BacktestWorkerStageFile" />
+    </MSBuild>
+    <Copy SourceFiles="@(_BacktestWorkerStageFile)"
+          DestinationFiles="@(_BacktestWorkerStageFile->'$(OutDir)TestWorkers/BacktestWorker/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <ItemGroup>
+    <!-- The macOS product intentionally ships without strategy implementations. -->
+    <Compile Remove="Ui\PortedStrategyResolutionTests.cs" />
   </ItemGroup>
 
   <ItemGroup>

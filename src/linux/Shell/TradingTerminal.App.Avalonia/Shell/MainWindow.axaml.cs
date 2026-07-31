@@ -4,22 +4,145 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Microsoft.Extensions.DependencyInjection;
-using TradingTerminal.App.Avalonia.Charts;
+using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.App.Avalonia.Shell;
 
 public partial class MainWindow : Window
 {
-    public MainWindow() => InitializeComponent();
+    private TradingTerminal.App.Avalonia.Theming.IThemeManager? _themeManager;
+
+    public MainWindow()
+    {
+        InitializeComponent();
+        Opened += OnWindowOpened;
+        Closed += OnWindowClosed;
+    }
 
     private MainWindowViewModel? Vm => DataContext as MainWindowViewModel;
 
+    private void OnWindowOpened(object? sender, EventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } services) return;
+        _themeManager = services.GetRequiredService<TradingTerminal.App.Avalonia.Theming.IThemeManager>();
+        _themeManager.ThemesChanged += OnThemesChanged;
+        RebuildThemeMenu();
+        RebuildCliMenus();
+    }
+
+    private void OnWindowClosed(object? sender, EventArgs e)
+    {
+        if (_themeManager is not null) _themeManager.ThemesChanged -= OnThemesChanged;
+        Opened -= OnWindowOpened;
+        Closed -= OnWindowClosed;
+    }
+
+    private void OnThemesChanged(object? sender, EventArgs e) =>
+        global::Avalonia.Threading.Dispatcher.UIThread.Post(RebuildThemeMenu);
+
+    private void RebuildThemeMenu()
+    {
+        if (_themeManager is null) return;
+
+        ThemeMenu.ItemsSource = _themeManager.Themes.Select(theme =>
+        {
+            var item = new MenuItem
+            {
+                Header = (theme.Id == _themeManager.CurrentThemeId ? "✓ " : string.Empty) + theme.Name,
+                Tag = theme.Id,
+            };
+            item.Click += OnApplyTheme;
+            return item;
+        }).ToArray();
+    }
+
+    private void OnApplyTheme(object? sender, RoutedEventArgs e)
+    {
+        if (_themeManager is null || (sender as MenuItem)?.Tag is not string themeId) return;
+        _themeManager.Apply(themeId);
+        RebuildThemeMenu();
+    }
+
+    private void RebuildCliMenus()
+    {
+        MenuItem[] BuildItems() => (Vm?.CliLaunchChoices ?? []).Select(choice =>
+        {
+            var item = new MenuItem
+            {
+                Header = choice.MenuHeader,
+                IsEnabled = choice.IsAvailable,
+                Tag = choice,
+            };
+            item.Click += OnLaunchCli;
+            return item;
+        }).ToArray();
+
+        CliMenu.ItemsSource = BuildItems();
+        FabCliMenu.ItemsSource = BuildItems();
+    }
+
+    private void OnLaunchCli(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as MenuItem)?.Tag is CliLaunchChoice choice)
+            Vm?.LaunchCli(choice);
+    }
+
+    private void OnThemeStudio(object? sender, RoutedEventArgs e)
+    {
+        if (_themeManager is null) return;
+        var view = new TradingTerminal.App.Avalonia.Theming.ThemeStudioView(_themeManager);
+        var window = new Window
+        {
+            Title = "Theme Studio",
+            Width = 900,
+            Height = 760,
+            MinWidth = 720,
+            MinHeight = 560,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = view,
+        };
+        window.Closed += (_, _) => RebuildThemeMenu();
+        ShowDisposing(window, view.DataContext);
+        Vm?.ActivityLog.Append("Settings", "INFO", "Opened Theme Studio.");
+    }
+
     private void OnExit(object? sender, RoutedEventArgs e) => Close();
 
-    private void OnReconnect(object? sender, RoutedEventArgs e)
+    private async void OnReconnect(object? sender, RoutedEventArgs e)
     {
-        if (Vm is { } vm) _ = vm.ReconnectAllAsync();
+        if (Vm is not { } vm) return;
+        vm.BeginBusy("Reconnecting brokers", "Re-arming each configured broker connection...");
+        try { await vm.ReconnectAllAsync(); }
+        finally { vm.EndBusy(); }
+    }
+
+    private async void OnStartQuestDb(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } services) return;
+        var launcher = services.GetRequiredService<IQuestDbLauncher>();
+        if (!launcher.IsApplicable)
+        {
+            Vm?.ActivityLog.Append("QuestDB", "INFO", "QuestDB is not the configured market-data backend.");
+            return;
+        }
+
+        Vm?.BeginBusy("Starting QuestDB", "Preparing the market-data runtime and tick persistence...");
+        Vm?.ActivityLog.Append("QuestDB", "INFO", "Starting QuestDB...");
+        try
+        {
+            var ready = await launcher.StartAsync();
+            Vm?.ActivityLog.Append("QuestDB", ready ? "INFO" : "WARN",
+                ready ? "QuestDB is ready and tick persistence is active." : "QuestDB did not become ready.");
+        }
+        catch (Exception ex)
+        {
+            Vm?.ActivityLog.Append("QuestDB", "ERROR", $"QuestDB startup failed: {ex.Message}");
+        }
+        finally
+        {
+            Vm?.EndBusy();
+        }
     }
 
     private void OnToggleActivityLog(object? sender, RoutedEventArgs e)
@@ -40,8 +163,12 @@ public partial class MainWindow : Window
 
     private void OnCharts(object? sender, RoutedEventArgs e)
     {
-        ShowDisposing(new ChartsWindow { DataContext = new ChartsViewModel() }, null);
-        Vm?.ActivityLog.Append("Charts", "INFO", "Opened Charts (ScottPlot candlestick).");
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.Charts.ChartsViewModel>();
+        var window = sp.GetRequiredService<TradingTerminal.Charts.ChartsWindow>();
+        window.DataContext = vm;
+        ShowDisposing(window, vm);
+        Vm?.ActivityLog.Append("Charts", "INFO", "Opened Charts.");
     }
 
     private void OnVolumeFootprint(object? sender, RoutedEventArgs e)
@@ -69,6 +196,26 @@ public partial class MainWindow : Window
         var vm = sp.GetRequiredService<TradingTerminal.Heatmap.BookmapHeatmapViewModel>();
         ShowDisposing(new TradingTerminal.Heatmap.AvaloniaUi.BookmapHeatmapAvaloniaWindow { DataContext = vm }, vm);
         Vm?.ActivityLog.Append("Charts", "INFO", "Opened Bookmap + VolBook.");
+    }
+
+    private void OnBubbleChart(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.BubbleChart.BubbleChartViewModel>();
+        var window = sp.GetRequiredService<TradingTerminal.BubbleChart.BubbleChartWindow>();
+        window.DataContext = vm;
+        ShowDisposing(window, vm);
+        Vm?.ActivityLog.Append("Charts", "INFO", "Opened Volume bubble line (experimental).");
+    }
+
+    private void OnSurfaceLab(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.SurfaceLab.SurfaceLabViewModel>();
+        var window = sp.GetRequiredService<TradingTerminal.SurfaceLab.SurfaceLabWindow>();
+        window.DataContext = vm;
+        ShowDisposing(window, vm);
+        Vm?.ActivityLog.Append("Charts", "INFO", "Opened 3D Surface Lab.");
     }
 
     private void OnStationarity(object? sender, RoutedEventArgs e)
@@ -217,6 +364,15 @@ public partial class MainWindow : Window
         Vm?.ActivityLog.Append("Data", "INFO", "Opened Archive history.");
     }
 
+    private void OnInstantOffload(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.App.Archive.ArchiveActivityViewModel>();
+        ShowDisposing(new Settings.ArchiveActivityWindow { DataContext = vm }, vm);
+        if (vm.InstantOffloadCommand.CanExecute(null)) vm.InstantOffloadCommand.Execute(null);
+        Vm?.ActivityLog.Append("Data", "INFO", "Started instant archive offload.");
+    }
+
     private void OnNotifications(object? sender, RoutedEventArgs e)
     {
         if ((Application.Current as App)?.Services is not { } sp) return;
@@ -233,11 +389,18 @@ public partial class MainWindow : Window
         Vm?.ActivityLog.Append("Settings", "INFO", "Opened Research settings.");
     }
 
+    private void OnAiProvidersSettings(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.App.Authoring.AiProvidersSettingsViewModel>();
+        ShowDisposing(new Settings.AiProvidersSettingsWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("Settings", "INFO", "Opened AI provider settings.");
+    }
+
     private void OnSupport(object? sender, RoutedEventArgs e)
     {
         if ((Application.Current as App)?.Services is not { } sp) return;
-        var vm = sp.GetRequiredService<TradingTerminal.App.Support.SupportViewModel>();
-        ShowDisposing(new Settings.SupportWindow { DataContext = vm }, vm);
+        sp.GetRequiredService<TradingTerminal.App.Support.ISupportPrompt>().Show(this);
         Vm?.ActivityLog.Append("Help", "INFO", "Opened Support.");
     }
 
@@ -245,15 +408,33 @@ public partial class MainWindow : Window
     {
         if ((Application.Current as App)?.Services is not { } sp) return;
         var vm = sp.GetRequiredService<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
-        ShowDisposing(new Settings.StrategyAuthoringWindow { DataContext = vm }, vm);
+        var window = new Settings.StrategyAuthoringWindow
+        {
+            DataContext = vm,
+            ShowSimulatedDataBanner = Vm?.IsSimulatedActive == true,
+        };
+        ShowDisposing(window, vm);
         Vm?.ActivityLog.Append("Tools", "INFO", "Opened Strategy authoring.");
     }
 
-    // Menu items whose target window is ported in a later step — log a note rather than no-op silently.
-    private void OnNotPorted(object? sender, RoutedEventArgs e)
+    private void OnPluginManager(object? sender, RoutedEventArgs e)
     {
-        var header = (sender as MenuItem)?.Header?.ToString()?.Replace("_", "") ?? "That window";
-        Vm?.ActivityLog.Append("Shell", "INFO", $"{header} — not yet ported to the cross-platform shell (coming in a later step).");
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.App.Plugins.PluginManagerViewModel>();
+        var view = sp.GetRequiredService<TradingTerminal.App.Plugins.PluginManagerView>();
+        view.DataContext = vm;
+        var window = new Window
+        {
+            Title = "Strategy Manager",
+            Width = 940,
+            Height = 680,
+            MinWidth = 760,
+            MinHeight = 520,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = view,
+        };
+        ShowDisposing(window, vm);
+        Vm?.ActivityLog.Append("Plugins", "INFO", "Opened Strategy Manager.");
     }
 
     // Opens the source paper for a research-derived strategy (the 📄 pill). URL is on the button's Tag.
@@ -261,6 +442,40 @@ public partial class MainWindow : Window
     {
         if ((sender as Control)?.Tag is string url && !string.IsNullOrWhiteSpace(url))
             OpenUrl(url);
+    }
+
+    private void OnOpenCatalogLink(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.Tag is string url
+            && Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            && uri.Scheme == Uri.UriSchemeHttps)
+            OpenUrl(uri.AbsoluteUri);
+    }
+
+    private void OnMarketplace(object? sender, RoutedEventArgs e) =>
+        OpenUrl("https://daxalgo.com/marketplace");
+
+    private async void OnCopySelectedLogs(object? sender, RoutedEventArgs e)
+    {
+        IEnumerable<TradingTerminal.UI.Logging.LogEntry> rows =
+            ActivityLogList.SelectedItems?.OfType<TradingTerminal.UI.Logging.LogEntry>().ToArray() is { Length: > 0 } selected
+                ? selected
+                : Vm?.VisibleLog ?? [];
+        await CopyLogsAsync(rows);
+    }
+
+    private async void OnCopyAllLogs(object? sender, RoutedEventArgs e) =>
+        await CopyLogsAsync(Vm?.VisibleLog ?? []);
+
+    private void OnClearLogs(object? sender, RoutedEventArgs e) => Vm?.ActivityLog.Entries.Clear();
+
+    private async Task CopyLogsAsync(IEnumerable<TradingTerminal.UI.Logging.LogEntry> rows)
+    {
+        var value = string.Join(Environment.NewLine, rows.Select(entry =>
+            $"{entry.TimestampUtc:HH:mm:ss}  {entry.Source,-20}  {entry.Level,-5}  {entry.Message}"));
+        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (string.IsNullOrWhiteSpace(value) || clipboard is null) return;
+        await clipboard.SetTextAsync(value);
     }
 
     // Opens the selected strategy through the plug-in seam — IStrategyFactory.Create(id). The shell
@@ -282,7 +497,7 @@ public partial class MainWindow : Window
         }
         catch (KeyNotFoundException)
         {
-            // Not yet ported — fall through to the warning below.
+            // The selected plug-in did not register a compatible view.
         }
 
         if (window is not null)
@@ -293,8 +508,42 @@ public partial class MainWindow : Window
         else
         {
             shell.ActivityLog.Append("Shell", "WARN",
-                $"'{selected.DisplayName}' has no Avalonia view registered yet (lands when its project is ported).");
+                $"'{selected.DisplayName}' has no Avalonia view registered by its installed plug-in.");
         }
+    }
+
+    private void OnQuickBacktest(object? sender, RoutedEventArgs e)
+    {
+        if (Vm?.SelectedStrategy is not { } strategy ||
+            (Application.Current as App)?.Services is not { } sp) return;
+
+        var vm = sp.GetRequiredService<TradingTerminal.Backtest.QuickBacktestViewModel>();
+        var window = sp.GetRequiredService<TradingTerminal.Backtest.AvaloniaUi.QuickBacktestAvaloniaWindow>();
+        window.DataContext = vm;
+        window.Title = $"Quick backtest - {strategy.DisplayName}";
+        ShowDisposing(window, vm);
+        vm.Initialize(
+            strategy.BacktestStrategyId,
+            strategy.DisplayName,
+            strategy.DataRequirement.HasFlag(StrategyDataRequirement.TradeTape));
+        Vm.ActivityLog.Append("Backtest", "INFO", $"Opened quick backtest for '{strategy.DisplayName}'.");
+    }
+
+    private async void OnEditStrategyCard(object? sender, RoutedEventArgs e)
+    {
+        if (Vm?.SelectedCatalogItem is not { } item) return;
+
+        var editor = new TradingTerminal.UI.Strategies.StrategyPresentationEditorViewModel(item);
+        var window = new TradingTerminal.App.Avalonia.Strategies.StrategyPresentationEditorWindow
+        {
+            DataContext = editor,
+        };
+        if (!await window.ShowDialog<bool>(this)) return;
+
+        var presentation = editor.Build();
+        TradingTerminal.UI.Strategies.StrategyPresentationStore.Save(item.Id, presentation);
+        item.Apply(presentation);
+        Vm.ActivityLog.Append("Strategies", "INFO", $"Updated catalog presentation for '{item.Name}'.");
     }
 
     private static void OpenUrl(string url)

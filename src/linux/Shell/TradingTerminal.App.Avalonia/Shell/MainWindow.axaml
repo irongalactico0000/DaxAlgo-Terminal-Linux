@@ -2,13 +2,16 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:TradingTerminal.App.Avalonia.Shell"
         xmlns:strat="using:TradingTerminal.Core.Strategies"
+        xmlns:catalog="using:TradingTerminal.UI.Strategies"
+        xmlns:appstrat="using:TradingTerminal.App.Avalonia.Strategies"
+        xmlns:uicontrols="using:TradingTerminal.UI.Controls"
         xmlns:log="using:TradingTerminal.UI.Logging"
         x:Class="TradingTerminal.App.Avalonia.Shell.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Width="1440" Height="860"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource Background.Primary}"
-        Title="DaxAlgo Terminal">
+        Background="{DynamicResource Background.Primary}"
+        Title="DaxAlgo Terminal · Professional">
 
   <Window.Resources>
     <vm:StrategyDataRequirementConverter x:Key="DataReqPills" />
@@ -20,19 +23,32 @@
     <vm:LogLevelToBrushConverter x:Key="LevelBrush" />
   </Window.Resources>
 
+  <Window.Styles>
+    <Style Selector="Menu > MenuItem">
+      <Setter Property="Padding" Value="9,5" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+  </Window.Styles>
+
+  <Grid>
   <DockPanel>
 
     <!-- ───────── Header strip: wordmark · API meter · session badges · clocks ───────── -->
-    <Border DockPanel.Dock="Top" Background="{StaticResource Gradient.Chrome}"
-            BorderBrush="{StaticResource Accent.Brush}" BorderThickness="0,0,0,1" Padding="10,5">
+    <Border DockPanel.Dock="Top" Background="{DynamicResource Gradient.Chrome}"
+            BorderBrush="{DynamicResource Accent.Brush}" BorderThickness="0,0,0,1" Padding="10,5">
       <Grid ColumnDefinitions="Auto,*,Auto">
         <!-- Wordmark -->
         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-          <TextBlock Text="DAXALGO" Foreground="{StaticResource Accent.Brush}" FontWeight="Bold" FontSize="13" />
-          <TextBlock Text=" TERMINAL" Foreground="{StaticResource Text.Primary}" FontWeight="Bold"
-                     FontSize="13" Margin="0,0,16,0" />
+          <TextBlock Text="DAXALGO" Foreground="{DynamicResource Accent.Brush}" FontWeight="Bold" FontSize="13" />
+          <TextBlock Text=" TERMINAL" Foreground="{DynamicResource Text.Primary}" FontWeight="Bold"
+                     FontSize="13" Margin="0,0,10,0" />
+          <Border Background="{DynamicResource Ai.Soft}" BorderBrush="{DynamicResource Ai.Accent.Brush}"
+                  BorderThickness="1" Padding="6,1" Margin="0,0,12,0">
+            <TextBlock Text="AI-NATIVE" Foreground="{DynamicResource Ai.Text.Brush}" FontSize="9" FontWeight="Bold" />
+          </Border>
           <Border Classes="fnkey" VerticalAlignment="Center">
-            <TextBlock Text="F1 HELP" Foreground="#000000" FontSize="10" FontWeight="Bold" />
+            <TextBlock Text="F1 HELP" Foreground="White" FontSize="10" FontWeight="Bold" />
           </Border>
         </StackPanel>
 
@@ -40,8 +56,8 @@
         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
 
           <!-- API tracker: signal bars + count + status dot + ▾, with a per-broker dropdown -->
-          <Button Padding="9,3" Margin="0,0,16,0" VerticalAlignment="Center" CornerRadius="9"
-                  Background="{StaticResource Gradient.Elevated}" BorderBrush="{StaticResource Border.Strong}"
+          <Button Padding="9,3" Margin="0,0,16,0" VerticalAlignment="Center" CornerRadius="0"
+                  Background="{DynamicResource Gradient.Elevated}" BorderBrush="{DynamicResource Border.Strong}"
                   ToolTip.Tip="API tracker — calls vs rate limits. Click for the per-broker breakdown.">
             <StackPanel Orientation="Horizontal">
               <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Height="13" Margin="0,0,7,0">
@@ -54,24 +70,24 @@
                 <Rectangle Width="3" Height="13" VerticalAlignment="Bottom"
                            Fill="{Binding ApiMeter.OverallStatus, Converter={StaticResource ApiBrush}}" />
               </StackPanel>
-              <TextBlock Text="API" FontWeight="Bold" FontSize="10" Foreground="{StaticResource Text.Header}"
+              <TextBlock Text="API" FontWeight="Bold" FontSize="10" Foreground="{DynamicResource Text.Header}"
                          VerticalAlignment="Center" Margin="0,0,6,0" />
-              <TextBlock Text="{Binding ApiMeter.TotalCalls}" FontSize="10" Foreground="{StaticResource Text.Secondary}"
+              <TextBlock Text="{Binding ApiMeter.TotalCalls}" FontSize="10" Foreground="{DynamicResource Text.Secondary}"
                          VerticalAlignment="Center" Margin="0,0,6,0" />
               <Ellipse Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,5,0"
                        Fill="{Binding ApiMeter.OverallStatus, Converter={StaticResource ApiBrush}}" />
-              <TextBlock Text="▾" FontSize="10" Foreground="{StaticResource Text.Secondary}" VerticalAlignment="Center" />
+              <TextBlock Text="▾" FontSize="10" Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center" />
             </StackPanel>
             <Button.Flyout>
               <Flyout Placement="Bottom">
-                <Border Width="330" Background="{StaticResource Background.Elevated}"
-                        BorderBrush="{StaticResource Border.Strong}" BorderThickness="1" CornerRadius="8">
+                <Border Width="330" Background="{DynamicResource Background.Elevated}"
+                        BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1" CornerRadius="0">
                   <StackPanel>
-                    <Border CornerRadius="8,8,0,0" Padding="12,9" Background="{StaticResource Gradient.Header}">
+                    <Border CornerRadius="0" Padding="12,9" Background="{DynamicResource Gradient.Header}">
                       <StackPanel>
-                        <TextBlock Text="API Tracker" FontWeight="Bold" FontSize="12" Foreground="{StaticResource Text.Header}" />
+                        <TextBlock Text="API Tracker" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource Text.Header}" />
                         <TextBlock Text="calls vs soft rate limits · per broker" FontSize="10"
-                                   Foreground="{StaticResource Text.Secondary}" />
+                                   Foreground="{DynamicResource Text.Secondary}" />
                       </StackPanel>
                     </Border>
                     <ItemsControl ItemsSource="{Binding ApiMeter.Chips}" Margin="4,4,4,2">
@@ -81,17 +97,17 @@
                             <Ellipse Grid.Column="0" Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0"
                                      Fill="{Binding Status, Converter={StaticResource ApiBrush}}" />
                             <TextBlock Grid.Column="1" Text="{Binding Label}" FontWeight="Bold" FontSize="11"
-                                       Foreground="{StaticResource Text.Primary}" VerticalAlignment="Center" />
+                                       Foreground="{DynamicResource Text.Primary}" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="2" Text="{Binding UsageDisplay}" FontSize="11"
-                                       Foreground="{StaticResource Text.Primary}" VerticalAlignment="Center" />
+                                       Foreground="{DynamicResource Text.Primary}" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="3" Text="{Binding TotalCalls}" FontSize="10"
-                                       Foreground="{StaticResource Text.Secondary}" VerticalAlignment="Center" />
+                                       Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center" />
                           </Grid>
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <Border CornerRadius="0,0,8,8" Padding="12,7" BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0">
-                      <TextBlock Text="{Binding ApiMeter.SummaryText}" FontSize="10" Foreground="{StaticResource Text.Secondary}" />
+                    <Border CornerRadius="0" Padding="12,7" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0">
+                      <TextBlock Text="{Binding ApiMeter.SummaryText}" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
                     </Border>
                   </StackPanel>
                 </Border>
@@ -99,12 +115,38 @@
             </Button.Flyout>
           </Button>
 
+          <Button Padding="9,3" Margin="0,0,16,0" VerticalAlignment="Center"
+                  Click="OnRecorder" Background="Transparent"
+                  BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1"
+                  ToolTip.Tip="Market data recorder — pick instruments and capture live data in the background.">
+            <StackPanel Orientation="Horizontal">
+              <Grid Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center">
+                <Ellipse Fill="{DynamicResource Text.Secondary}" />
+                <Ellipse Fill="{DynamicResource Danger.Brush}" IsVisible="{Binding Recorder.IsRecording}" />
+              </Grid>
+              <TextBlock Text="REC" FontWeight="Bold" FontSize="10"
+                         Foreground="{DynamicResource Text.Header}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+
+          <Button Padding="9,3" Margin="0,0,12,0" VerticalAlignment="Center"
+                  IsVisible="{Binding HasPluginProblems}" Click="OnPluginManager"
+                  Background="Transparent" BorderBrush="{DynamicResource Warning.Brush}" BorderThickness="1"
+                  ToolTip.Tip="Some strategy plugins need attention. Open Strategy Manager for details.">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="&#x26A0;" Foreground="{DynamicResource Warning.Brush}"
+                         FontSize="11" Margin="0,0,5,0" />
+              <TextBlock Text="{Binding PluginProblemCount, StringFormat='{}{0} STRATEGY ISSUE(S)'}"
+                         Foreground="{DynamicResource Text.Header}" FontSize="10" FontWeight="Bold" />
+            </StackPanel>
+          </Button>
+
           <!-- Market-session badges -->
-          <Border CornerRadius="3" Padding="5,1" Margin="0,0,4,0" VerticalAlignment="Center" BorderThickness="1"
-                  Background="{StaticResource Bullish.Soft}" BorderBrush="{StaticResource Bullish.Brush}">
-            <TextBlock Text="CRYPTO 24/7" Foreground="{StaticResource Bullish.Brush}" FontSize="9" FontWeight="Bold" />
+          <Border CornerRadius="0" Padding="5,1" Margin="0,0,4,0" VerticalAlignment="Center" BorderThickness="1"
+                  Background="{DynamicResource Bullish.Soft}" BorderBrush="{DynamicResource Bullish.Brush}">
+            <TextBlock Text="CRYPTO 24/7" Foreground="{DynamicResource Bullish.Brush}" FontSize="9" FontWeight="Bold" />
           </Border>
-          <Border CornerRadius="3" Padding="5,1" Margin="0,0,4,0" VerticalAlignment="Center" BorderThickness="1"
+          <Border CornerRadius="0" Padding="5,1" Margin="0,0,4,0" VerticalAlignment="Center" BorderThickness="1"
                   Background="{Binding NyseOpen, Converter={StaticResource SessionBrush}, ConverterParameter=bg}"
                   BorderBrush="{Binding NyseOpen, Converter={StaticResource SessionBrush}, ConverterParameter=border}">
             <TextBlock FontSize="9" FontWeight="Bold"
@@ -118,7 +160,7 @@
               </TextBlock.Text>
             </TextBlock>
           </Border>
-          <Border CornerRadius="3" Padding="5,1" Margin="0,0,12,0" VerticalAlignment="Center" BorderThickness="1"
+          <Border CornerRadius="0" Padding="5,1" Margin="0,0,12,0" VerticalAlignment="Center" BorderThickness="1"
                   Background="{Binding LseOpen, Converter={StaticResource SessionBrush}, ConverterParameter=bg}"
                   BorderBrush="{Binding LseOpen, Converter={StaticResource SessionBrush}, ConverterParameter=border}">
             <TextBlock FontSize="9" FontWeight="Bold"
@@ -136,79 +178,118 @@
           <!-- Clocks -->
           <StackPanel VerticalAlignment="Center">
             <StackPanel Orientation="Horizontal">
-              <TextBlock Text="{Binding CurrentTimeUtc}" Foreground="{StaticResource Accent.Brush}" FontWeight="Bold" FontSize="13" />
-              <TextBlock Text="UTC" Foreground="{StaticResource Text.Secondary}" FontSize="9" VerticalAlignment="Bottom" Margin="3,0,0,1" />
+              <TextBlock Text="{Binding CurrentTimeUtc}" Foreground="{DynamicResource Accent.Brush}" FontWeight="Bold" FontSize="13" />
+              <TextBlock Text="UTC" Foreground="{DynamicResource Text.Secondary}" FontSize="9" VerticalAlignment="Bottom" Margin="3,0,0,1" />
             </StackPanel>
-            <TextBlock Text="{Binding CurrentTime}" Foreground="{StaticResource Text.Secondary}" FontSize="10" HorizontalAlignment="Right" />
+            <TextBlock Text="{Binding CurrentTime}" Foreground="{DynamicResource Text.Secondary}" FontSize="10" HorizontalAlignment="Right" />
           </StackPanel>
         </StackPanel>
       </Grid>
     </Border>
 
     <!-- ───────── Menu bar (full WPF structure; unported items log a note) ───────── -->
-    <Menu DockPanel.Dock="Top" Background="{StaticResource Gradient.Chrome}">
+    <Menu DockPanel.Dock="Top" Background="{DynamicResource Gradient.Chrome}" Padding="0">
       <MenuItem Header="_File">
         <MenuItem Header="_Reconnect to broker" Click="OnReconnect" />
+        <MenuItem Header="Start _QuestDB" Click="OnStartQuestDb"
+                  ToolTip.Tip="Start the configured QuestDB runtime, then enable tick persistence without restarting." />
         <Separator />
         <MenuItem Header="E_xit" Click="OnExit" />
       </MenuItem>
       <MenuItem Header="_View">
         <MenuItem Header="Activity _log" Click="OnToggleActivityLog" />
-        <MenuItem Header="Strategy _authoring…" Click="OnAuthoring" />
-        <MenuItem Header="_Theme (Dark)" IsEnabled="False" />
+        <Separator />
+        <MenuItem x:Name="ThemeMenu" Header="_Theme" />
+        <MenuItem Header="_Customize theme&#x2026; (Theme Studio)" Click="OnThemeStudio" />
       </MenuItem>
       <MenuItem Header="_Tools">
-        <MenuItem Header="_Backtest…" Click="OnBacktest" />
         <MenuItem Header="_Backtest Studio…" Click="OnBacktestStudio" />
-        <MenuItem Header="_Record live ticks…" Click="OnRecorder" />
         <MenuItem Header="_Advanced market regime…" Click="OnAdvancedRegime" />
         <MenuItem Header="_Correlation matrix…" Click="OnCorrelation" />
         <MenuItem Header="_Live correlation matrix…" Click="OnLiveCorrelation" />
+        <Separator />
+        <MenuItem Header="_Additional tools">
+          <MenuItem Header="_Backtest…" Click="OnBacktest" />
+          <MenuItem Header="_Record live ticks…" Click="OnRecorder" />
+          <Separator />
+          <MenuItem Header="_LSE Tools">
+            <MenuItem Header="LSE _backtester…" Click="OnLseBacktest" />
+          </MenuItem>
+          <MenuItem Header="_Machine learning">
+            <MenuItem Header="_Stationarity &amp; differencing…" Click="OnStationarity" />
+            <MenuItem Header="_ARIMA &amp; GARCH…" Click="OnArimaGarch" />
+            <MenuItem Header="_Kalman filter…" Click="OnKalman" />
+          </MenuItem>
+          <MenuItem Header="_QuantConnect / LEAN">
+            <MenuItem Header="_Backtest runner…" Click="OnQuantConnectBacktest" />
+            <MenuItem Header="_Projects…" Click="OnQuantConnectProjects" />
+            <MenuItem Header="_Data sync…" Click="OnQuantConnectData" />
+            <Separator />
+            <MenuItem Header="_Settings &amp; status…" Click="OnQuantConnectSettings" />
+          </MenuItem>
+        </MenuItem>
       </MenuItem>
-      <MenuItem Header="_LSE Tools">
-        <MenuItem Header="LSE _backtester…" Click="OnLseBacktest" />
+      <MenuItem>
+        <MenuItem.Header>
+          <TextBlock Text="Strategy Studio" Foreground="{DynamicResource Ai.Text.Brush}" FontWeight="Bold" />
+        </MenuItem.Header>
+        <MenuItem Header="_Vibe Code">
+          <MenuItem Header="⚡ _Vibe Quant&#x2026;" Click="OnAuthoring" />
+          <Separator />
+          <MenuItem x:Name="CliMenu" Header="Launch _CLI" />
+        </MenuItem>
+        <Separator />
+        <MenuItem Header="_Strategy Manager&#x2026;" Click="OnPluginManager" />
       </MenuItem>
       <MenuItem Header="_Charts">
         <MenuItem Header="C_harts…" Click="OnCharts" />
         <MenuItem Header="_Order book…" Click="OnOrderBook" />
         <MenuItem Header="_Volume footprint…" Click="OnVolumeFootprint" />
         <MenuItem Header="_Bookmap + VolBook…" Click="OnHeatmap" />
-      </MenuItem>
-      <MenuItem Header="_Machine learning">
-        <MenuItem Header="_Stationarity &amp; differencing…" Click="OnStationarity" />
-        <MenuItem Header="_ARIMA &amp; GARCH…" Click="OnArimaGarch" />
-        <MenuItem Header="_Kalman filter…" Click="OnKalman" />
-      </MenuItem>
-      <MenuItem Header="_QuantConnect / LEAN">
-        <MenuItem Header="_Backtest runner…" Click="OnQuantConnectBacktest" />
-        <MenuItem Header="_Projects…" Click="OnQuantConnectProjects" />
-        <MenuItem Header="_Data sync…" Click="OnQuantConnectData" />
+        <MenuItem Header="3D _Surface lab&#x2026;" Click="OnSurfaceLab" />
         <Separator />
-        <MenuItem Header="_Settings &amp; status…" Click="OnQuantConnectSettings" />
+        <MenuItem Header="Volume _bubble line (experimental)&#x2026;" Click="OnBubbleChart" />
       </MenuItem>
-      <MenuItem Header="_AI tools">
-        <MenuItem Header="_Factor research…" Click="OnFactorResearch" />
-        <MenuItem Header="_ML features…" Click="OnMlFeatures" />
-        <MenuItem Header="_Backtest analysis…" Click="OnBacktestAnalysis" />
-        <Separator />
-        <MenuItem Header="_Market analyst…" Click="OnMarketAnalyst" />
+      <MenuItem Header="_Research">
         <MenuItem Header="_Paper Lab…" Click="OnPaperLab" />
+        <Separator />
+        <MenuItem Header="_AI research tools">
+          <MenuItem Header="_Factor research…" Click="OnFactorResearch" />
+          <MenuItem Header="_ML features…" Click="OnMlFeatures" />
+          <MenuItem Header="_Backtest analysis…" Click="OnBacktestAnalysis" />
+          <Separator />
+          <MenuItem Header="_Market analyst…" Click="OnMarketAnalyst" />
+        </MenuItem>
       </MenuItem>
       <MenuItem Header="_Data">
-        <MenuItem Header="_Market data archive…" Click="OnNotPorted" />
-        <MenuItem Header="Archive _history…" Click="OnNotPorted" />
+        <MenuItem Header="_Market data archive…" Click="OnArchiveSettings" />
+        <MenuItem Header="Archive _history…" Click="OnArchiveHistory" />
+        <Separator />
+        <MenuItem Header="_Instant offload (all pending)&#x2026;" Click="OnInstantOffload" />
       </MenuItem>
       <MenuItem Header="_Settings">
         <MenuItem Header="_Notifications…" Click="OnNotifications" />
         <MenuItem Header="_Research (Paper Lab)…" Click="OnResearchSettings" />
+        <MenuItem Header="_AI providers&#x2026;" Click="OnAiProvidersSettings" />
       </MenuItem>
       <MenuItem Header="_Help">
+        <MenuItem Header="_Support the developer&#x2026;" Click="OnSupport" />
+        <Separator />
         <MenuItem Header="_About DaxAlgo Terminal…" Click="OnSupport" />
       </MenuItem>
     </Menu>
 
     <!-- ───────── Disconnect banner ───────── -->
-    <Border DockPanel.Dock="Top" Background="{StaticResource Danger.Brush}" Padding="12,6"
+    <Border DockPanel.Dock="Top" Background="#B45309" Padding="12,6"
+            IsVisible="{Binding IsSimulatedActive}">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="&#x26A0;" Foreground="White" FontWeight="Bold" />
+        <TextBlock Text="SIMULATED DATA — not a live feed"
+                   Foreground="White" FontWeight="SemiBold" />
+      </StackPanel>
+    </Border>
+
+    <Border DockPanel.Dock="Top" Background="{DynamicResource Danger.Brush}" Padding="12,6"
             IsVisible="{Binding IsDisconnected}">
       <StackPanel Orientation="Horizontal">
         <TextBlock Text="{Binding DisconnectBannerText}" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -217,54 +298,61 @@
     </Border>
 
     <!-- ───────── Status bar ───────── -->
-    <Border DockPanel.Dock="Bottom" Background="{StaticResource Gradient.Chrome}"
-            BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0" Padding="10,4">
-      <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+    <Border DockPanel.Dock="Bottom" Background="{DynamicResource Gradient.Chrome}"
+            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0" Padding="10,4">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,16,0">
           <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"
                    Fill="{Binding ConnectionState, Converter={StaticResource StateBrush}}" />
-          <TextBlock Text="{Binding ConnectionState}" Foreground="{StaticResource Accent.Brush}" FontWeight="Bold" />
+          <TextBlock Text="{Binding ConnectionState}" Foreground="{DynamicResource Accent.Brush}" FontWeight="Bold" />
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal">
-          <TextBlock Text="LIVE " Foreground="{StaticResource Text.Secondary}" />
-          <TextBlock Text="{Binding ConnectedBrokerCount}" Foreground="{StaticResource Bullish.Brush}" />
-          <TextBlock Text=" brokers" Foreground="{StaticResource Text.Secondary}" />
+          <TextBlock Text="LIVE " Foreground="{DynamicResource Text.Secondary}" />
+          <TextBlock Text="{Binding ConnectedBrokerCount}" Foreground="{DynamicResource Bullish.Brush}" />
+          <TextBlock Text=" brokers" Foreground="{DynamicResource Text.Secondary}" />
         </StackPanel>
-        <TextBlock Grid.Column="3" Text="{Binding CurrentTime}" Foreground="{StaticResource Accent.Brush}" FontWeight="Bold" />
+        <TextBlock Grid.Column="4" Text="{Binding FeedDropCount, StringFormat='DROP {0}'}"
+                   IsVisible="{Binding HasFeedDrops}" Margin="0,0,16,0"
+                   Foreground="{DynamicResource Warning.Brush}" ToolTip.Tip="Feed items shed by bounded live-data queues." />
+        <TextBlock Grid.Column="5" Text="{Binding CurrentTime}" Foreground="{DynamicResource Accent.Brush}" FontWeight="Bold" />
       </Grid>
     </Border>
 
     <!-- ───────── Activity-log drawer (collapsible, pinned bottom, closed by default) ───────── -->
     <Grid DockPanel.Dock="Bottom" RowDefinitions="Auto,Auto">
-      <Border Grid.Row="0" Height="240" Background="{StaticResource Background.Surface}"
-              BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0"
+      <Border Grid.Row="0" Height="240" Background="{DynamicResource Background.Surface}"
+              BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0"
               IsVisible="{Binding IsLogVisible}">
         <Grid RowDefinitions="Auto,*">
           <!-- Filter strip -->
-          <Border Grid.Row="0" Background="{StaticResource Gradient.Elevated}"
-                  BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,0,0,1" Padding="6,5">
-            <Grid ColumnDefinitions="Auto,*">
+          <Border Grid.Row="0" Background="{DynamicResource Gradient.Elevated}"
+                  BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="6,5">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
               <TextBlock Grid.Column="0" Text="Filter" VerticalAlignment="Center" Margin="2,0,8,0"
-                         Foreground="{StaticResource Text.Secondary}" FontSize="11" />
+                         Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
               <TextBox Grid.Column="1" Text="{Binding LogFilter, Mode=TwoWay}" FontSize="11"
                        Watermark="Filter by source, level, or message" />
+              <Button Grid.Column="2" Content="Copy" Click="OnCopySelectedLogs" Margin="6,0,0,0" Padding="9,2" />
+              <Button Grid.Column="3" Content="Copy all" Click="OnCopyAllLogs" Margin="6,0,0,0" Padding="9,2" />
+              <Button Grid.Column="4" Content="Clear" Click="OnClearLogs" Margin="6,0,0,0" Padding="9,2" />
             </Grid>
           </Border>
-          <ListBox Grid.Row="1" ItemsSource="{Binding VisibleLog}" Background="{StaticResource Background.Surface}"
+          <ListBox x:Name="ActivityLogList" Grid.Row="1" ItemsSource="{Binding VisibleLog}"
+                   SelectionMode="Multiple" Background="{DynamicResource Background.Surface}"
                    BorderThickness="0" FontSize="11">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="log:LogEntry">
                 <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="{Binding TimestampUtc, StringFormat='{}{0:HH:mm:ss}'}" Foreground="{StaticResource Text.Secondary}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding TimestampUtc, StringFormat='{}{0:HH:mm:ss}'}" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,8,0" VerticalAlignment="Center" />
                   <Border CornerRadius="3" Padding="5,0" Margin="0,0,8,0" MinWidth="46" VerticalAlignment="Center"
                           Background="{Binding Level, Converter={StaticResource LevelBrush}, ConverterParameter=bg}">
                     <TextBlock Text="{Binding Level}" FontSize="9.5" FontWeight="Bold" TextAlignment="Center"
                                Foreground="{Binding Level, Converter={StaticResource LevelBrush}}" />
                   </Border>
                   <TextBlock Text="{Binding Source}" Width="140" TextTrimming="CharacterEllipsis"
-                             VerticalAlignment="Center" Foreground="{StaticResource Text.Header}" />
+                             VerticalAlignment="Center" Foreground="{DynamicResource Text.Header}" />
                   <TextBlock Text="{Binding Message}" TextWrapping="Wrap" VerticalAlignment="Center"
-                             Foreground="{StaticResource Text.Primary}" />
+                             Foreground="{DynamicResource Text.Primary}" />
                 </StackPanel>
               </DataTemplate>
             </ListBox.ItemTemplate>
@@ -274,58 +362,106 @@
 
       <!-- Always-visible toggle strip -->
       <Button Grid.Row="1" Click="OnToggleActivityLog" HorizontalAlignment="Stretch"
-              HorizontalContentAlignment="Left" CornerRadius="0" Background="{StaticResource Gradient.Chrome}"
-              BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0" Padding="10,4">
+              HorizontalContentAlignment="Left" CornerRadius="0" Background="{DynamicResource Gradient.Chrome}"
+              BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0" Padding="10,4">
         <StackPanel Orientation="Horizontal">
-          <TextBlock Text="▴" FontSize="11" Foreground="{StaticResource Accent.Brush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-          <TextBlock Text="ACTIVITY LOG" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Text.Header}" VerticalAlignment="Center" />
+          <TextBlock FontSize="11" Foreground="{DynamicResource Accent.Brush}" VerticalAlignment="Center" Margin="0,0,8,0">
+            <TextBlock.Text>
+              <Binding Path="IsLogVisible">
+                <Binding.Converter>
+                  <vm:BoolToTextConverter TrueText="▾" FalseText="▴" />
+                </Binding.Converter>
+              </Binding>
+            </TextBlock.Text>
+          </TextBlock>
+          <TextBlock Text="ACTIVITY LOG" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource Text.Header}" VerticalAlignment="Center" />
         </StackPanel>
       </Button>
     </Grid>
 
     <!-- ───────── Strategy catalog (fills) ───────── -->
-    <Grid RowDefinitions="Auto,*" Background="{StaticResource Background.Surface}">
+    <Grid RowDefinitions="Auto,*" Background="{DynamicResource Background.Surface}">
       <!-- Section header -->
-      <Border Grid.Row="0" Background="{StaticResource Gradient.Elevated}"
-              BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,0,0,1" Padding="10,8">
-        <Grid ColumnDefinitions="*,Auto">
+      <Border Grid.Row="0" Background="{DynamicResource Gradient.Elevated}"
+              BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="10,8">
+        <Grid ColumnDefinitions="*,Auto,Auto">
           <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-            <Border Width="3" Height="13" Background="{StaticResource Accent.Brush}" Margin="0,0,8,0" />
-            <TextBlock Text="STRATEGY CATALOG" Foreground="{StaticResource Text.Header}" FontWeight="Bold"
+            <Border Width="3" Height="13" Background="{DynamicResource Accent.Brush}" Margin="0,0,8,0" />
+            <TextBlock Text="STRATEGY CATALOG" Foreground="{DynamicResource Text.Header}" FontWeight="Bold"
                        FontSize="11" VerticalAlignment="Center" />
-            <TextBlock Text="double-click to open" Foreground="{StaticResource Text.Secondary}" FontSize="10"
+            <TextBlock Text="double-click to open" Foreground="{DynamicResource Text.Secondary}" FontSize="10"
                        Margin="12,0,0,0" VerticalAlignment="Center" />
           </StackPanel>
-          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock Text="N=" Foreground="{StaticResource Text.Secondary}" FontSize="10" />
-            <TextBlock Text="{Binding Strategies.Count}" Foreground="{StaticResource Text.Secondary}" FontSize="10" />
+          <Button Grid.Column="1" Content="✎ Edit strategies" Click="OnPluginManager"
+                  Padding="10,5" Margin="0,0,14,0"
+                  ToolTip.Tip="Open Strategy Manager to enable, disable, or remove strategies and plugins." />
+          <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock Text="N=" Foreground="{DynamicResource Text.Secondary}" FontSize="10" />
+            <TextBlock Text="{Binding CatalogItems.Count}" Foreground="{DynamicResource Text.Secondary}" FontSize="10" />
           </StackPanel>
         </Grid>
       </Border>
 
       <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
-        <ListBox ItemsSource="{Binding Strategies}" SelectedItem="{Binding SelectedStrategy, Mode=TwoWay}"
-                 Background="{StaticResource Background.Surface}" BorderThickness="0"
+        <ListBox ItemsSource="{Binding CatalogItems}" SelectedItem="{Binding SelectedCatalogItem, Mode=TwoWay}"
+                 Background="{DynamicResource Background.Surface}" BorderThickness="0"
                  DoubleTapped="OnOpenStrategy">
+          <ListBox.Styles>
+            <Style Selector="ListBoxItem">
+              <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            </Style>
+          </ListBox.Styles>
           <ListBox.ItemsPanel>
             <ItemsPanelTemplate>
-              <WrapPanel Orientation="Horizontal" />
+              <StackPanel Orientation="Vertical" />
             </ItemsPanelTemplate>
           </ListBox.ItemsPanel>
           <ListBox.ItemTemplate>
-            <DataTemplate x:DataType="strat:ITradingStrategy">
-              <Border Width="360" Margin="6" Background="{StaticResource Gradient.Elevated}"
-                      BorderBrush="{StaticResource Border.Brush}" BorderThickness="1" CornerRadius="4" Padding="10,8">
-                <StackPanel>
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="▸ " Foreground="{StaticResource Accent.Brush}" FontWeight="Bold" />
-                    <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource Text.Header}" FontWeight="Bold" />
+            <DataTemplate x:DataType="catalog:StrategyCatalogItemViewModel">
+              <Border Margin="6,3" Background="{DynamicResource Gradient.Elevated}"
+                      BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="0" Padding="12,10"
+                      HorizontalAlignment="Stretch">
+                <Grid ColumnDefinitions="340,*,Auto">
+                  <StackPanel Grid.Column="0" Margin="0,0,14,0">
+                   <StackPanel Orientation="Horizontal">
+                     <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Text.Header}" FontWeight="Bold" FontSize="15" />
+                   </StackPanel>
+                   <TextBlock Text="{Binding Id}" Foreground="{DynamicResource Text.Highlight}" FontSize="10" Margin="12,0,0,2" />
+                   <StackPanel Orientation="Horizontal" Margin="12,6,0,0">
+                     <Button Content="▶" Padding="6,2" Click="OnOpenStrategy" ToolTip.Tip="Open strategy" />
+                     <Button Content="⏱" Padding="6,2" Margin="4,0,0,0" Click="OnQuickBacktest"
+                             ToolTip.Tip="Quick backtest (last 1 year)" />
+                     <Button Content="✎" Padding="6,2" Margin="4,0,0,0" Click="OnEditStrategyCard"
+                             ToolTip.Tip="Edit strategy card" />
+                   </StackPanel>
+                  <Border Margin="12,6,0,0" Background="{DynamicResource Background.Surface}"
+                          BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Padding="7,4"
+                          IsVisible="{Binding HasFormula}">
+                    <StackPanel>
+                      <TextBlock Text="ALPHA FORMULA" FontSize="8" FontWeight="Bold" Foreground="{DynamicResource Accent.Brush}" />
+                      <TextBlock Text="{Binding Formula}" Classes="mono" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+                  </Border>
+                  <StackPanel Orientation="Horizontal" Margin="12,6,0,0">
+                    <Button Padding="6,2" Tag="{Binding LinkUrl}" Click="OnOpenCatalogLink"
+                            IsVisible="{Binding HasLink}" ToolTip.Tip="Open strategy link">
+                      <TextBlock Text="OPEN LINK ↗" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource Text.Highlight}" />
+                    </Button>
+                    <ItemsControl ItemsSource="{Binding CustomTags}" IsVisible="{Binding HasCustomTags}" Margin="6,0,0,0">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Background="{DynamicResource Highlight.Soft}" Padding="5,2" Margin="0,0,3,0">
+                            <TextBlock Text="{Binding}" FontSize="9" Foreground="{DynamicResource Text.Highlight}" />
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                   </StackPanel>
-                  <TextBlock Text="{Binding Id}" Foreground="{StaticResource Text.Highlight}" FontSize="10" Margin="12,0,0,2" />
-                  <TextBlock Text="{Binding Description}" Foreground="{StaticResource Text.Secondary}" TextWrapping="Wrap"
-                             FontSize="11" Margin="12,0,0,0" />
                   <!-- Data-requirement pills -->
-                  <ItemsControl ItemsSource="{Binding Converter={StaticResource DataReqPills}}" Margin="12,4,0,0">
+                  <ItemsControl ItemsSource="{Binding Strategy, Converter={StaticResource DataReqPills}}" Margin="12,4,0,0">
                     <ItemsControl.ItemsPanel>
                       <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
@@ -338,7 +474,7 @@
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
                   <!-- Classification pills -->
-                  <ItemsControl ItemsSource="{Binding Converter={StaticResource ClassPills}}" Margin="12,3,0,0">
+                  <ItemsControl ItemsSource="{Binding Strategy, Converter={StaticResource ClassPills}}" Margin="12,3,0,0">
                     <ItemsControl.ItemsPanel>
                       <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
@@ -352,25 +488,104 @@
                   </ItemsControl>
                   <!-- Research-paper pill -->
                   <Border Margin="12,4,0,0" HorizontalAlignment="Left" Background="#4527A0" CornerRadius="3" Padding="5,1"
-                          IsVisible="{Binding ResearchPaperUrl, Converter={StaticResource NotEmpty}}">
+                          IsVisible="{Binding Strategy.ResearchPaperUrl, Converter={StaticResource NotEmpty}}">
                     <Button Padding="0" Background="Transparent" BorderThickness="0" Cursor="Hand"
-                            Tag="{Binding ResearchPaperUrl}" Click="OnOpenResearchPaper"
-                            ToolTip.Tip="{Binding ResearchPaperUrl}">
+                            Tag="{Binding Strategy.ResearchPaperUrl}" Click="OnOpenResearchPaper"
+                            ToolTip.Tip="{Binding Strategy.ResearchPaperUrl}">
                       <TextBlock Text="📄 RESEARCH PAPER ⓘ" Foreground="#E8DEFF" FontSize="10" FontWeight="SemiBold" />
                     </Button>
                   </Border>
-                </StackPanel>
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Text="{Binding Description}"
+                             Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
+                             FontSize="12" VerticalAlignment="Top" Margin="0,2,14,0" />
+                  <appstrat:StrategyImageTile Grid.Column="2" Width="190" Height="112"
+                                              VerticalAlignment="Top" ImagePath="{Binding ImagePath}" />
+                </Grid>
               </Border>
             </DataTemplate>
           </ListBox.ItemTemplate>
           <ListBox.ContextMenu>
             <ContextMenu>
               <MenuItem Header="Open" Click="OnOpenStrategy" />
-              <MenuItem Header="Quick backtest (last 1 year)…" Click="OnNotPorted" />
+              <MenuItem Header="Quick backtest (last 1 year)&#x2026;" Click="OnQuickBacktest" />
+              <Separator />
+              <MenuItem Header="Edit strategy card&#x2026;" Click="OnEditStrategyCard" />
             </ContextMenu>
           </ListBox.ContextMenu>
         </ListBox>
       </ScrollViewer>
+
+      <!-- Fresh installs intentionally ship no strategy implementations. Keep the Windows sandbox
+           state so the first useful action is Vibe Quant, not an empty list. -->
+      <Grid Grid.Row="1" IsVisible="{Binding HasNoStrategies}"
+            HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="540" Margin="24">
+        <StackPanel HorizontalAlignment="Center">
+          <Border Width="62" Height="62" Background="{DynamicResource Gradient.Ai}"
+                  BoxShadow="0 0 24 0 #738B5CF6" HorizontalAlignment="Center">
+            <Path Data="M15,0 L4,19 L12,19 L9,34 L25,13 L16,13 Z"
+                  Fill="White" Width="24" Height="34" Stretch="Uniform"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <Border Background="{DynamicResource Ai.Soft}" BorderBrush="{DynamicResource Ai.Accent.Brush}"
+                  BorderThickness="1" Padding="7,2" HorizontalAlignment="Center" Margin="0,16,0,0">
+            <TextBlock Text="AI-NATIVE STRATEGY SANDBOX" Foreground="{DynamicResource Ai.Text.Brush}"
+                       FontSize="9" FontWeight="Bold" />
+          </Border>
+          <TextBlock Text="No strategies yet — this is your sandbox"
+                     Foreground="{DynamicResource Text.Header}" FontSize="21" FontWeight="Bold"
+                     TextAlignment="Center" TextWrapping="Wrap" Margin="0,14,0,0" />
+          <TextBlock Text="Describe a strategy and Vibe Quant writes, compiles and backtests it for you — or install a ready-made one from the marketplace. Everything you build lands right here."
+                     Foreground="{DynamicResource Text.Secondary}" FontSize="12.5" TextAlignment="Center"
+                     TextWrapping="Wrap" MaxWidth="450" Margin="0,8,0,0" />
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
+            <Border CornerRadius="24" BoxShadow="0 0 22 0 #668B5CF6">
+              <Button Classes="ai" Click="OnAuthoring" ToolTip.Tip="Describe a strategy and let Vibe Quant build it.">
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="M15,0 L4,19 L12,19 L9,34 L25,13 L16,13 Z"
+                        Fill="White" Width="12" Height="18" Stretch="Uniform" Margin="0,0,8,0" />
+                  <TextBlock Text="Build with Vibe Quant" FontWeight="Bold" FontSize="13" />
+                </StackPanel>
+              </Button>
+            </Border>
+            <Button Click="OnMarketplace" Margin="14,0,0,0" Padding="16,10"
+                    ToolTip.Tip="Browse the DaxAlgo strategy marketplace (coming soon).">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="▦" FontSize="16" Margin="0,0,8,0" />
+                <TextBlock Text="Browse Marketplace" FontWeight="SemiBold" FontSize="13" />
+                <Border Background="{DynamicResource Ai.Soft}" Margin="8,0,0,0" Padding="4,1">
+                  <TextBlock Text="SOON" FontSize="8" FontWeight="Bold" Foreground="{DynamicResource Text.Secondary}" />
+                </Border>
+              </StackPanel>
+            </Button>
+          </StackPanel>
+          <Button Content="Already have a .daxplugin? Install it in Strategy Manager &#x2192;"
+                  Click="OnPluginManager" HorizontalAlignment="Center" Margin="0,14,0,0"
+                  Background="Transparent" BorderThickness="0"
+                  Foreground="{DynamicResource Text.Secondary}" />
+        </StackPanel>
+      </Grid>
+
+      <Button Grid.Row="1" Classes="ai" IsVisible="{Binding HasStrategies}"
+              HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,28,28"
+              Padding="16,10" Click="OnAuthoring"
+              ToolTip.Tip="Vibe Quant - describe a strategy and let the AI build it. Right-click for CLI launchers.">
+        <Button.ContextMenu>
+          <ContextMenu>
+            <MenuItem Header="Vibe Quant&#x2026;" Click="OnAuthoring" />
+            <Separator />
+            <MenuItem x:Name="FabCliMenu" Header="Launch CLI" />
+          </ContextMenu>
+        </Button.ContextMenu>
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="&#x26A1;" FontSize="18" Margin="0,0,8,0" />
+          <TextBlock Text="Vibe Quant" FontWeight="Bold" FontSize="13" />
+        </StackPanel>
+      </Button>
     </Grid>
   </DockPanel>
+  <uicontrols:BusyOverlay IsActive="{Binding IsBusy}"
+                              Title="{Binding BusyTitle}"
+                              Message="{Binding BusyMessage}" />
+  </Grid>
 </Window>

@@ -1,0 +1,232 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:TradingTerminal.BubbleChart"
+        x:Class="TradingTerminal.BubbleChart.BubbleChartWindow"
+        x:Name="BubbleWindow"
+        Title="Bubble Heatmap (experimental - Bookmap style)"
+        Width="1180" Height="760"
+        MinWidth="900" MinHeight="560"
+        WindowStartupLocation="CenterOwner"
+        Background="#0A0A0F"
+        Foreground="#E4E7ED">
+  <Window.Styles>
+    <Style Selector="TextBlock.tool-label">
+      <Setter Property="Foreground" Value="#9AA1AD" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.group-label">
+      <Setter Property="Foreground" Value="#737B88" />
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.tool">
+      <Setter Property="MinWidth" Value="32" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="Padding" Value="7,3" />
+      <Setter Property="Background" Value="#242A35" />
+      <Setter Property="BorderBrush" Value="#343C49" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+    </Style>
+    <Style Selector="Button.tool:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#303847" />
+    </Style>
+    <Style Selector="ToggleButton.tool">
+      <Setter Property="MinWidth" Value="32" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="Padding" Value="7,3" />
+      <Setter Property="Background" Value="#242A35" />
+      <Setter Property="BorderBrush" Value="#343C49" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+    </Style>
+    <Style Selector="ToggleButton.tool:checked /template/ ContentPresenter">
+      <Setter Property="Background" Value="#5A3B16" />
+    </Style>
+    <Style Selector="TextBlock.readout-label">
+      <Setter Property="Foreground" Value="#9E9E9E" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Margin" Value="0,1,14,1" />
+    </Style>
+    <Style Selector="TextBlock.readout-value">
+      <Setter Property="Foreground" Value="#E0E0E0" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontFamily" Value="Cascadia Mono, SFMono-Regular, Menlo, Consolas, monospace" />
+      <Setter Property="TextAlignment" Value="Right" />
+      <Setter Property="Margin" Value="0,1,0,1" />
+    </Style>
+  </Window.Styles>
+
+  <Grid x:Name="Root" RowDefinitions="Auto,*,Auto">
+    <Border Grid.Row="0"
+            Background="#1A1F29"
+            BorderBrush="#2B323E"
+            BorderThickness="0,0,0,1"
+            Padding="10,7">
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="Instrument" Classes="tool-label" />
+          <AutoCompleteBox Width="330"
+                           Watermark="Type an instrument..."
+                           MinimumPrefixLength="0"
+                           MinimumPopulateDelay="150"
+                           MaxDropDownHeight="460"
+                           FilterMode="None"
+                           IsTextCompletionEnabled="False"
+                           ValueMemberBinding="{Binding DisplayName}"
+                           Text="{Binding InstrumentSearchText, Mode=TwoWay}"
+                           ItemsSource="{Binding Instruments}"
+                           SelectedItem="{Binding SelectedInstrument, Mode=TwoWay}" />
+
+          <TextBlock Text="Column" Classes="tool-label" Margin="4,0,0,0" />
+          <ComboBox Width="86"
+                    ItemsSource="{Binding Timeframes}"
+                    SelectedItem="{Binding SelectedTimeframe}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate><TextBlock Text="{Binding Label}" /></DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+
+          <TextBlock Text="Window" Classes="tool-label" Margin="4,0,0,0" />
+          <ComboBox Width="72"
+                    ItemsSource="{Binding RetainedOptions}"
+                    SelectedItem="{Binding RetainedColumns}"
+                    ToolTip.Tip="Columns of history kept and drawn" />
+
+          <Border Width="1" Height="24" Margin="6,0" Background="#343C49" />
+          <CheckBox Content="Bubbles" IsChecked="{Binding ShowBubbles}" VerticalAlignment="Center" />
+          <CheckBox Content="Large lots only"
+                    IsChecked="{Binding LargeOnly}"
+                    VerticalAlignment="Center"
+                    ToolTip.Tip="Show only prints at least 5x the rolling mean size" />
+
+          <Border Width="1" Height="24" Margin="6,0" Background="#343C49" />
+          <TextBlock Text="PRESET" Classes="group-label" />
+          <AutoCompleteBox Width="140"
+                           Watermark="Preset name"
+                           MinimumPrefixLength="0"
+                           FilterMode="None"
+                           ItemsSource="{Binding PresetNames}"
+                           SelectedItem="{Binding SelectedPreset}"
+                           Text="{Binding PresetName, Mode=TwoWay}"
+                           ToolTip.Tip="Pick a preset or type a name to save" />
+          <Button Classes="tool" Content="Save" Command="{Binding SavePresetCommand}"
+                  ToolTip.Tip="Save the current view options as a named preset" />
+          <Button Classes="tool" Content="Delete" Command="{Binding DeletePresetCommand}"
+                  ToolTip.Tip="Delete the selected preset" />
+          <ToggleButton Classes="tool" Content="Pause" IsChecked="{Binding IsPaused}"
+                        ToolTip.Tip="Pause display updates while the book and tape keep rolling" />
+          <Button Classes="tool" Content="Trades CSV" Command="{Binding ExportTradesCsvCommand}"
+                  ToolTip.Tip="Export recent prints as CSV" />
+          <Button Classes="tool" Content="Book CSV" Command="{Binding ExportBookCsvCommand}"
+                  ToolTip.Tip="Export time, best bid, and best ask columns as CSV" />
+          <Button Classes="tool" Content="PNG" Click="ExportPng_Click"
+                  ToolTip.Tip="Save a PNG snapshot" />
+          <Button Classes="tool" Content="?" ToolTip.Tip="What am I looking at?">
+            <Button.Flyout>
+              <Flyout Placement="BottomEdgeAlignedRight">
+                <Border Width="410" Padding="16" Background="#262C38"
+                        BorderBrush="#3B4452" BorderThickness="1" CornerRadius="4">
+                  <StackPanel Spacing="8">
+                    <TextBlock Text="READING THE BUBBLE HEATMAP"
+                               FontSize="12" FontWeight="SemiBold" Foreground="#E4E7ED" />
+                    <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="#BEC4CE" LineHeight="17"
+                               Text="Heatmap - time x price resting L2 liquidity. Dark is thin; blue, teal, yellow, and red show increasingly heavy resting size.&#10;&#10;Bubbles - executed prints sized by volume. Green is aggressive buying and red is aggressive selling.&#10;&#10;Large lots - white-ringed bubbles are prints at least 5x the rolling mean size.&#10;&#10;Column - the wall-clock width of one heatmap bucket. The live bucket refreshes until the next one opens; completed buckets remain locked in history." />
+                  </StackPanel>
+                </Border>
+              </Flyout>
+            </Button.Flyout>
+          </Button>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <Grid Grid.Row="1">
+      <local:HeatmapBubbleSurface x:Name="ChartSurface" />
+
+      <Border HorizontalAlignment="Right"
+              VerticalAlignment="Top"
+              Margin="0,10,18,0"
+              Background="#E6121620"
+              BorderBrush="#33FFFFFF"
+              BorderThickness="1"
+              Padding="11,8"
+              MinWidth="184"
+              IsHitTestVisible="False">
+        <StackPanel>
+          <TextBlock Text="BOOKMAP" FontSize="10" FontWeight="SemiBold"
+                     Foreground="#9E9E9E" Margin="0,0,0,6" />
+          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Best ask" Classes="readout-label" />
+            <TextBlock Grid.Row="0" Grid.Column="1"
+                       Text="{Binding BestAsk, StringFormat=N2, TargetNullValue=--}"
+                       Classes="readout-value" Foreground="#FF5A57" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Best bid" Classes="readout-label" />
+            <TextBlock Grid.Row="1" Grid.Column="1"
+                       Text="{Binding BestBid, StringFormat=N2, TargetNullValue=--}"
+                       Classes="readout-value" Foreground="#3DD98A" />
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Last" Classes="readout-label" />
+            <TextBlock Grid.Row="2" Grid.Column="1"
+                       Text="{Binding LastPrice, StringFormat=N2, TargetNullValue=--}"
+                       Classes="readout-value" />
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Trades" Classes="readout-label" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding TradeCount}" Classes="readout-value" />
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="Columns" Classes="readout-label" />
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding ColumnsFilled}" Classes="readout-value" />
+          </Grid>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2"
+            Background="#1A1F29"
+            BorderBrush="#2B323E"
+            BorderThickness="0,1,0,0"
+            Padding="10,6">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <TextBlock Text="liquidity" FontSize="11" Foreground="#9AA1AD" VerticalAlignment="Center" />
+          <Border Width="120" Height="11" BorderBrush="#33FFFFFF" BorderThickness="1">
+            <Border.Background>
+              <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                <GradientStop Offset="0" Color="#0A0C1A" />
+                <GradientStop Offset="0.36" Color="#166EC8" />
+                <GradientStop Offset="0.56" Color="#16C0B0" />
+                <GradientStop Offset="0.72" Color="#D8CC28" />
+                <GradientStop Offset="1" Color="#F63B32" />
+              </LinearGradientBrush>
+            </Border.Background>
+          </Border>
+          <TextBlock Text="thin to heavy" FontSize="11" Foreground="#9AA1AD" VerticalAlignment="Center" />
+          <Ellipse Width="11" Height="11" Fill="#E63DD98A" VerticalAlignment="Center" Margin="8,0,0,0" />
+          <TextBlock Text="buy" FontSize="11" Foreground="#9AA1AD" />
+          <Ellipse Width="11" Height="11" Fill="#E6FF5A57" VerticalAlignment="Center" Margin="4,0,0,0" />
+          <TextBlock Text="sell" FontSize="11" Foreground="#9AA1AD" />
+          <Ellipse Width="11" Height="11" Fill="#552A2A2A" Stroke="#FFFFFF"
+                   StrokeThickness="1.4" VerticalAlignment="Center" Margin="4,0,0,0" />
+          <TextBlock Text="large print - size = volume" FontSize="11" Foreground="#9AA1AD" />
+        </StackPanel>
+        <TextBlock Grid.Column="1"
+                   Text="{Binding Status}"
+                   Margin="12,0,0,0"
+                   FontSize="11"
+                   Foreground="#9AA1AD"
+                   VerticalAlignment="Center"
+                   TextAlignment="Right"
+                   TextTrimming="CharacterEllipsis" />
+        <Border Grid.Column="2"
+                IsVisible="{Binding IsPaused}"
+                Background="#5A3B16"
+                BorderBrush="#8C5C22"
+                BorderThickness="1"
+                CornerRadius="3"
+                Padding="7,2"
+                Margin="8,0,0,0">
+          <TextBlock Text="PAUSED" FontSize="10" FontWeight="SemiBold" Foreground="#FFB74D" />
+        </Border>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

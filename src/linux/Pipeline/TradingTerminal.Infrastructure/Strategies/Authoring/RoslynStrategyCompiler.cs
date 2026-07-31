@@ -1,11 +1,15 @@
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using DaxAlgo.Sdk;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Parameters;
+using TradingTerminal.Infrastructure.Plugins;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
@@ -24,7 +28,7 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
 {
     /// <summary>Ambient namespaces every script gets for free (kept in a dedicated tree so
     /// they don't shift the user's line numbers).</summary>
-    private const string GlobalUsings = """
+    private const string KernelUsings = """
         global using System;
         global using System.Collections.Generic;
         global using System.Linq;
@@ -35,7 +39,18 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
         global using TradingTerminal.Core.Time;
         global using TradingTerminal.Core.Backtest;
         global using TradingTerminal.Core.MarketData;
+        global using TradingTerminal.Core.Strategies;
         global using TradingTerminal.Core.Strategies.Parameters;
+        """;
+
+    /// <summary>Additionally imported when the host actually ships UI.Core — i.e. in the app, where an
+    /// authored plugin may carry a live view-model. A headless host (the backtest CLI) has no UI.Core, and
+    /// a global using of a namespace that doesn't exist would fail EVERY compile there, so it is
+    /// conditional rather than constant.</summary>
+    private const string LiveWindowUsings = """
+        global using Microsoft.Extensions.Logging;
+        global using TradingTerminal.Core.Notifications;
+        global using TradingTerminal.UI;
         """;
 
     private static readonly CSharpParseOptions ParseOptions =
@@ -45,19 +60,35 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
     {
         ArgumentNullException.ThrowIfNull(script);
 
-        var userTree = CSharpSyntaxTree.ParseText(
-            script.SourceCode, ParseOptions, path: $"{Sanitize(script.Id)}.cs");
-        var globalsTree = CSharpSyntaxTree.ParseText(GlobalUsings, ParseOptions, path: "GlobalUsings.g.cs");
+        if (script.Files.Count == 0)
+            return StrategyCompileResult.Failed([Error("DAX1002", "There is no source to compile.")]);
+
+        var references = BuildReferences(out var available);
+        var globals = available.Contains("TradingTerminal.UI.Core")
+            ? $"{KernelUsings}\n{LiveWindowUsings}"
+            : KernelUsings;
+
+        // One tree per authored file, keyed by its name — so a diagnostic points at the file the user is
+        // looking at (and the model can read its own errors back per file). Plus two generated trees the
+        // user never sees: the ambient usings, and the plugin entry point.
+        var trees = new List<SyntaxTree>(script.Files.Count + 2)
+        {
+            CSharpSyntaxTree.ParseText(globals, ParseOptions, path: "GlobalUsings.g.cs"),
+            CSharpSyntaxTree.ParseText(PluginEntryPoint(script), ParseOptions, path: "Plugin.g.cs"),
+        };
+        foreach (var file in script.Files)
+            trees.Add(CSharpSyntaxTree.ParseText(file.Content, ParseOptions, path: FileName(file, script)));
 
         var compilation = CSharpCompilation.Create(
-            assemblyName: $"DaxAlgo.Authored.{Sanitize(script.Id)}.{Guid.NewGuid():N}",
-            syntaxTrees: new[] { globalsTree, userTree },
-            references: BuildReferences(),
+            assemblyName: BuildAssemblyName(script, globals),
+            syntaxTrees: trees,
+            references: references,
             options: new CSharpCompilationOptions(
                 OutputKind.DynamicallyLinkedLibrary,
                 optimizationLevel: OptimizationLevel.Release,
                 nullableContextOptions: NullableContextOptions.Enable,
-                allowUnsafe: false));
+                allowUnsafe: false)
+                .WithDeterministic(true));
 
         using var peStream = new MemoryStream();
         var emit = compilation.Emit(peStream);
@@ -70,16 +101,37 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
         if (!emit.Success)
             return StrategyCompileResult.Failed(diagnostics);
 
+        // Authored source is untrusted the moment an AI (or a pasted snippet) can write it, and it is
+        // about to run in-process with full host privileges. Scan the emitted image with the SAME
+        // policy the plugin loader applies — before Assembly.Load, so Block-level code (P/Invoke,
+        // starting a process, the registry, Reflection.Emit, loading assemblies) never executes. The
+        // scan reads the bytes as data.
+        var image = peStream.ToArray();
+        var scan = PluginPolicyScanner.ScanImage(image, $"{Sanitize(script.Id)}.dll");
+        diagnostics = MergeScan(diagnostics, scan);
+        if (scan.Verdict == PluginScanSeverity.Block)
+            return StrategyCompileResult.Failed(diagnostics);
+
         try
         {
-            peStream.Position = 0;
-            var assembly = Assembly.Load(peStream.ToArray());
-            var option = BuildOption(script, assembly, out var bindError);
-            if (option is null)
+            // Loaded from the byte[], never the file — so the DLL we persist alongside it is not locked
+            // and a regenerate can overwrite it.
+            var assembly = Assembly.Load(image);
+            var option = BuildOption(script, assembly, out var kernelType, out var bindError);
+            if (option is null || kernelType is null)
                 return StrategyCompileResult.Failed(
                     Append(diagnostics, Error("DAX1000", bindError ?? "Could not bind the strategy type.")));
 
-            return StrategyCompileResult.Succeeded(option, diagnostics);
+            // Discovered by the SDK's own finder — the same code the plugin loader runs on the next start,
+            // so what the pane says is in the strategy and what actually loads can't disagree.
+            var found = AuthoredStrategyTypes.DiscoverIn(assembly);
+            var authored = new AuthoredStrategyAssembly(
+                image, assembly, kernelType,
+                DescriptorType: found.Descriptor,
+                ViewModelType: found.ViewModel,
+                ViewType: found.View);
+
+            return StrategyCompileResult.Succeeded(option, diagnostics, authored);
         }
         catch (Exception ex)
         {
@@ -88,11 +140,45 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
         }
     }
 
+    /// <summary>
+    /// The plugin entry point, generated into every authored assembly. Without it the assembly is not a
+    /// plugin at all: on the next start the loader finds the DLL, sees no <see cref="IStrategyPlugin"/>,
+    /// and reports it as failed — which is exactly what happened before this existed.
+    /// <para>
+    /// It names no types of its own. The SDK's <c>AuthoredPluginBootstrap</c> discovers the kernel,
+    /// descriptor, view-model and view by shape at load time, so this stays the same few lines whatever
+    /// the author wrote.
+    /// </para>
+    /// </summary>
+    private static string PluginEntryPoint(StrategyScript script) => $$"""
+        /// <summary>Generated. Makes this authored strategy a real plugin, so the host loads it on the
+        /// next start exactly like one built with `dotnet new daxalgo-strategy`.</summary>
+        public sealed class DaxAlgoAuthoredPlugin : DaxAlgo.Sdk.IStrategyPlugin
+        {
+            public string Name => {{Literal(script.DisplayName)}};
+            public string TargetSdkVersion => {{Literal(SdkInfo.Version)}};
+
+            public void Register(DaxAlgo.Sdk.IPluginRegistrar registrar) =>
+                DaxAlgo.Sdk.AuthoredPluginBootstrap.Register(
+                    registrar,
+                    typeof(DaxAlgoAuthoredPlugin).Assembly,
+                    {{Literal(script.Id)}},
+                    {{Literal(script.DisplayName)}});
+        }
+        """;
+
+    /// <summary>A C# string literal — the id and display name are user input and land in generated source,
+    /// so they are escaped rather than interpolated raw.</summary>
+    private static string Literal(string value) =>
+        Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Literal(value).ToFullString();
+
     /// <summary>Resolves the single <see cref="IBacktestStrategy"/> class and wires its factory
     /// (and optional declarative-parameter members) into a <see cref="BacktestStrategyOption"/>.</summary>
-    private static BacktestStrategyOption? BuildOption(StrategyScript script, Assembly assembly, out string? error)
+    private static BacktestStrategyOption? BuildOption(
+        StrategyScript script, Assembly assembly, out Type? kernelType, out string? error)
     {
         error = null;
+        kernelType = null;
         var candidates = assembly.GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract && typeof(IBacktestStrategy).IsAssignableFrom(t))
             .ToArray();
@@ -117,6 +203,7 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
             return null;
         }
 
+        kernelType = type;
         Func<Contract, IBacktestStrategy> build = contract =>
             (IBacktestStrategy)ctor.Invoke(new object[] { contract });
 
@@ -153,27 +240,53 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
             (IBacktestStrategy)method.Invoke(null, new object[] { contract, parameters })!;
     }
 
-    /// <summary>Framework assemblies (from the trusted-platform set) plus the Core assembly that
-    /// defines the strategy contract. Core has zero third-party deps, so this is sufficient.</summary>
-    private static IReadOnlyList<MetadataReference> BuildReferences()
+    /// <summary>
+    /// The trusted-platform set — which for a .NET app is the framework AND every assembly the host
+    /// ships (its deps.json): Core (the strategy contract), UI / UI.Core (so an authored plugin can build
+    /// a live view-model + view), the SDK, MVVM, DI abstractions, WPF. Identity is preserved because the
+    /// authored assembly resolves them from the default load context.
+    /// <para>
+    /// Deliberately NOT the loaded-assembly list: strategy plugins live in their own
+    /// <c>AssemblyLoadContext</c>, so compiling against one and then loading into the default context
+    /// would bind two different <c>Type</c> identities for the same name. Authored code sees the host's
+    /// surface, not other plugins'.
+    /// </para>
+    /// </summary>
+    /// <param name="available">Simple names of every assembly the authored code may reference — used to
+    /// decide whether the live-window global usings can be injected at all.</param>
+    private static IReadOnlyList<MetadataReference> BuildReferences(out HashSet<string> available)
     {
         var references = new List<MetadataReference>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        available = seen;
+
         var tpa = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? string.Empty;
         foreach (var path in tpa.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
-            if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            // Dedupe by simple name — the same assembly from two paths is a CS1704.
+            if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) &&
+                seen.Add(Path.GetFileNameWithoutExtension(path)))
                 references.Add(MetadataReference.CreateFromFile(path));
         }
 
-        // Core (IBacktestStrategy, Contract, StrategyParameters, …). Identity is preserved
-        // because the loaded assembly resolves Core from the default load context.
-        references.Add(MetadataReference.CreateFromFile(typeof(IBacktestStrategy).Assembly.Location));
+        // Core (IBacktestStrategy, Contract, StrategyParameters, …) — belt and braces if it somehow
+        // wasn't in the platform set.
+        var core = typeof(IBacktestStrategy).Assembly;
+        if (!string.IsNullOrEmpty(core.Location) && seen.Add(Path.GetFileNameWithoutExtension(core.Location)))
+            references.Add(MetadataReference.CreateFromFile(core.Location));
+
         return references;
     }
 
+    /// <summary>The compilation path for a file — its authored name, sanitized, so diagnostics carry a
+    /// name the user recognizes from the editor's file list.</summary>
+    private static string FileName(StrategyFile file, StrategyScript script) =>
+        string.IsNullOrWhiteSpace(file.Name) ? $"{Sanitize(script.Id)}.cs" : file.Name;
+
     private static StrategyDiagnostic Map(Diagnostic diagnostic)
     {
-        var position = diagnostic.Location.GetLineSpan().StartLinePosition;
+        var span = diagnostic.Location.GetLineSpan();
+        var position = span.StartLinePosition;
         var severity = diagnostic.Severity switch
         {
             DiagnosticSeverity.Error => StrategyDiagnosticSeverity.Error,
@@ -182,11 +295,37 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
         };
         return new StrategyDiagnostic(
             severity, diagnostic.Id, diagnostic.GetMessage(),
-            position.Line + 1, position.Character + 1);
+            position.Line + 1, position.Character + 1,
+            File: span.Path ?? string.Empty);
     }
 
     private static StrategyDiagnostic Error(string id, string message) =>
         new(StrategyDiagnosticSeverity.Error, id, message, 1, 1);
+
+    /// <summary>Turns the policy scan into diagnostics the authoring pane already knows how to show:
+    /// a Block-level finding is an Error (and fails the compile), a Warn-level one is a Warning (the
+    /// strategy compiles, but the user is told it reaches for file / network I/O). Clean scans add
+    /// nothing.</summary>
+    private static StrategyDiagnostic[] MergeScan(StrategyDiagnostic[] existing, PluginScanReport scan)
+    {
+        if (scan.Findings.Count == 0) return existing;
+
+        var merged = existing.ToList();
+        foreach (var finding in scan.Findings)
+        {
+            var severity = finding.Severity switch
+            {
+                PluginScanSeverity.Block => StrategyDiagnosticSeverity.Error,
+                PluginScanSeverity.Warn => StrategyDiagnosticSeverity.Warning,
+                _ => StrategyDiagnosticSeverity.Info,
+            };
+            var message = finding.Severity == PluginScanSeverity.Block
+                ? $"Authored strategies may not use this: {finding.Detail}. Blocked by the plugin policy scan."
+                : $"This strategy {finding.Detail}.";
+            merged.Add(new StrategyDiagnostic(severity, $"DAX2{(int)finding.Severity:D3}", message, 1, 1));
+        }
+        return [.. merged];
+    }
 
     private static IReadOnlyList<StrategyDiagnostic> Append(
         IReadOnlyList<StrategyDiagnostic> existing, StrategyDiagnostic extra) =>
@@ -194,4 +333,37 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
 
     private static string Sanitize(string id) =>
         new(id.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
+
+    /// <summary>
+    /// Gives identical authored inputs an identical assembly identity while retaining the content suffix
+    /// that lets a changed strategy coexist with the previous in-memory build during the same session.
+    /// Length-prefixing each value makes the hash unambiguous (<c>["ab", "c"]</c> cannot collide with
+    /// <c>["a", "bc"]</c> through concatenation alone).
+    /// </summary>
+    private static string BuildAssemblyName(StrategyScript script, string globals)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
+        Append(script.Id);
+        Append(script.DisplayName);
+        Append(globals);
+        Append(PluginEntryPoint(script));
+        foreach (var file in script.Files)
+        {
+            Append(FileName(file, script));
+            Append(file.Content);
+        }
+
+        var suffix = Convert.ToHexString(hash.GetHashAndReset())[..24].ToLowerInvariant();
+        return $"DaxAlgo.Authored.{Sanitize(script.Id)}.{suffix}";
+
+        void Append(string value)
+        {
+            var bytes = Encoding.UTF8.GetBytes(value);
+            Span<byte> length = stackalloc byte[sizeof(int)];
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(length, bytes.Length);
+            hash.AppendData(length);
+            hash.AppendData(bytes);
+        }
+    }
 }

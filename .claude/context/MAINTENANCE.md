@@ -1,6 +1,6 @@
 # Context maintenance
 
-The generated Linux source map lives under `.claude/context/linux/`.
+The generated macOS source map lives under the inherited `.claude/context/linux/` path.
 
 ```bash
 bash .claude/context/gen-context-linux.sh

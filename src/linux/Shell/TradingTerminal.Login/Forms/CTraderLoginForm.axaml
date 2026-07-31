@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TradingTerminal.App.Login.Forms.CTraderLoginForm">
+  <StackPanel Spacing="8">
+    <TextBlock Text="Display name (optional)" Classes="fieldLabel" />
+    <TextBox Text="{Binding Username}" Watermark="Trader or desk name" />
+    <Grid ColumnDefinitions="*,*">
+      <StackPanel Grid.Column="0" Spacing="5">
+        <TextBlock Text="OAuth client id" Classes="fieldLabel" />
+        <TextBox Text="{Binding ClientId}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Spacing="5">
+        <TextBlock Text="OAuth client secret" Classes="fieldLabel" />
+        <TextBox Text="{Binding ClientSecret}" PasswordChar="●" Watermark="Keychain protected" />
+      </StackPanel>
+    </Grid>
+    <TextBlock Text="Access token" Classes="fieldLabel" />
+    <TextBox Text="{Binding AccessToken}" PasswordChar="●" Watermark="OAuth access token" />
+    <Grid ColumnDefinitions="*,Auto">
+      <StackPanel Grid.Column="0" Spacing="5">
+        <TextBlock Text="ctidTraderAccountId" Classes="fieldLabel" />
+        <TextBox Text="{Binding AccountId}" />
+      </StackPanel>
+      <Button Grid.Column="1" Content="Discover" Command="{Binding DiscoverAccountsCommand}"
+              VerticalAlignment="Bottom" MinWidth="92" />
+    </Grid>
+    <TextBlock Text="{Binding DiscoveryMessage}" Classes="secondary" TextWrapping="Wrap" />
+    <ComboBox ItemsSource="{Binding DiscoveredAccounts}"
+              SelectedItem="{Binding SelectedDiscoveredAccount}"
+              IsVisible="{Binding HasDiscoveredAccounts}">
+      <ComboBox.ItemTemplate>
+        <DataTemplate>
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="#" />
+            <TextBlock Text="{Binding AccountId}" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding BrokerTitle}" Classes="secondary" />
+          </StackPanel>
+        </DataTemplate>
+      </ComboBox.ItemTemplate>
+    </ComboBox>
+    <CheckBox IsChecked="{Binding IsLive}" Content="Use live endpoint (uncheck for demo)" />
+    <Border Classes="formNote">
+      <TextBlock Text="Access tokens expire. When a token expires, refresh the OAuth authorization and save the new token here."
+                 TextWrapping="Wrap" />
+    </Border>
+  </StackPanel>
+</UserControl>

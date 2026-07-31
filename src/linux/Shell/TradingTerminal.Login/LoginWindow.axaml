@@ -1,0 +1,394 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:forms="using:TradingTerminal.App.Login.Forms"
+        xmlns:local="using:TradingTerminal.App.Login"
+        x:Class="TradingTerminal.App.Login.LoginWindow"
+        Title="DaxAlgo Terminal — Sign in"
+        Width="960" Height="700" MinWidth="900" MinHeight="620"
+        WindowStartupLocation="CenterScreen"
+        Icon="avares://TradingTerminal.Login/Icon/DaxAlgoLogo.png"
+        Background="{DynamicResource Background.Primary}"
+        Foreground="{DynamicResource Text.Primary}">
+
+  <Window.Resources>
+    <LinearGradientBrush x:Key="HeroPane.Background" StartPoint="0%,0%" EndPoint="100%,0%">
+      <GradientStop Color="#121212" Offset="0" />
+      <GradientStop Color="#0C0C0C" Offset="1" />
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="HeroPane.Border" Color="#1E1E1E" />
+    <local:ServiceStateBrushConverter x:Key="ServiceStateBrush" />
+    <local:BrokerLogoConverter x:Key="BrokerLogo" />
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="TextBlock.secondary">
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="TextBlock.fieldLabel">
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="Border.formNote">
+      <Setter Property="Background" Value="#182962FF" />
+      <Setter Property="BorderBrush" Value="#403F6FFF" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="10,8" />
+    </Style>
+    <Style Selector="Border.formNote TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+      <Setter Property="FontSize" Value="10" />
+    </Style>
+    <Style Selector="TextBox, ComboBox, NumericUpDown">
+      <Setter Property="MinHeight" Value="31" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="12,6" />
+    </Style>
+    <Style Selector="Button.accent">
+      <Setter Property="Background" Value="{DynamicResource Accent.Brush}" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Border.brokerRow">
+      <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.brokerRow.connected">
+      <Setter Property="BorderBrush" Value="#3000C853" />
+    </Style>
+    <Style Selector="Border.brokerRow.keyless">
+      <Setter Property="BorderBrush" Value="#2826A69A" />
+    </Style>
+    <Style Selector="Ellipse.stateDot">
+      <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+    <Style Selector="Ellipse.stateDot.connected">
+      <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+    </Style>
+    <Style Selector="Ellipse.stateDot.busy">
+      <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+    </Style>
+    <Style Selector="ToggleButton.brokerHeader /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="ToggleButton.brokerHeader:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+    </Style>
+    <Style Selector="ToggleButton.brokerHeader:checked /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    </Style>
+  </Window.Styles>
+
+  <Window.DataTemplates>
+    <DataTemplate DataType="{x:Type forms:IbLoginFormViewModel}"><forms:IbLoginForm /></DataTemplate>
+    <DataTemplate DataType="{x:Type forms:NinjaLoginFormViewModel}"><forms:NinjaLoginForm /></DataTemplate>
+    <DataTemplate DataType="{x:Type forms:CTraderLoginFormViewModel}"><forms:CTraderLoginForm /></DataTemplate>
+    <DataTemplate DataType="{x:Type forms:AlpacaLoginFormViewModel}"><forms:AlpacaLoginForm /></DataTemplate>
+    <DataTemplate DataType="{x:Type forms:BinanceLoginFormViewModel}"><forms:BinanceLoginForm /></DataTemplate>
+    <DataTemplate DataType="{x:Type forms:IronBeamLoginFormViewModel}"><forms:IronBeamLoginForm /></DataTemplate>
+    <DataTemplate DataType="{x:Type forms:LondonStrategicEdgeLoginFormViewModel}"><forms:LondonStrategicEdgeLoginForm /></DataTemplate>
+    <DataTemplate DataType="{x:Type forms:UpstoxLoginFormViewModel}"><forms:UpstoxLoginForm /></DataTemplate>
+    <DataTemplate DataType="{x:Type forms:CoinbaseLoginFormViewModel}"><forms:CoinbaseLoginForm /></DataTemplate>
+    <DataTemplate DataType="{x:Type forms:BybitLoginFormViewModel}"><forms:BybitLoginForm /></DataTemplate>
+    <DataTemplate DataType="{x:Type forms:KrakenLoginFormViewModel}"><forms:KrakenLoginForm /></DataTemplate>
+    <DataTemplate DataType="{x:Type forms:OkxLoginFormViewModel}"><forms:OkxLoginForm /></DataTemplate>
+  </Window.DataTemplates>
+
+  <Grid ColumnDefinitions="280,*">
+    <Border Grid.Column="0" Background="{StaticResource HeroPane.Background}"
+            BorderBrush="{StaticResource HeroPane.Border}" BorderThickness="0,0,1,0">
+      <Grid>
+        <Ellipse Width="220" Height="220" HorizontalAlignment="Right" VerticalAlignment="Top"
+                 Margin="0,-110,-110,0" Opacity="0.04">
+          <Ellipse.Fill>
+            <RadialGradientBrush>
+              <GradientStop Color="#FF8C00" Offset="0" />
+              <GradientStop Color="Transparent" Offset="1" />
+            </RadialGradientBrush>
+          </Ellipse.Fill>
+        </Ellipse>
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="32,0,32,60">
+          <Border Width="76" Height="76" HorizontalAlignment="Center" Background="#ECECEC">
+            <Image Source="avares://TradingTerminal.Login/Icon/DaxAlgoLogo.png"
+                   Width="54" Height="54" Stretch="Uniform" />
+          </Border>
+          <Border Height="1" Width="40" HorizontalAlignment="Center" Margin="0,18,0,0"
+                  Background="{DynamicResource Accent.Brush}" Opacity="0.55" />
+          <TextBlock Text="DaxAlgo Terminal" FontSize="20" FontWeight="SemiBold"
+                     HorizontalAlignment="Center" Margin="0,14,0,0" />
+          <TextBlock Text="Data &amp; signals · multi-broker" Classes="secondary"
+                     HorizontalAlignment="Center" Margin="0,5,0,0" />
+        </StackPanel>
+        <TextBlock Text="MIT licensed · open source" Classes="secondary" FontSize="10"
+                   HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                   Margin="0,0,0,20" Opacity="0.55" />
+      </Grid>
+    </Border>
+
+    <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto,Auto"
+          Background="{DynamicResource Background.Primary}">
+      <!-- Header and aggregate connection state. -->
+      <Border Grid.Row="0" Padding="24,18,24,14" Background="{DynamicResource Background.Elevated}"
+              BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
+        <Grid RowDefinitions="Auto,Auto">
+          <TextBlock Text="Sign in" FontSize="22" FontWeight="SemiBold" />
+          <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+              <Ellipse Width="8" Height="8" Classes="stateDot"
+                       Classes.connected="{Binding CanLaunch}" />
+              <TextBlock Text="{Binding ConnectedSummary}" Classes="secondary"
+                         FontSize="12" TextTrimming="CharacterEllipsis"
+                         ToolTip.Tip="{Binding ConnectedSummary}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowQuestDb}">
+              <Border Background="{DynamicResource Background.Elevated}" BorderBrush="{DynamicResource Border.Brush}"
+                      BorderThickness="1" Padding="8,3">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <Ellipse Width="7" Height="7" Classes="stateDot"
+                           Classes.connected="{Binding QuestDbReady}"
+                           Classes.busy="{Binding IsQuestDbBusy}" />
+                  <TextBlock Text="{Binding QuestDbStatus}" Classes="secondary" />
+                </StackPanel>
+              </Border>
+              <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsQuestDbBusy}"
+                           Width="60" Height="3" VerticalAlignment="Center" />
+              <Button Content="Start QuestDB" Command="{Binding StartQuestDbCommand}"
+                      FontSize="11" Padding="8,3" MinWidth="0" />
+            </StackPanel>
+          </Grid>
+        </Grid>
+      </Border>
+
+      <!-- Search bar. -->
+      <Border Grid.Row="1" Padding="24,12,24,10" Background="{DynamicResource Background.Primary}"
+              BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
+        <TextBox Text="{Binding SearchText}" Watermark="Search brokers…" />
+      </Border>
+
+      <!-- Flat, one-open-at-a-time accordion. -->
+      <ScrollViewer Grid.Row="2" Padding="24,12,24,0" HorizontalScrollBarVisibility="Disabled">
+        <ItemsControl ItemsSource="{Binding FormsView}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+               <Border Classes="brokerRow" Classes.connected="{Binding IsConnected}"
+                       Classes.keyless="{Binding IsKeyless}" Margin="0,0,0,4">
+                <StackPanel>
+                  <ToggleButton IsChecked="{Binding IsExpanded}" Classes="brokerHeader"
+                                Background="Transparent" BorderThickness="0"
+                                HorizontalContentAlignment="Stretch" Padding="10,7">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                      <Border Width="32" Height="32" Margin="0,0,10,0"
+                              Background="#221E222D" BorderBrush="{Binding BadgeColor}" BorderThickness="1">
+                        <Grid>
+                          <TextBlock Text="{Binding Badge}" FontWeight="SemiBold" FontSize="11"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                                     Foreground="{Binding BadgeForeground}" />
+                          <Image Source="{Binding Broker, Converter={StaticResource BrokerLogo}}"
+                                 Margin="4" Stretch="Uniform" />
+                        </Grid>
+                      </Border>
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" />
+                          <Border IsVisible="{Binding IsKeyless}" Background="#1826A69A" Padding="6,1">
+                            <TextBlock Text="no key" Foreground="#26A69A" FontSize="9" />
+                          </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding Subtitle}" Classes="secondary" FontSize="10" />
+                      </StackPanel>
+                      <Border Grid.Column="2" Background="{DynamicResource Background.Elevated}"
+                              BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Padding="8,2"
+                              VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                          <Ellipse Width="7" Height="7" Classes="stateDot"
+                                   Classes.connected="{Binding IsConnected}"
+                                   Classes.busy="{Binding IsConnecting}" />
+                          <TextBlock Text="{Binding StatusText}" Classes="secondary" />
+                        </StackPanel>
+                      </Border>
+                      <Grid Grid.Column="3" Margin="8,0,2,0" VerticalAlignment="Center">
+                        <TextBlock Text="▸" Foreground="{DynamicResource Text.Secondary}"
+                                   IsVisible="{Binding !IsExpanded}" FontSize="10" />
+                        <TextBlock Text="▾" Foreground="{DynamicResource Text.Secondary}"
+                                   IsVisible="{Binding IsExpanded}" FontSize="10" />
+                      </Grid>
+                    </Grid>
+                  </ToggleButton>
+
+                  <Border IsVisible="{Binding IsExpanded}" Background="{DynamicResource Background.Elevated}"
+                          BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0" Padding="12,10,12,12">
+                    <StackPanel Spacing="10">
+                      <Border IsVisible="{Binding HasPrerequisite}" Background="{DynamicResource Background.Surface}"
+                              BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Padding="10,8">
+                        <Grid DataContext="{Binding Prerequisite}" ColumnDefinitions="Auto,*,Auto">
+                          <Ellipse Grid.Column="0" Width="8" Height="8" Margin="0,4,10,0"
+                                   VerticalAlignment="Top" Fill="{Binding State, Converter={StaticResource ServiceStateBrush}}" />
+                          <StackPanel Grid.Column="1" Spacing="2">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                              <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
+                              <Border Background="{DynamicResource Background.Elevated}"
+                                      BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Padding="5,1">
+                                <TextBlock Text="{Binding Requirement}" Classes="secondary" FontSize="9" />
+                              </Border>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Purpose}" FontSize="11" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding HowTo}" Classes="secondary" FontSize="10" TextWrapping="Wrap" />
+                          </StackPanel>
+                          <StackPanel Grid.Column="2" HorizontalAlignment="Right" Spacing="5" Margin="12,0,0,0">
+                            <TextBlock Text="{Binding StatusText}" Classes="secondary" />
+                            <Button Content="Re-check" Command="{Binding RecheckCommand}" IsVisible="{Binding CanProbe}" />
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+
+                      <ContentControl Content="{Binding}" />
+
+                      <Grid ColumnDefinitions="*,Auto">
+                        <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsConnecting}"
+                                     Width="100" Height="3" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                          <Button Content="Connect" Command="{Binding ConnectCommand}"
+                                  Classes="accent" MinWidth="88" Padding="12,5" />
+                          <Button Content="Disconnect" Command="{Binding DisconnectCommand}"
+                                  MinWidth="88" Padding="12,5" />
+                        </StackPanel>
+                      </Grid>
+                      <Border IsVisible="{Binding HasError}" Background="#33FF1744" Padding="10,5" Margin="0,8,0,0">
+                        <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Danger.Brush}"
+                                   FontSize="11" TextWrapping="Wrap" />
+                      </Border>
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+      <!-- Optional services and Telegram archive identity. -->
+      <Border Grid.Row="3" Margin="24,8,24,0"
+              BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0">
+        <Grid RowDefinitions="Auto,Auto">
+        <ToggleButton x:Name="servicesToggle" Classes="brokerHeader"
+                      HorizontalContentAlignment="Stretch" Background="Transparent"
+                      BorderThickness="0" Padding="0,8">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="Services &amp; dependencies" Classes="secondary" FontWeight="SemiBold" />
+              <TextBlock Text="— optional local services" Classes="secondary" Opacity="0.55" Margin="6,0,0,0" />
+            </StackPanel>
+            <Grid Grid.Column="1" VerticalAlignment="Center">
+              <TextBlock Text="▸" Classes="secondary" IsVisible="{Binding !#servicesToggle.IsChecked}" />
+              <TextBlock Text="▾" Classes="secondary" IsVisible="{Binding #servicesToggle.IsChecked}" />
+            </Grid>
+          </Grid>
+        </ToggleButton>
+        <ScrollViewer Grid.Row="1" MaxHeight="310" IsVisible="{Binding #servicesToggle.IsChecked}">
+          <StackPanel Margin="0,6,0,0" Spacing="7">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="The terminal runs without any of these. Start the ones that power features you need."
+                         Classes="secondary" TextWrapping="Wrap" MaxWidth="380" />
+              <Button Grid.Column="1" Content="Re-check" Command="{Binding RecheckServicesCommand}"
+                      IsEnabled="{Binding !IsCheckingServices}" MinWidth="72" Padding="8,2" />
+            </Grid>
+            <ItemsControl ItemsSource="{Binding Services}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="{DynamicResource Background.Surface}" BorderBrush="{DynamicResource Border.Brush}"
+                          BorderThickness="1" Padding="10,8" Margin="0,0,0,5">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <Ellipse Grid.Column="0" Width="8" Height="8" Margin="0,4,10,0"
+                               VerticalAlignment="Top" Fill="{Binding State, Converter={StaticResource ServiceStateBrush}}" />
+                      <StackPanel Grid.Column="1" Spacing="2">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
+                          <Border Background="{DynamicResource Background.Elevated}"
+                                  BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Padding="5,1">
+                            <TextBlock Text="{Binding Requirement}" Classes="secondary" FontSize="9" />
+                          </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding Purpose}" FontSize="11" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding HowTo}" Classes="secondary" FontSize="10" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="2" HorizontalAlignment="Right" Spacing="5" Margin="12,0,0,0">
+                        <TextBlock Text="{Binding StatusText}" Classes="secondary" HorizontalAlignment="Right" />
+                        <Button Content="{Binding StartActionLabel}" IsVisible="{Binding HasStartAction}"
+                                Command="{Binding DataContext.StartServiceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}" />
+                        <Button Content="Copy command" IsVisible="{Binding HasStartCommand}"
+                                Command="{Binding DataContext.CopyStartCommandCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Border Background="{DynamicResource Background.Surface}" BorderBrush="{DynamicResource Border.Brush}"
+                    BorderThickness="1" Padding="10,8" Margin="0,8,0,0">
+              <StackPanel Spacing="7">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel>
+                    <TextBlock Text="Market-data archive (Telegram)" FontWeight="SemiBold" FontSize="12" />
+                    <TextBlock Text="Offload the local market-data store to your own Telegram Saved Messages archive."
+                               Classes="secondary" FontSize="10" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <Border Grid.Column="1" Background="{DynamicResource Background.Elevated}"
+                          BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Padding="8,2">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                      <Ellipse Width="7" Height="7" Classes="stateDot"
+                               Classes.connected="{Binding IsTelegramConnected}"
+                               Classes.busy="{Binding IsTelegramBusy}" />
+                      <TextBlock Text="{Binding TelegramStatus}" Classes="secondary" />
+                    </StackPanel>
+                  </Border>
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
+                  <TextBlock Grid.Row="0" Text="api_id" Classes="fieldLabel" VerticalAlignment="Center" />
+                  <TextBox Grid.Row="0" Grid.Column="1" Margin="10,0,0,6" Text="{Binding TelegramApiId}" />
+                  <TextBlock Grid.Row="1" Text="api_hash" Classes="fieldLabel" VerticalAlignment="Center" />
+                  <TextBox Grid.Row="1" Grid.Column="1" Margin="10,0,0,6"
+                           Text="{Binding TelegramApiHash}" PasswordChar="●" />
+                  <TextBlock Grid.Row="2" Text="phone" Classes="fieldLabel" VerticalAlignment="Center" />
+                  <TextBox Grid.Row="2" Grid.Column="1" Margin="10,0,0,0"
+                           Text="{Binding TelegramPhone}" Watermark="+44…" />
+                </Grid>
+                <Grid ColumnDefinitions="*,Auto">
+                  <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsTelegramBusy}"
+                               Width="100" Height="3" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                  <Button Grid.Column="1" Content="Connect Telegram" Command="{Binding ConnectTelegramCommand}"
+                          IsEnabled="{Binding !IsTelegramBusy}" Classes="accent" MinWidth="120" Padding="12,5" />
+                </Grid>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+        </Grid>
+      </Border>
+
+      <!-- Launch handoff. -->
+      <Border Grid.Row="4" Background="{DynamicResource Background.Elevated}"
+              BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0"
+              Padding="24,14,24,16">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel VerticalAlignment="Center" Spacing="6" Margin="0,0,16,0">
+            <TextBlock Text="Connect at least one broker, then launch." Classes="secondary" />
+            <CheckBox Content="Auto-connect all brokers on next launch" IsChecked="{Binding AutoConnect}" FontSize="11" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <Button Content="Cancel" Command="{Binding CancelCommand}" MinWidth="80" Padding="12,7" IsCancel="True" />
+            <Button Content="Launch terminal" Command="{Binding LaunchCommand}" IsEnabled="{Binding CanLaunch}"
+                    Classes="accent" MinWidth="148" Padding="12,7" IsDefault="True" />
+          </StackPanel>
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>

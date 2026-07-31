@@ -1,9 +1,40 @@
-# Linux index / Tests
+# macOS index / Tests
 
-Generated from source fingerprint `73069fdb0e55`. Linux/Avalonia source only.
+Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
+| `tests/linux/DaxAlgo.Daxq.Compiler.Tests/BacktestParityGateTests.cs` | 399 | linux | DaxAlgo.Daxq.Compiler.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Compiler.Tests/CompilerParityTests.cs` | 355 | linux | DaxAlgo.Daxq.Compiler.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Compiler.Tests/CompilerSecurityAndPackageTests.cs` | 316 | linux | DaxAlgo.Daxq.Compiler.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Compiler.Tests/DaxqPackageTestReader.cs` | 159 | linux | DaxAlgo.Daxq.Compiler.Tests | test | Y | Independent test-side package consumer. It intentionally uses only the ZIP bytes and |
+| `tests/linux/DaxAlgo.Daxq.Compiler.Tests/GlobalUsings.cs` | 4 | linux | DaxAlgo.Daxq.Compiler.Tests | test | N |  |
+| `tests/linux/DaxAlgo.Daxq.Contracts.Tests/DaxqReferenceVectorTests.cs` | 615 | linux | DaxAlgo.Daxq.Contracts.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Contracts.Tests/GlobalUsings.cs` | 1 | linux | DaxAlgo.Daxq.Contracts.Tests | test | N |  |
+| `tests/linux/DaxAlgo.Daxq.Host.Tests/DaxqHardeningTests.cs` | 128 | linux | DaxAlgo.Daxq.Host.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Host.Tests/DaxqHostEndToEndTests.cs` | 468 | linux | DaxAlgo.Daxq.Host.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Host.Tests/DaxqLicensingTests.cs` | 586 | linux | DaxAlgo.Daxq.Host.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Host.Tests/DaxqSignalSessionTests.cs` | 563 | linux | DaxAlgo.Daxq.Host.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Host.Tests/GlobalUsings.cs` | 1 | linux | DaxAlgo.Daxq.Host.Tests | test | N |  |
+| `tests/linux/DaxAlgo.Daxq.Host.Tests/PlatformFactAttributes.cs` | 26 | linux | DaxAlgo.Daxq.Host.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Vm.Tests/DaxqTestContainerBuilder.cs` | 238 | linux | DaxAlgo.Daxq.Vm.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Vm.Tests/FaultAndBudgetTests.cs` | 375 | linux | DaxAlgo.Daxq.Vm.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Vm.Tests/GlobalUsings.cs` | 5 | linux | DaxAlgo.Daxq.Vm.Tests | test | N |  |
+| `tests/linux/DaxAlgo.Daxq.Vm.Tests/GoldenVectorTests.cs` | 168 | linux | DaxAlgo.Daxq.Vm.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Vm.Tests/NativeTestSupport.cs` | 32 | linux | DaxAlgo.Daxq.Vm.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Vm.Tests/ReferenceSemanticsTests.cs` | 304 | linux | DaxAlgo.Daxq.Vm.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Vm.Tests/SdkAbi3FrameHostTests.cs` | 150 | linux | DaxAlgo.Daxq.Vm.Tests | test | Y |  |
+| `tests/linux/DaxAlgo.Daxq.Vm.Tests/ValidationAndRuntimeSafetyTests.cs` | 756 | linux | DaxAlgo.Daxq.Vm.Tests | test | Y |  |
+| `tests/linux/Fixtures/DaxAlgo.SamplePlugin/SamplePlugin.cs` | 97 | linux | DaxAlgo.SamplePlugin | test | Y | Catalog descriptor — the metadata the Strategies pane renders. |
+| `tests/linux/TradingTerminal.App.Avalonia.Tests/MacPackagingConfigurationTests.cs` | 265 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
+| `tests/linux/TradingTerminal.App.Avalonia.Tests/ThemeManagerTests.cs` | 18 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Accounts/AccountGateCoordinatorTests.cs` | 333 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Accounts/AccountGateDiagnosticsTests.cs` | 92 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Accounts/AccountGateEditionProfileTests.cs` | 33 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Accounts/AccountGateViewModelLifetimeTests.cs` | 298 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Accounts/DevelopmentAccountSessionStoreTests.cs` | 75 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Accounts/EntitlementAccessEvaluatorTests.cs` | 199 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Accounts/GoogleOAuthClientTests.cs` | 290 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Analytics/CorrelationCalculatorTests.cs` | 103 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtest/BacktestSessionTests.cs` | 106 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtest/BacktestStoreSourceTests.cs` | 197 | linux | TradingTerminal.Tests.Headless | test | Y | Minimal hand-rolled |
@@ -14,20 +45,27 @@ Generated from source fingerprint `73069fdb0e55`. Linux/Avalonia source only.
 | `tests/linux/TradingTerminal.Tests.Headless/Backtest/StatisticsCalculatorTests.cs` | 88 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtest/TransactionCostAnalysisTests.cs` | 86 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/BacktestEngineTests.cs` | 78 | linux | TradingTerminal.Tests.Headless | test | Y | End-to-end smoke + accounting checks for the new (P1). Drives an |
-| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/EngineParityTests.cs` | 101 | linux | TradingTerminal.Tests.Headless | test | Y | Parity gate: the new must reproduce the old |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/Fixtures/MeanReversionKernel.cs` | 82 | linux | TradingTerminal.Tests.Headless | test | Y | Catalog descriptor — its tunable surface for the Studio, the optimizer, and |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/Fixtures/MeanReversionStrategy.cs` | 118 | linux | TradingTerminal.Tests.Headless | test | Y | Test-only copy of the Windows legacy reference strategy; never compiled into the |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/GeneticAndWalkForwardTests.cs` | 71 | linux | TradingTerminal.Tests.Headless | test | Y | Covers the genetic optimizer and walk-forward analysis built on the new engine. |
-| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/GpuFallbackTests.cs` | 62 | linux | TradingTerminal.Tests.Headless | test | Y | Covers the C# side of the GPU accelerator: the support gate and |
-| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/GpuParityTests.cs` | 67 | linux | TradingTerminal.Tests.Headless | test | Y | Validates the CUDA accelerator against the CPU optimizer: the GPU's net profit |
-| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/KernelRegistryTests.cs` | 73 | linux | TradingTerminal.Tests.Headless | test | Y | Covers kernel discovery by id, schema-driven defaults/clamping, and that a registry-built |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/KernelRegistryTests.cs` | 74 | linux | TradingTerminal.Tests.Headless | test | Y | Covers kernel discovery by id, schema-driven defaults/clamping, and that a registry-built |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/LegacyBridgeTests.cs` | 42 | linux | TradingTerminal.Tests.Headless | test | Y | Cutover check: a legacy |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/OptimizerTests.cs` | 74 | linux | TradingTerminal.Tests.Headless | test | Y | Covers the grid optimizer: Cartesian expansion, that it evaluates every combination, |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/PlatformFactAttributes.cs` | 11 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/PythonStrategyTests.cs` | 72 | linux | TradingTerminal.Tests.Headless | test | Y | End-to-end check that a Python-authored strategy (daxalgo_bt example) runs on the new |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/StoreFeedAndPortfolioTests.cs` | 95 | linux | TradingTerminal.Tests.Headless | test | Y | Exercises the store-backed feed's k-way merge and the engine's multi-instrument (portfolio) |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/VisualTimelineTests.cs` | 63 | linux | TradingTerminal.Tests.Headless | test | Y | Verifies the engine captures a visual timeline only when asked, with OHLC |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/WorkerCleanupTests.cs` | 155 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/WorkerClientTests.cs` | 455 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/WorkerProtocolTests.cs` | 230 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/WorkerTestData.cs` | 68 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Coordinator/ExpertContextRetrievalTests.cs` | 400 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Coordinator/TestInfrastructure.cs` | 127 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Infrastructure/BinanceParsingTests.cs` | 207 | linux | TradingTerminal.Tests.Headless | test | Y | Offline tests for the Binance public-feed JSON parsers. No network — they |
 | `tests/linux/TradingTerminal.Tests.Headless/Infrastructure/ConnectionManagerTests.cs` | 209 | linux | TradingTerminal.Tests.Headless | test | Y | ConnectAsync returns normally but reports Failed every time (never Connected) — |
 | `tests/linux/TradingTerminal.Tests.Headless/Infrastructure/IronBeamParsingTests.cs` | 180 | linux | TradingTerminal.Tests.Headless | test | Y | Offline tests for the Ironbeam WebSocket JSON parsers and symbol mapping. No |
 | `tests/linux/TradingTerminal.Tests.Headless/Infrastructure/LondonStrategicEdgeParsingTests.cs` | 185 | linux | TradingTerminal.Tests.Headless | test | Y | Offline tests for the London Strategic Edge WebSocket/REST JSON parsers and symbol |
+| `tests/linux/TradingTerminal.Tests.Headless/Infrastructure/RuntimeHelperResolverTests.cs` | 192 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Infrastructure/SimulatedBrokerClientTests.cs` | 138 | linux | TradingTerminal.Tests.Headless | test | Y | Base test store: writes are swallowed and reads return empty unless a |
 | `tests/linux/TradingTerminal.Tests.Headless/Infrastructure/UpstoxParsingTests.cs` | 148 | linux | TradingTerminal.Tests.Headless | test | Y | Tests for the Upstox parsing helpers. The protobuf test encodes a FeedResponse |
 | `tests/linux/TradingTerminal.Tests.Headless/MarketData/ArchiveDepthRoundTripTests.cs` | 178 | linux | TradingTerminal.Tests.Headless | test | Y | In-memory |
@@ -41,10 +79,13 @@ Generated from source fingerprint `73069fdb0e55`. Linux/Avalonia source only.
 | `tests/linux/TradingTerminal.Tests.Headless/MarketData/NpgsqlMarketDataStoreTests.cs` | 67 | linux | TradingTerminal.Tests.Headless | test | Y | Integration tests against the docker-compose TimescaleDB. They self-skip (return) when the |
 | `tests/linux/TradingTerminal.Tests.Headless/MarketData/OrderFlowImbalanceTests.cs` | 82 | linux | TradingTerminal.Tests.Headless | test | Y | Unit tests for the OBI(T) primitives from arXiv:2507.22712 (trade-based imbalance + the |
 | `tests/linux/TradingTerminal.Tests.Headless/MarketData/PerBrokerSqliteMarketDataStoreTests.cs` | 179 | linux | TradingTerminal.Tests.Headless | test | Y | Behaviour of the per-broker, per-stream SQLite store: writes route to one file |
+| `tests/linux/TradingTerminal.Tests.Headless/MarketData/QuestDbDockerBootstrapperTests.cs` | 84 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/MarketData/QuestDbMarketDataStoreTests.cs` | 124 | linux | TradingTerminal.Tests.Headless | test | Y | Poll a read until it returns the expected count or the timeout |
 | `tests/linux/TradingTerminal.Tests.Headless/MarketData/SqliteMarketDataStoreTests.cs` | 131 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Ml/OnlineLinearRegressionTests.cs` | 61 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Ml/TripleBarrierLabelerTests.cs` | 77 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Plugins/MacPluginTrustTests.cs` | 207 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Plugins/PluginLifecycleTests.cs` | 233 | linux | TradingTerminal.Tests.Headless | test | Y | A plugin folder whose main "assembly" is garbage bytes — enumerable by |
 | `tests/linux/TradingTerminal.Tests.Headless/Quant/CurveFittingTests.cs` | 177 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Quant/DeflatedSharpeTests.cs` | 101 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Quant/EwRegressionTests.cs` | 143 | linux | TradingTerminal.Tests.Headless | test | Y |  |
@@ -61,10 +102,11 @@ Generated from source fingerprint `73069fdb0e55`. Linux/Avalonia source only.
 | `tests/linux/TradingTerminal.Tests.Headless/Quant/SignalWeightsTests.cs` | 118 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Quant/TimeSeriesMathTests.cs` | 303 | linux | TradingTerminal.Tests.Headless | test | Y | Offline tests for the Machine Learning menu's time-series math in Core — |
 | `tests/linux/TradingTerminal.Tests.Headless/Quant/VolumeTimeBucketerTests.cs` | 157 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Recording/RecorderContractsTests.cs` | 77 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Regime/AdvancedRegimeCalculatorTests.cs` | 286 | linux | TradingTerminal.Tests.Headless | test | Y | Strictly rising up-candles, 1m apart, all within one UTC session day. |
 | `tests/linux/TradingTerminal.Tests.Headless/Regime/BarTimeframeAggregatorTests.cs` | 87 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Regime/MarketRegimeCalculatorTests.cs` | 116 | linux | TradingTerminal.Tests.Headless | test | Y |  |
-| `tests/linux/TradingTerminal.Tests.Headless/Research/DockerSandboxRunnerTests.cs` | 82 | linux | TradingTerminal.Tests.Headless | test | Y | Isolation/quota integration tests for the Docker sandbox runner. They SELF-SKIP (return) when |
+| `tests/linux/TradingTerminal.Tests.Headless/Research/DockerSandboxRunnerTests.cs` | 81 | linux | TradingTerminal.Tests.Headless | test | Y | Isolation/quota integration tests for the Docker sandbox runner. They SELF-SKIP (return) when |
 | `tests/linux/TradingTerminal.Tests.Headless/Research/FactorComputationTests.cs` | 71 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Research/HttpEnvResolverClientTests.cs` | 169 | linux | TradingTerminal.Tests.Headless | test | Y | Contract tests for the env-resolver HTTP client, mirroring HttpPaperIngestClientTests: the |
 | `tests/linux/TradingTerminal.Tests.Headless/Research/HttpPaperIngestClientTests.cs` | 137 | linux | TradingTerminal.Tests.Headless | test | Y | Contract tests for the paper-ingest HTTP client, mirroring HttpAiAnalystClientTests: the |
@@ -75,11 +117,11 @@ Generated from source fingerprint `73069fdb0e55`. Linux/Avalonia source only.
 | `tests/linux/TradingTerminal.Tests.Headless/Research/ReproducedSignalKernelTests.cs` | 86 | linux | TradingTerminal.Tests.Headless | test | Y | Engine smoke test for the Phase-3 bridge endpoint: a canned |
 | `tests/linux/TradingTerminal.Tests.Headless/Research/SandboxPolicyTests.cs` | 57 | linux | TradingTerminal.Tests.Headless | test | Y | The sandbox policy is a security boundary: it must deny by default. |
 | `tests/linux/TradingTerminal.Tests.Headless/Risk/RiskManagerTests.cs` | 110 | linux | TradingTerminal.Tests.Headless | test | Y |  |
-| `tests/linux/TradingTerminal.Tests.Headless/Strategies/ApexScalperWarmupTests.cs` | 147 | linux | TradingTerminal.Tests.Headless | test | Y | A noisy upward trend so the line fits have non-zero residuals (else |
+| `tests/linux/TradingTerminal.Tests.Headless/Strategies/AuthoredStrategyComposerTests.cs` | 261 | linux | TradingTerminal.Tests.Headless | test | Y | Kernel + descriptor + live view-model, no view — the shape the |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/IndexRegimeAggregatorTests.cs` | 103 | linux | TradingTerminal.Tests.Headless | test | Y | Snapshot whose every timeframe column carries the trend score returned by |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/RoslynStrategyCompilerTests.cs` | 100 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/StrategyClassificationTests.cs` | 98 | linux | TradingTerminal.Tests.Headless | test | Y | Guards the classification defaults on and the broker-capability |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/StrategyParametersTests.cs` | 128 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/TestSupport/ImmediateDispatcher.cs` | 11 | linux | TradingTerminal.Tests.Headless | test | Y | UI dispatcher stand-in for tests; runs everything inline on the calling thread. |
 | `tests/linux/TradingTerminal.Tests.Headless/Ui/PortedStrategyResolutionTests.cs` | 77 | linux | TradingTerminal.Tests.Headless | test | Y | Proves the ported per-strategy view-models resolve from the same headless DI graph |
-| `tests/linux/TradingTerminal.Tests.Headless/Ui/StrategyCatalogViewModelTests.cs` | 38 | linux | TradingTerminal.Tests.Headless | test | Y | Tests the portable strategy-catalog VM (shared by the WPF + Avalonia heads). |
+| `tests/linux/TradingTerminal.Tests.Headless/Ui/StrategyCatalogViewModelTests.cs` | 49 | linux | TradingTerminal.Tests.Headless | test | Y | Tests the portable strategy-catalog VM (shared by the WPF + Avalonia heads). |

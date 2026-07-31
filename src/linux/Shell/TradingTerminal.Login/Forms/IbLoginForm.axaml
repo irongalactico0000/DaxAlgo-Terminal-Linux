@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TradingTerminal.App.Login.Forms.IbLoginForm">
+  <StackPanel Spacing="8">
+    <Grid ColumnDefinitions="*,*">
+      <StackPanel Grid.Column="0" Spacing="5">
+        <TextBlock Text="Username" Classes="fieldLabel" />
+        <TextBox Text="{Binding Username}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Spacing="5">
+        <TextBlock Text="Password" Classes="fieldLabel" />
+        <TextBox Text="{Binding Password}" PasswordChar="●" Watermark="Optional TWS password" />
+      </StackPanel>
+    </Grid>
+    <CheckBox Content="Remember password in macOS Keychain" IsChecked="{Binding RememberPassword}" />
+    <Expander Header="Connection settings" IsExpanded="True">
+      <Grid Margin="0,8,0,0" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
+        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="5">
+          <TextBlock Text="Host" Classes="fieldLabel" />
+          <TextBox Text="{Binding Host}" />
+        </StackPanel>
+        <StackPanel Grid.Row="0" Grid.Column="1" Spacing="5">
+          <TextBlock Text="Port" Classes="fieldLabel" />
+          <NumericUpDown Value="{Binding Port}" Minimum="1" Maximum="65535" />
+        </StackPanel>
+        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="5">
+          <TextBlock Text="Client ID" Classes="fieldLabel" />
+          <NumericUpDown Value="{Binding ClientId}" Minimum="0" Maximum="9999" />
+        </StackPanel>
+        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="5">
+          <TextBlock Text="Account" Classes="fieldLabel" />
+          <ComboBox ItemsSource="{Binding AccountTypes}" SelectedItem="{Binding AccountType}" />
+        </StackPanel>
+        <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Spacing="5">
+          <TextBlock Text="Market data mode" Classes="fieldLabel" />
+          <ComboBox ItemsSource="{Binding MarketDataTypes}" SelectedItem="{Binding SelectedMarketDataType}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </StackPanel>
+      </Grid>
+    </Expander>
+  </StackPanel>
+</UserControl>

@@ -1,0 +1,22 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TradingTerminal.App.Login.Forms.NinjaLoginForm">
+  <StackPanel Spacing="8">
+    <Border Classes="formNote">
+      <TextBlock Text="NinjaTrader/NTDirect is Windows-only and is filtered from the macOS login catalog."
+                 TextWrapping="Wrap" />
+    </Border>
+    <TextBlock Text="Display name (optional)" Classes="fieldLabel" />
+    <TextBox Text="{Binding Username}" />
+    <TextBlock Text="NinjaTrader account" Classes="fieldLabel" />
+    <TextBox Text="{Binding AccountName}" />
+    <Expander Header="Connection settings">
+      <StackPanel Margin="0,8,0,0" Spacing="8">
+        <TextBlock Text="Default futures contract month" Classes="fieldLabel" />
+        <TextBox Text="{Binding FuturesContractMonth}" Watermark="06-26" />
+        <TextBlock Text="NTDirect.dll path" Classes="fieldLabel" />
+        <TextBox Text="{Binding DllPath}" />
+      </StackPanel>
+    </Expander>
+  </StackPanel>
+</UserControl>

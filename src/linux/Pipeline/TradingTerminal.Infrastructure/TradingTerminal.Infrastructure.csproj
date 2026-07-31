@@ -18,25 +18,35 @@
     Resolve the IB CSharpAPI.dll. Search order:
       1. lib/CSharpAPI.dll  (or lib/IBApi.dll for older copies â€” both supported)
       2. $(TwsApiClientDll) MSBuild property if set externally
-      3. The default TWS API install path: C:\TWS API\source\CSharpClient\client\bin\Release\net8.0\CSharpAPI.dll
+      3. Standard per-user macOS TWS API source-build locations
+      4. The default Windows TWS API install path
     If none exist, RealIbClient is excluded from compilation and the runtime falls back to FakeIbClient.
   -->
   <PropertyGroup>
     <_LocalCSharpApiDll>$(MSBuildThisFileDirectory)..\..\..\..\lib\CSharpAPI.dll</_LocalCSharpApiDll>
     <_LocalLegacyIbApiDll>$(MSBuildThisFileDirectory)..\..\..\..\lib\IBApi.dll</_LocalLegacyIbApiDll>
     <_DefaultTwsInstallDll>C:\TWS API\source\CSharpClient\client\bin\Release\net8.0\CSharpAPI.dll</_DefaultTwsInstallDll>
+    <_MacIbJtsDll>$(HOME)/IBJts/source/CSharpClient/client/bin/Release/net8.0/CSharpAPI.dll</_MacIbJtsDll>
+    <_MacTwsApiDll>$(HOME)/TWS API/source/CSharpClient/client/bin/Release/net8.0/CSharpAPI.dll</_MacTwsApiDll>
+    <_IsWindows>$([MSBuild]::IsOSPlatform('Windows'))</_IsWindows>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND Exists('$(_LocalCSharpApiDll)')">
+  <PropertyGroup Condition="'$(DisableIbApi)' != 'true' AND '$(_ResolvedTwsApiDll)' == '' AND Exists('$(_LocalCSharpApiDll)')">
     <_ResolvedTwsApiDll>$(_LocalCSharpApiDll)</_ResolvedTwsApiDll>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND Exists('$(_LocalLegacyIbApiDll)')">
+  <PropertyGroup Condition="'$(DisableIbApi)' != 'true' AND '$(_ResolvedTwsApiDll)' == '' AND Exists('$(_LocalLegacyIbApiDll)')">
     <_ResolvedTwsApiDll>$(_LocalLegacyIbApiDll)</_ResolvedTwsApiDll>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND '$(TwsApiClientDll)' != '' AND Exists('$(TwsApiClientDll)')">
+  <PropertyGroup Condition="'$(DisableIbApi)' != 'true' AND '$(_ResolvedTwsApiDll)' == '' AND '$(TwsApiClientDll)' != '' AND Exists('$(TwsApiClientDll)')">
     <_ResolvedTwsApiDll>$(TwsApiClientDll)</_ResolvedTwsApiDll>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND Exists('$(_DefaultTwsInstallDll)')">
+  <PropertyGroup Condition="'$(DisableIbApi)' != 'true' AND '$(_IsWindows)' != 'true' AND '$(_ResolvedTwsApiDll)' == '' AND Exists('$(_MacIbJtsDll)')">
+    <_ResolvedTwsApiDll>$(_MacIbJtsDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(DisableIbApi)' != 'true' AND '$(_IsWindows)' != 'true' AND '$(_ResolvedTwsApiDll)' == '' AND Exists('$(_MacTwsApiDll)')">
+    <_ResolvedTwsApiDll>$(_MacTwsApiDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(DisableIbApi)' != 'true' AND '$(_ResolvedTwsApiDll)' == '' AND '$(_IsWindows)' == 'true' AND Exists('$(_DefaultTwsInstallDll)')">
     <_ResolvedTwsApiDll>$(_DefaultTwsInstallDll)</_ResolvedTwsApiDll>
   </PropertyGroup>
 
@@ -69,13 +79,13 @@
     <_DefaultNTDirectDll>$(USERPROFILE)\Documents\NinjaTrader 8\bin64\NTDirect.dll</_DefaultNTDirectDll>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(_ResolvedNTDirectDll)' == '' AND Exists('$(_LocalNTDirectDll)')">
+  <PropertyGroup Condition="'$(_IsWindows)' == 'true' AND '$(_ResolvedNTDirectDll)' == '' AND Exists('$(_LocalNTDirectDll)')">
     <_ResolvedNTDirectDll>$(_LocalNTDirectDll)</_ResolvedNTDirectDll>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(_ResolvedNTDirectDll)' == '' AND '$(NinjaTraderApiDll)' != '' AND Exists('$(NinjaTraderApiDll)')">
+  <PropertyGroup Condition="'$(_IsWindows)' == 'true' AND '$(_ResolvedNTDirectDll)' == '' AND '$(NinjaTraderApiDll)' != '' AND Exists('$(NinjaTraderApiDll)')">
     <_ResolvedNTDirectDll>$(NinjaTraderApiDll)</_ResolvedNTDirectDll>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(_ResolvedNTDirectDll)' == '' AND Exists('$(_DefaultNTDirectDll)')">
+  <PropertyGroup Condition="'$(_IsWindows)' == 'true' AND '$(_ResolvedNTDirectDll)' == '' AND Exists('$(_DefaultNTDirectDll)')">
     <_ResolvedNTDirectDll>$(_DefaultNTDirectDll)</_ResolvedNTDirectDll>
   </PropertyGroup>
 
@@ -96,6 +106,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Sdk\DaxAlgo.Sdk.csproj" />
+    <ProjectReference Include="..\..\Tools\DaxAlgo.Codegen\DaxAlgo.Codegen.csproj" />
     <ProjectReference Include="..\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
   </ItemGroup>
 

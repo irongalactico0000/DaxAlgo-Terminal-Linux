@@ -4,7 +4,7 @@ namespace TradingTerminal.App.Avalonia;
 
 internal static class Program
 {
-    // Avalonia desktop entry point. Cross-platform: Windows, Linux (X11), and Raspberry Pi.
+    // Avalonia desktop entry point for the macOS application.
     [STAThread]
     public static void Main(string[] args) =>
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);

@@ -1,6 +1,6 @@
-# TradingTerminal.Infrastructure / Upstox — public API surface (Linux/Avalonia)
+# TradingTerminal.Infrastructure / Upstox — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `73069fdb0e55`. Declaration lines only;
+Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Pipeline/TradingTerminal.Infrastructure/Upstox/RealUpstoxClient.cs
@@ -17,12 +17,12 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
   276: public IAsyncEnumerable<Tick> SubscribeTicksAsync(Contract contract, CancellationToken ct = default) =>
   279: public IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(Contract contract, int levels = 10, CancellationToken ct = default) =>
   282: public IAsyncEnumerable<TradeTick> SubscribeTradesAsync(Contract contract, CancellationToken ct = default) =>
-  573: public Subscription(StreamKind kind, string instrumentKey)
-  579: public StreamKind Kind { get; }
-  580: public string InstrumentKey { get; }
-  581: public ChannelWriter<object> Writer => _channel.Writer;
-  582: public ChannelReader<object> Reader => _channel.Reader;
-  584: public void Complete() => _channel.Writer.TryComplete();
+  572: public Subscription(StreamKind kind, string instrumentKey)
+  581: public StreamKind Kind { get; }
+  582: public string InstrumentKey { get; }
+  583: public ChannelWriter<object> Writer => _channel.Writer;
+  584: public ChannelReader<object> Reader => _channel.Reader;
+  586: public void Complete() => _channel.Writer.TryComplete();
 ```
 
 ## src/linux/Pipeline/TradingTerminal.Infrastructure/Upstox/UpstoxAuthService.cs

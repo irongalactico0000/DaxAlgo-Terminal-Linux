@@ -1,0 +1,12 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TradingTerminal.App.Login.Forms.LondonStrategicEdgeLoginForm">
+  <StackPanel Spacing="8">
+    <TextBlock Text="API key" Classes="fieldLabel" />
+    <TextBox Text="{Binding ApiKey}" PasswordChar="●" Watermark="lse_live_… — stored in macOS Keychain" />
+    <Border Classes="formNote">
+      <TextBlock Text="Free keys are issued at londonstrategicedge.com/websockets. The free tier includes L1 ticks and OHLCV history."
+                 TextWrapping="Wrap" />
+    </Border>
+  </StackPanel>
+</UserControl>
