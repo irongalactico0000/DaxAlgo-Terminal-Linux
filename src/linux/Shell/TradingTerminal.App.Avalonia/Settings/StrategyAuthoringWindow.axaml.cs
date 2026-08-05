@@ -71,10 +71,10 @@ public partial class StrategyAuthoringWindow : Window
         e.Handled = true;
     }
 
-    private void OnUseSuggestion(object? sender, RoutedEventArgs e)
+    private void OnUseStarter(object? sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: string brief } && DataContext is StrategyAuthoringViewModel viewModel)
-            viewModel.UseSuggestionCommand.Execute(brief);
+            viewModel.UseStarterPromptCommand.Execute(brief);
     }
 
     private void OnDeleteSession(object? sender, RoutedEventArgs e)

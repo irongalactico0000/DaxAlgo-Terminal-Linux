@@ -41,8 +41,22 @@ public sealed record AuthoringSessionSnapshot(
     int InputTokens = 0,
     int OutputTokens = 0,
     bool Registered = false,
+    string? CandidateJson = null,
+    // Null means the snapshot predates the lane picker. The UX version also distinguishes values
+    // written by the old ambiguous toggle from an explicit choice made with the redesigned control.
+    bool? GenerateCandidateFirst = null,
+    string? ParallelCandidateBatchJson = null,
+    string? SelectedParallelCandidateHash = null,
+    string? EditorBaseParallelCandidateHash = null,
+    int AuthoringUxVersion = 0,
     DateTime UpdatedUtc = default)
 {
+    public const int CurrentAuthoringUxVersion = 2;
+
+    [JsonIgnore]
+    public bool FourLaneGenerationEnabled =>
+        AuthoringUxVersion < CurrentAuthoringUxVersion || GenerateCandidateFirst is not false;
+
     /// <summary>"2 hours ago" — what the session picker shows next to the name.</summary>
     public string Age
     {
@@ -57,6 +71,29 @@ public sealed record AuthoringSessionSnapshot(
     }
 
     public string Label => $"{DisplayName} ({StrategyId}) · {Age}";
+}
+
+/// <summary>Persistence seam used by the authoring view-model. The file-backed implementation remains
+/// the product default; tests can supply an in-memory repository without reading or writing a user's
+/// saved authoring sessions.</summary>
+public interface IAuthoringSessionRepository
+{
+    IReadOnlyList<AuthoringSessionSnapshot> List();
+    bool Save(AuthoringSessionSnapshot session);
+    void Delete(string strategyId);
+}
+
+internal sealed class FileAuthoringSessionRepository : IAuthoringSessionRepository
+{
+    public static FileAuthoringSessionRepository Instance { get; } = new();
+
+    private FileAuthoringSessionRepository()
+    {
+    }
+
+    public IReadOnlyList<AuthoringSessionSnapshot> List() => AuthoringSessionStore.List();
+    public bool Save(AuthoringSessionSnapshot session) => AuthoringSessionStore.Save(session);
+    public void Delete(string strategyId) => AuthoringSessionStore.Delete(strategyId);
 }
 
 /// <summary>

@@ -179,7 +179,27 @@ public sealed class MacPackagingConfigurationTests
         text.Should().Contain("No AI provider is set up yet.");
         text.Should().Contain("<Button.Flyout>");
         root.Descendants(av + "TabItem").Select(item => item.Attribute("Header")?.Value)
-            .Should().Equal("Code", "Parameters", "Activity");
+            .Should().Equal("Code", "Parameters", "Activity", "Candidate");
+        text.Should().Contain("Content=\"{Binding GenerationModeActionText}\"");
+        text.Should().Contain("Command=\"{Binding ToggleGenerationModeCommand}\"");
+        text.Should().Contain("ItemsSource=\"{Binding CandidateGroups}\"");
+        text.Should().Contain("ItemsSource=\"{Binding CandidateBuildSupport}\"");
+        text.Should().Contain("Command=\"{Binding ConfirmCandidateCommand}\"");
+        text.Should().Contain("CANDIDATE OUTCOME");
+        text.Should().Contain("ItemsSource=\"{Binding GeneratedCandidateOptions}\"");
+        text.Should().Contain("SelectedItem=\"{Binding SelectedGeneratedCandidateOption, Mode=TwoWay}\"");
+        text.Should().Contain("Command=\"{Binding ChooseGeneratedCandidateCommand}\"");
+        text.Should().Contain("Command=\"{Binding RevalidateGeneratedCandidateCommand}\"");
+        text.Should().Contain("Text=\"ARTIFACT PREVIEW\"");
+        text.Should().Contain("SelectedGeneratedCandidateOption.ArtifactPreview");
+        text.Should().Contain("Four AI generation agents:");
+        text.Should().Contain("Every structurally valid artifact can be chosen;");
+        text.Should().Contain("package validation is reported separately");
+        text.Should().Contain("choosing never tests or runs it");
+        text.Should().NotContain("Only artifacts that pass a registered package validator can be chosen.");
+        text.Should().NotContain("Unsupported lanes explain the missing contract");
+        text.Should().Contain("AuthoringBoundaryText");
+        text.Should().Contain("IsEnabled=\"{Binding !IsGenerating}\"");
         text.Should().Contain("ItemsSource=\"{Binding Diagnostics}\"");
         text.Should().NotContain("Header=\"Diagnostics\"");
     }

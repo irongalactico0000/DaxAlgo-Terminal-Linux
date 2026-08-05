@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <InternalsVisibleTo Include="TradingTerminal.Tests.Headless" />
+    <InternalsVisibleTo Include="TradingTerminal.App.Avalonia.Tests" />
   </ItemGroup>
 
   <ItemGroup>

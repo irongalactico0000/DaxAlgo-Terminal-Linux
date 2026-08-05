@@ -85,13 +85,31 @@ public sealed record CodegenUsage(int InputTokens, int OutputTokens, int CachedI
               CachedInputTokens + other.CachedInputTokens);
 }
 
+/// <summary>The final response shape a provider adapter must preserve.</summary>
+public enum StrategyCodegenOutputContract
+{
+    /// <summary>The established expert-code format: one fenced C# plugin file per block.</summary>
+    CSharpPluginFiles = 0,
+
+    /// <summary>One JSON object governed by the schema in <see cref="StrategyCodegenRequest.SystemContext"/>.</summary>
+    RawJsonObject = 1,
+}
+
 /// <summary>
-/// A request to generate strategy source. <paramref name="SystemContext"/> is the AI context pack (the
-/// SDK contract + rules + output contract); <paramref name="Messages"/> is the running conversation —
-/// the first is the user's instruction, and the auto-fix loop appends the model's last answer plus the
-/// compiler errors so the model can correct itself.
+/// A strategy-generation request. <paramref name="SystemContext"/> is the AI context pack (rules and
+/// its detailed output schema); <paramref name="Messages"/> is the running conversation.
 /// </summary>
-public sealed record StrategyCodegenRequest(string SystemContext, IReadOnlyList<CodegenMessage> Messages);
+public sealed record StrategyCodegenRequest(
+    string SystemContext,
+    IReadOnlyList<CodegenMessage> Messages)
+{
+    /// <summary>
+    /// Prevents single-prompt CLI adapters from appending an incompatible legacy C# instruction after
+    /// a structured JSON request. Kept outside the positional constructor for source compatibility.
+    /// </summary>
+    public StrategyCodegenOutputContract OutputContract { get; init; } =
+        StrategyCodegenOutputContract.CSharpPluginFiles;
+}
 
 /// <summary>
 /// The outcome of one generation. <paramref name="Files"/> is the extracted C# — one entry per file the
@@ -197,6 +215,10 @@ public interface IStrategyCodegenClient
     Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<string>>([]);
 
+    /// <summary>
+    /// Generates one response. Implementations must tolerate concurrent calls: the strategy builder can
+    /// fan one brief out to independent representation agents using the same configured client.
+    /// </summary>
     Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default);
 
     /// <summary>

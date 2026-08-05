@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,6 +10,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Core.Strategies.Definition;
+using TradingTerminal.Core.Strategies.Generation;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.UI;
@@ -42,12 +45,20 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private readonly IBacktestStrategyRegistry _registry;
     private readonly ILogger<StrategyAuthoringViewModel> _logger;
     private readonly IAiStrategyBuilder? _ai;
+    private readonly IStrategyCandidateGeneratorV1? _candidateGenerator;
+    private readonly IParallelStrategyCandidateGeneratorV1? _parallelCandidateGenerator;
     private readonly AiCodegenOptions _options;
     private readonly AuthoredStrategyInstaller? _installer;
     private readonly ICliWorkspaceLauncher? _cliLauncher;
+    private readonly IAuthoringSessionRepository _sessionRepository;
 
     private CancellationTokenSource? _generateCts;
     private StrategyBuildSession? _session;
+    private StrategyGenerationSessionV1? _generationSession;
+    private ParallelStrategyGenerationResultV1? _parallelCandidateBatch;
+    private string? _editorBaseGeneratedCandidateHash;
+    private string? _generationProviderKey;
+    private long _generationContextEpoch;
     private bool _filesEditedByUser;
 
     /// <summary>The model thread restored from disk, handed to the next session so a resumed conversation
@@ -68,23 +79,53 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         IBacktestStrategyRegistry registry,
         ILogger<StrategyAuthoringViewModel> logger,
         IAiStrategyBuilder? ai = null,
+        IStrategyCandidateGeneratorV1? candidateGenerator = null,
         IOptions<AiCodegenOptions>? options = null,
         AuthoredStrategyInstaller? installer = null,
-        ICliWorkspaceLauncher? cliLauncher = null)
+        ICliWorkspaceLauncher? cliLauncher = null,
+        IParallelStrategyCandidateGeneratorV1? parallelCandidateGenerator = null,
+        IAuthoringSessionRepository? sessionRepository = null)
     {
         _compiler = compiler;
         _registry = registry;
         _logger = logger;
         _ai = ai;
+        _candidateGenerator = candidateGenerator;
+        _parallelCandidateGenerator = parallelCandidateGenerator;
         _options = options?.Value ?? new AiCodegenOptions();
         _installer = installer;
         _cliLauncher = cliLauncher;
+        _sessionRepository = sessionRepository ?? FileAuthoringSessionRepository.Instance;
 
         Diagnostics = [];
         Messages = [];
         Activity = [];
         Files = [];
         Tasks = [];
+        CandidateGroups = [];
+        CandidateOpenQuestions = [];
+        CandidateBuildSupport = [];
+        CandidateIssues = [];
+        GeneratedCandidateOptions = [];
+        GenerationLaneProgressRows = [];
+        AllStarterBriefs = StrategyStarterCatalog.All;
+        VisibleStarterBriefs = [];
+        StarterFamilyOptions = [AllStarterFamilies, .. StrategyStarterFamilies.All];
+        StarterHorizonOptions =
+        [
+            AllStarterHorizons,
+            .. AllStarterBriefs.Select(brief => brief.AxisLabels.Horizon)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(static label => label, StringComparer.Ordinal),
+        ];
+        StarterDataOptions =
+        [
+            AllStarterData,
+            .. AllStarterBriefs.SelectMany(brief => brief.AxisLabels.Data)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(static label => label, StringComparer.Ordinal),
+        ];
+        RefreshStarterBriefs();
 
         // The hero empty state ↔ transcript switch watches the count; the VM owns the collection,
         // so the self-subscription cannot outlive it.
@@ -122,24 +163,67 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     public bool AiEnabled => _ai is not null;
     public bool AiHasProvider => AiProviders.Any(p => p.IsAvailable);
 
-    /// <summary>False until the first message lands — the canvas shows the hero empty state (brand
-    /// mark, tagline, suggestion briefs) instead of an empty transcript.</summary>
+    /// <summary>False until the first message lands — the canvas shows the axis-filtered starter
+    /// catalog instead of an empty transcript.</summary>
     public bool HasConversation => Messages.Count > 0;
 
     private void OnMessagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
         OnPropertyChanged(nameof(HasConversation));
 
-    /// <summary>Canned first briefs for the empty state, seeded from strategy families the terminal
-    /// already ships — one click puts a real, well-formed brief in the composer to edit or send.</summary>
-    public IReadOnlyList<string> SuggestionBriefs { get; } =
-    [
-        "Fade liquidity sweeps at the prior day's low: enter when a stop-run through the level reverses within 3 bars on tape absorption, exit at VWAP with a stop below the sweep extreme.",
-        "Momentum breakout on 5-minute bars: enter on a close above the last 20-bar high with a volume surge of at least 1.5× average, trail an ATR(14) stop.",
-        "Cumulative-delta divergence reversal: when price prints a new session low but cumulative delta holds above its own low, fade the move with a fixed 1.5R target.",
-    ];
+    private const string AllStarterFamilies = "All families";
+    private const string AllStarterHorizons = "All horizons";
+    private const string AllStarterData = "All data";
+
+    /// <summary>
+    /// Curated discovery starters classified by the canonical strategy axes. Families are overlapping
+    /// navigation lenses rather than a claim that the catalog enumerates every possible strategy.
+    /// </summary>
+    public IReadOnlyList<StrategyStarterBrief> AllStarterBriefs { get; }
+    public ObservableCollection<StrategyStarterBrief> VisibleStarterBriefs { get; }
+    public IReadOnlyList<string> StarterFamilyOptions { get; }
+    public IReadOnlyList<string> StarterHorizonOptions { get; }
+    public IReadOnlyList<string> StarterDataOptions { get; }
+
+    [ObservableProperty] private string _starterSearchText = string.Empty;
+    [ObservableProperty] private string _selectedStarterFamily = AllStarterFamilies;
+    [ObservableProperty] private string _selectedStarterHorizon = AllStarterHorizons;
+    [ObservableProperty] private string _selectedStarterData = AllStarterData;
+
+    public string StarterResultText =>
+        $"{VisibleStarterBriefs.Count} of {AllStarterBriefs.Count} strategy ideas";
+
+    partial void OnStarterSearchTextChanged(string value) => RefreshStarterBriefs();
+    partial void OnSelectedStarterFamilyChanged(string value) => RefreshStarterBriefs();
+    partial void OnSelectedStarterHorizonChanged(string value) => RefreshStarterBriefs();
+    partial void OnSelectedStarterDataChanged(string value) => RefreshStarterBriefs();
+
+    private void RefreshStarterBriefs()
+    {
+        var search = StarterSearchText.Trim();
+        var filtered = AllStarterBriefs.Where(brief =>
+            (SelectedStarterFamily == AllStarterFamilies || brief.FamilyLabels.Contains(SelectedStarterFamily)) &&
+            (SelectedStarterHorizon == AllStarterHorizons ||
+                string.Equals(brief.AxisLabels.Horizon, SelectedStarterHorizon, StringComparison.Ordinal)) &&
+            (SelectedStarterData == AllStarterData || brief.AxisLabels.Data.Contains(SelectedStarterData)) &&
+            StrategyStarterCatalog.MatchesSearch(brief, search));
+
+        VisibleStarterBriefs.Clear();
+        foreach (var brief in filtered) VisibleStarterBriefs.Add(brief);
+        OnPropertyChanged(nameof(StarterResultText));
+    }
 
     [RelayCommand]
-    private void UseSuggestion(string? brief)
+    private void ClearStarterFilters()
+    {
+        StarterSearchText = string.Empty;
+        SelectedStarterFamily = AllStarterFamilies;
+        SelectedStarterHorizon = AllStarterHorizons;
+        SelectedStarterData = AllStarterData;
+        RefreshStarterBriefs();
+    }
+
+    [RelayCommand]
+    private void UseStarterPrompt(string? brief)
     {
         if (!string.IsNullOrWhiteSpace(brief)) Composer = brief;
     }
@@ -153,6 +237,222 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// <summary>Selected workbench tab: 0 Code · 1 Parameters · 2 Activity. A file chip in the chat
     /// sets it back to Code so the click always lands on the file it names.</summary>
     [ObservableProperty] private int _workbenchTab;
+
+    // ── Strategy candidate (semantic lane, before source generation) ───────────────────────────────
+
+    /// <summary>
+    /// On by default: chat produces a reviewable Candidate rather than source. Turning it off keeps
+    /// the existing Expert Code lane available for imported or hand-authored implementations.
+    /// </summary>
+    [ObservableProperty] private bool _generateCandidateFirst = true;
+
+    [ObservableProperty] private StrategyCandidateV1? _currentCandidate;
+    [ObservableProperty] private StrategyCandidateAssessmentV1? _candidateAssessment;
+    [ObservableProperty] private string? _candidateContentHash;
+    [ObservableProperty] private string? _candidateStatusText;
+    [ObservableProperty] private string? _candidateRestoreWarning;
+    [ObservableProperty] private StrategyGenerationCandidateOption? _selectedGeneratedCandidateOption;
+    [ObservableProperty] private string? _chosenGeneratedCandidateHash;
+
+    public ObservableCollection<StrategyCandidateGroupRow> CandidateGroups { get; }
+    public ObservableCollection<StrategyCandidateStatementV1> CandidateOpenQuestions { get; }
+    public ObservableCollection<StrategyBuildSupportRow> CandidateBuildSupport { get; }
+    public ObservableCollection<StrategyCandidateIssueV1> CandidateIssues { get; }
+    public ObservableCollection<StrategyGenerationCandidateOption> GeneratedCandidateOptions { get; }
+    public ObservableCollection<StrategyGenerationLaneProgressRow> GenerationLaneProgressRows { get; }
+
+    public bool HasCandidate => CurrentCandidate is not null;
+    public bool HasGeneratedCandidates => GeneratedCandidateOptions.Count > 0;
+    public bool HasCandidateContent => HasCandidate || HasGeneratedCandidates;
+    public bool HasCandidateRestoreWarning => !string.IsNullOrWhiteSpace(CandidateRestoreWarning);
+    public int SelectableGeneratedCandidateCount =>
+        GeneratedCandidateOptions.Count(static option => option.Result.Selectable);
+    public int BlockedGeneratedCandidateCount =>
+        GeneratedCandidateOptions.Count(static option => !option.Result.Selectable);
+    public bool HasBlockedGeneratedCandidates => BlockedGeneratedCandidateCount > 0;
+    public StrategyGenerationCandidateOption? FirstBlockedGeneratedCandidateOption =>
+        GeneratedCandidateOptions.FirstOrDefault(static option => !option.Result.Selectable);
+    public string CandidateBatchHeadline
+    {
+        get
+        {
+            var selectable = SelectableGeneratedCandidateCount;
+            var blocked = BlockedGeneratedCandidateCount;
+            var selectableLabel = selectable == 1 ? "draft selectable" : "drafts selectable";
+            if (blocked == 0) return $"{selectable} {selectableLabel}";
+            var blockedLabel = blocked == 1 ? "lane blocked" : "lanes blocked";
+            return $"{selectable} {selectableLabel} · {blocked} {blockedLabel}";
+        }
+    }
+    public string CandidateBacktestAvailabilityText =>
+        "Backtest unavailable · no generated-lane importer/runtime is registered.";
+    public bool HasSelectedGeneratedCandidate => SelectedGeneratedCandidateOption?.Candidate is not null;
+    public bool HasChosenGeneratedCandidate => ChosenGeneratedCandidateOption is not null;
+    public bool IsGeneratingCandidates => IsGenerating && GenerateCandidateFirst;
+    public bool CanChooseGeneratedCandidate =>
+        SelectedGeneratedCandidateOption is { Result.Selectable: true } selected &&
+        !string.Equals(
+            selected.CandidateHashSha256,
+            ChosenGeneratedCandidateHash,
+            StringComparison.Ordinal) &&
+        !IsGenerating;
+    public bool CanRevalidateGeneratedCandidate =>
+        _parallelCandidateBatch is not null &&
+        _editorBaseGeneratedCandidateHash is not null &&
+        _parallelCandidateBatch.Lanes.Count(lane => lane.Candidate is not null &&
+            string.Equals(lane.CandidateHashSha256, _editorBaseGeneratedCandidateHash, StringComparison.Ordinal)) == 1 &&
+        Files.Count == 1 &&
+        !IsGenerating;
+    public bool CanConfirmCandidate => CurrentCandidate is not null && CandidateContentHash is not null &&
+        StrategyCandidateConfirmationV1.Confirm(CurrentCandidate, CandidateContentHash).Success;
+    public string GenerationModeLabel => GenerateCandidateFirst ? "FOUR AI LANES" : "EXPERT CODE";
+    public string GenerationModeActionText => GenerateCandidateFirst ? "Use Expert code" : "Back to 4 candidates";
+    public string GenerationLaneText => GenerateCandidateFirst ? "4 AI strategy lanes" : "Expert code";
+    public string SendButtonText => GenerateCandidateFirst ? "Check & generate  ⌘↵" : "Generate code  ⌘↵";
+    public string AuthoringBoundaryText => GenerateCandidateFirst
+        ? "generation only · choose before package"
+        : "reviewed code runs in-process";
+    public string CandidateActionText => SelectedGeneratedCandidateOption is { CandidateHashSha256: { } selectedHash } &&
+        string.Equals(selectedHash, ChosenGeneratedCandidateHash, StringComparison.Ordinal)
+            ? "Using this candidate"
+            : HasChosenGeneratedCandidate
+                ? "Replace active candidate"
+                : "Use selected in editor";
+    public string ChosenGeneratedCandidateSummary => ChosenGeneratedCandidateOption is { } chosen
+        ? $"Active in editor: {chosen.LaneName}"
+        : "No active candidate in editor";
+    public string GenerationProgressSummary
+    {
+        get
+        {
+            var finished = GenerationLaneProgressRows.Count(row =>
+                row.State is StrategyGenerationLaneProgressStateV1.Completed or
+                    StrategyGenerationLaneProgressStateV1.Failed or
+                    StrategyGenerationLaneProgressStateV1.Canceled);
+            return $"{finished}/4 lanes finished";
+        }
+    }
+    public bool CanPrepareGeneratedCandidateForBacktest => false;
+    public string BacktestActionText => "Backtest not ready";
+    public string BacktestReadinessTitle => ChosenGeneratedCandidateOption is { } chosen
+        ? $"Backtest readiness · {chosen.LaneName}"
+        : "Backtest readiness";
+    public string BacktestReadinessText => ChosenGeneratedCandidateOption?.Result.Lane switch
+    {
+        StrategyGenerationLaneV1.VibePython =>
+            "The ordinary-Python draft has no registered importer, runtime package, or package validator.",
+        StrategyGenerationLaneV1.DeclarativeSpec =>
+            "The declarative draft has no registered lowerer, importer, runtime package, or package validator.",
+        StrategyGenerationLaneV1.TypedGraph =>
+            "This TradeIR module is package-valid only. It still needs a terminal importer, data binding, and target admission.",
+        StrategyGenerationLaneV1.CspPython =>
+            "The CSP draft has no registered CSP dependency, importer, runtime host, or package validator.",
+        _ => "Choose a candidate to see the exact backtest requirements.",
+    };
+    public IReadOnlyList<CandidateReadinessStageRow> BacktestReadinessStages
+    {
+        get
+        {
+            if (ChosenGeneratedCandidateOption is not { } chosen) return [];
+            return
+            [
+                new CandidateReadinessStageRow(
+                    "1", "Generated artifact", chosen.Result.Generated ? "READY" : "BLOCKED",
+                    chosen.Result.Generated ? "A model response produced an editable artifact." : "No valid artifact was produced."),
+                new CandidateReadinessStageRow(
+                    "2", "Package validation", chosen.Result.PackageValid ? "PASSED" : "NOT AVAILABLE",
+                    chosen.Result.PackageValid
+                        ? "The installed package validator accepted this exact artifact hash."
+                        : "This lane has no package-valid proof."),
+                new CandidateReadinessStageRow(
+                    "3", "Importer + runtime", "MISSING",
+                    "No registered importer can turn this artifact into a runnable terminal strategy."),
+                new CandidateReadinessStageRow(
+                    "4", "Backtest target", "LOCKED",
+                    "Backtest unlocks only after an exact-hash import, data binding, and target admission succeed."),
+            ];
+        }
+    }
+
+    private StrategyGenerationCandidateOption? ChosenGeneratedCandidateOption =>
+        ChosenGeneratedCandidateHash is { } chosenHash
+            ? GeneratedCandidateOptions.FirstOrDefault(option => string.Equals(
+                option.CandidateHashSha256,
+                chosenHash,
+                StringComparison.Ordinal))
+            : null;
+
+    partial void OnGenerateCandidateFirstChanged(bool value)
+    {
+        InvalidateGenerationIfActive();
+        OnPropertyChanged(nameof(IsGeneratingCandidates));
+        OnPropertyChanged(nameof(GenerationModeLabel));
+        OnPropertyChanged(nameof(GenerationModeActionText));
+        OnPropertyChanged(nameof(GenerationLaneText));
+        OnPropertyChanged(nameof(SendButtonText));
+        OnPropertyChanged(nameof(AuthoringBoundaryText));
+        AiStatus = value
+            ? "Four AI agents generate editable strategy alternatives in parallel; available package validators are reported separately."
+            : "Expert Code lane: chat writes and compiles C# directly.";
+    }
+
+    [RelayCommand]
+    private void ToggleGenerationMode() => GenerateCandidateFirst = !GenerateCandidateFirst;
+
+    partial void OnCurrentCandidateChanged(StrategyCandidateV1? value)
+    {
+        OnPropertyChanged(nameof(HasCandidate));
+        OnPropertyChanged(nameof(HasCandidateContent));
+        OnPropertyChanged(nameof(CanConfirmCandidate));
+        ConfirmCandidateCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnCandidateContentHashChanged(string? value)
+    {
+        OnPropertyChanged(nameof(CanConfirmCandidate));
+        ConfirmCandidateCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnCandidateRestoreWarningChanged(string? value) =>
+        OnPropertyChanged(nameof(HasCandidateRestoreWarning));
+
+    partial void OnSelectedGeneratedCandidateOptionChanged(StrategyGenerationCandidateOption? value)
+    {
+        RefreshGeneratedCandidateOptionFlags();
+        OnPropertyChanged(nameof(HasSelectedGeneratedCandidate));
+        OnPropertyChanged(nameof(CanChooseGeneratedCandidate));
+        OnPropertyChanged(nameof(CanRevalidateGeneratedCandidate));
+        OnPropertyChanged(nameof(CandidateActionText));
+        ChooseGeneratedCandidateCommand.NotifyCanExecuteChanged();
+        RevalidateGeneratedCandidateCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnChosenGeneratedCandidateHashChanged(string? value)
+    {
+        RefreshGeneratedCandidateOptionFlags();
+        OnPropertyChanged(nameof(HasChosenGeneratedCandidate));
+        OnPropertyChanged(nameof(ChosenGeneratedCandidateSummary));
+        OnPropertyChanged(nameof(CandidateActionText));
+        OnPropertyChanged(nameof(CanChooseGeneratedCandidate));
+        OnPropertyChanged(nameof(CanPrepareGeneratedCandidateForBacktest));
+        OnPropertyChanged(nameof(BacktestActionText));
+        OnPropertyChanged(nameof(BacktestReadinessTitle));
+        OnPropertyChanged(nameof(BacktestReadinessText));
+        OnPropertyChanged(nameof(BacktestReadinessStages));
+        ChooseGeneratedCandidateCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnStrategyIdChanged(string value)
+    {
+        if (!_ready || _restoring) return;
+
+        InvalidateGenerationContext();
+        ResetSession(null);
+        ClearCandidate();
+        InvalidateDerivedArtifactState(markUnregistered: true);
+        AiStatus = "Strategy identity changed. Generate a fresh set of candidates for this id.";
+        Status = "Strategy id changed; prior candidates and derived compile state were cleared.";
+    }
 
     [RelayCommand]
     private void FocusFile(string? name)
@@ -175,7 +475,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// drives the DRAFT/REGISTERED chip and the rail's status line.</summary>
     [ObservableProperty] private bool _isRegistered;
 
-    [ObservableProperty] private string? _status = "Describe a strategy in the chat, or write one yourself, then press Compile & Register.";
+    [ObservableProperty] private string? _status = "Describe the idea to check four strategy-generation lanes, or switch to Expert Code for direct C# authoring.";
     [ObservableProperty] private bool _compiledOk;
 
     /// <summary>Auto-generated editor for the compiled strategy's tunables, or null when it declares none
@@ -205,21 +505,25 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [RelayCommand]
     private void AddFile()
     {
+        SetEditorBaseGeneratedCandidateHash(null);
         var name = UniqueFileName("Helpers.cs");
         var file = Track(new AuthoredFile(name, string.Empty));
         Files.Add(file);
         SelectedFile = file;
         _filesEditedByUser = true;
+        InvalidateEditorProofs("The file set changed; prior compile, registration, and candidate-hash proofs were cleared.");
     }
 
     [RelayCommand]
     private void RemoveFile(AuthoredFile? file)
     {
         if (file is null || Files.Count <= 1) return;
+        SetEditorBaseGeneratedCandidateHash(null);
         file.PropertyChanged -= OnFileEdited;
         Files.Remove(file);
         SelectedFile = Files.FirstOrDefault();
         _filesEditedByUser = true;
+        InvalidateEditorProofs("The file set changed; prior compile, registration, and candidate-hash proofs were cleared.");
     }
 
     // ── Providers & models ──────────────────────────────────────────────────────────────────────────
@@ -249,6 +553,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     partial void OnSelectedAiProviderChanged(AiProviderChoice? value)
     {
+        InvalidateGenerationIfActive();
         // A different provider is a different conversation — its context window holds none of this thread.
         ResetSession("Switched provider.");
         Models.Clear();
@@ -267,6 +572,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     partial void OnSelectedModelChanged(string? value)
     {
+        InvalidateGenerationIfActive();
         ResetSession("Switched model.");
         Persist();
         SyncModelChoice();
@@ -283,6 +589,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     partial void OnSelectedEffortChanged(CodegenEffort value)
     {
+        InvalidateGenerationIfActive();
         // Effort changes how the model reasons, so the thread it produced is no longer representative.
         ResetSession("Switched effort.");
         Persist();
@@ -377,6 +684,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     partial void OnBuildEffortChanged(StrategyBuildEffort value)
     {
+        InvalidateGenerationIfActive();
         // The profile is fixed at session creation (its skill budget shapes the cached system prompt),
         // so a new effort needs a new session — the same rule as switching the model's own effort.
         ResetSession("Switched build effort.");
@@ -696,6 +1004,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         SendCommand.NotifyCanExecuteChanged();
         StopCommand.NotifyCanExecuteChanged();
+        ConfirmCandidateCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsGeneratingCandidates));
+        OnPropertyChanged(nameof(CanChooseGeneratedCandidate));
+        OnPropertyChanged(nameof(CanRevalidateGeneratedCandidate));
+        ChooseGeneratedCandidateCommand.NotifyCanExecuteChanged();
+        RevalidateGeneratedCandidateCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnComposerChanged(string value) => SendCommand.NotifyCanExecuteChanged();
@@ -729,12 +1043,29 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // First brief on an untouched identity: name the strategy after what it does, not "myStrategy".
         if (Messages.Count == 0) DeriveIdentityFrom(prompt);
 
+        if (GenerateCandidateFirst)
+        {
+            if (_parallelCandidateGenerator is null && _candidateGenerator is null)
+            {
+                AiStatus = "The strategy-candidate generator is not registered. Switch to Expert Code or restart after updating the app.";
+                return;
+            }
+
+            if (CurrentCandidate is not null && _candidateGenerator is not null)
+                await SendCandidateTurnAsync(choice, prompt);
+            else if (_parallelCandidateGenerator is not null)
+                await SendParallelCandidateTurnAsync(choice, prompt);
+            else
+                await SendCandidateTurnAsync(choice, prompt);
+            return;
+        }
+
+        var turnStrategyId = StrategyId.Trim();
+        var turnEpoch = Interlocked.Increment(ref _generationContextEpoch);
         Composer = string.Empty;
         Append(new AuthoringMessage(CodegenRole.User, prompt));
-        Activity.Clear();
-        Diagnostics.Clear();
-        CompiledOk = false;
-        AwaitingAnswer = false;
+        InvalidateDerivedArtifactState(markUnregistered: true);
+        ChosenGeneratedCandidateHash = null;
         IsGenerating = true;
 
         // The pipeline's dial for this turn — and the checklist the right panel watches.
@@ -747,9 +1078,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
         _generateCts?.Cancel();
         _generateCts?.Dispose();
-        _generateCts = new CancellationTokenSource();
+        var turnCts = new CancellationTokenSource();
+        _generateCts = turnCts;
 
-        var ticking = TickElapsedAsync(_generateCts.Token);
+        var ticking = TickElapsedAsync(turnCts.Token);
         var session = EnsureSession(choice, profile);
         var tokensBefore = session.TotalUsage;
         _streamingReply = null;
@@ -763,9 +1095,16 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         {
             var turn = await session.SendAsync(
                 prompt,
-                new Progress<string>(step => PushActivity(step)),
-                _generateCts.Token,
-                new Progress<CodegenEvent>(evt => OnStreamed(evt, tokensBefore)));
+                new Progress<string>(step =>
+                {
+                    if (IsGenerationContextCurrent(turnEpoch, turnStrategyId)) PushActivity(step);
+                }),
+                turnCts.Token,
+                new Progress<CodegenEvent>(evt =>
+                {
+                    if (IsGenerationContextCurrent(turnEpoch, turnStrategyId)) OnStreamed(evt, tokensBefore);
+                }));
+            if (!IsGenerationContextCurrent(turnEpoch, turnStrategyId)) return;
 
             // The session's running total is authoritative: a turn can be several generations (the
             // auto-fix retries), and the streamed updates are per-generation.
@@ -831,32 +1170,672 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
             _logger.LogInformation(
                 "AI builder turn for {Id} via {Provider}/{Model}: {Kind}, {Files} file(s), {Generations} generation(s)",
-                StrategyId, choice.ProviderId, SelectedModel ?? "(default)", turn.Kind, turn.Files.Count, turn.Generations);
+                turnStrategyId, choice.ProviderId, SelectedModel ?? "(default)", turn.Kind, turn.Files.Count, turn.Generations);
         }
         catch (OperationCanceledException)
         {
-            AiStatus = "Stopped.";
-            PushActivity("Stopped by the user.");
-            FailRunningTasks();
+            if (IsGenerationContextCurrent(turnEpoch, turnStrategyId))
+            {
+                AiStatus = "Stopped.";
+                PushActivity("Stopped by the user.");
+                FailRunningTasks();
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "AI builder turn threw for {Id}", StrategyId);
-            AiStatus = $"Generation error: {ex.Message}";
-            Append(AuthoringMessage.System(AiStatus));
-            FailRunningTasks();
+            if (IsGenerationContextCurrent(turnEpoch, turnStrategyId))
+            {
+                _logger.LogError(ex, "AI builder turn threw for {Id}", turnStrategyId);
+                AiStatus = $"Generation error: {ex.Message}";
+                Append(AuthoringMessage.System(AiStatus));
+                FailRunningTasks();
+            }
         }
         finally
         {
-            IsGenerating = false;
-            _streamingReply = null;
-            _generateCts?.Cancel();   // stops the elapsed ticker
+            turnCts.Cancel();
             await ticking;
-            ElapsedText = null;
-            ElapsedCompact = null;
-            Save();   // a turn is expensive — never lose one to a crash or a restart
+            if (IsGenerationContextCurrent(turnEpoch, turnStrategyId))
+            {
+                IsGenerating = false;
+                _streamingReply = null;
+                ElapsedText = null;
+                ElapsedCompact = null;
+                Save();   // a turn is expensive — never lose one to a crash or a restart
+            }
+            if (ReferenceEquals(_generateCts, turnCts)) _generateCts = null;
+            turnCts.Dispose();
         }
     }
+
+    /// <summary>
+    /// Four-way strategy-generation lane. Every agent generates its native editable representation;
+    /// deterministic format checks and any available package validator are reported as separate facts.
+    /// Results stop at the package handoff boundary and are never tested or executed here.
+    /// </summary>
+    private async Task SendParallelCandidateTurnAsync(AiProviderChoice choice, string prompt)
+    {
+        var turnStrategyId = StrategyId.Trim();
+        var turnEpoch = Interlocked.Increment(ref _generationContextEpoch);
+        // A failed/cancelled new prompt must not leave the previous prompt's candidates looking like
+        // the current result. The transcript remains as history, but selection starts from no batch.
+        ClearParallelCandidates();
+        Composer = string.Empty;
+        Append(new AuthoringMessage(CodegenRole.User, prompt));
+        Activity.Clear();
+        Diagnostics.Clear();
+        CompiledOk = false;
+        AwaitingAnswer = false;
+        WorkbenchTab = 3;
+        Tasks.Clear();
+        ResetGenerationLaneProgress();
+        WorkingVerb = "Generating four alternatives…";
+        StepText = GenerationProgressSummary;
+        IsGenerating = true;
+        AiStatus = "Asking four AI agents to generate editable strategy alternatives…";
+
+        _generateCts?.Cancel();
+        _generateCts?.Dispose();
+        var turnCts = new CancellationTokenSource();
+        _generateCts = turnCts;
+        var ticking = TickElapsedAsync(turnCts.Token);
+
+        try
+        {
+            var provider = ResolveClient(choice) ?? choice.Client;
+            var progress = new Progress<StrategyGenerationLaneProgressV1>(laneProgress =>
+            {
+                if (IsGenerationContextCurrent(turnEpoch, turnStrategyId))
+                    ApplyGenerationLaneProgress(laneProgress);
+            });
+            var result = await _parallelCandidateGenerator!.GenerateAsync(
+                provider,
+                new ParallelStrategyGenerationRequestV1(turnStrategyId, prompt),
+                turnCts.Token,
+                progress);
+            if (!IsGenerationContextCurrent(turnEpoch, turnStrategyId)) return;
+            InputTokens += result.Usage.InputTokens;
+            OutputTokens += result.Usage.OutputTokens;
+            CachedTokens += result.Usage.CachedInputTokens;
+
+            ApplyParallelCandidateBatch(result);
+            SetFinalGenerationLaneProgress(result);
+            Append(new AuthoringMessage(CodegenRole.Assistant, FormatParallelCandidates(result)));
+
+            var selectable = result.Lanes.Count(static lane => lane.Selectable);
+            var packageValid = result.Lanes.Count(static lane => lane.PackageValid);
+            var generatedOnly = result.Lanes.Count(static lane =>
+                lane.Readiness == StrategyGenerationReadinessV1.Generated && lane.Selectable);
+            var blocked = result.Lanes.Count - selectable;
+            Append(AuthoringMessage.Tool(
+                selectable > 0 ? "Ok" : "Fail",
+                $"Four AI generation lanes · {selectable} selectable",
+                $"{packageValid} package-valid; {generatedOnly} generated without a package validator; {blocked} blocked. No tests or execution ran."));
+
+            AiStatus = selectable > 0
+                ? $"{selectable} generated strategy artifact(s) are ready to choose: {packageValid} package-valid and {generatedOnly} not package-validated. None were tested or run."
+                : "All four generated alternatives were invalid or failed. Inspect each lane's blocking reason.";
+            WorkbenchTab = 3;
+            _logger.LogInformation(
+                "Parallel strategy generation for {Id}: selectable={Selectable}, packageValid={PackageValid}, blocked={Blocked}",
+                StrategyId,
+                selectable,
+                packageValid,
+                blocked);
+        }
+        catch (OperationCanceledException)
+        {
+            if (IsGenerationContextCurrent(turnEpoch, turnStrategyId)) AiStatus = "Stopped.";
+        }
+        catch (Exception ex)
+        {
+            if (IsGenerationContextCurrent(turnEpoch, turnStrategyId))
+            {
+                _logger.LogError(ex, "Parallel strategy generation threw for {Id}", turnStrategyId);
+                AiStatus = $"Candidate generation error: {ex.Message}";
+                Append(AuthoringMessage.System(AiStatus));
+            }
+        }
+        finally
+        {
+            turnCts.Cancel();
+            await ticking;
+            if (IsGenerationContextCurrent(turnEpoch, turnStrategyId))
+            {
+                IsGenerating = false;
+                Tasks.Clear();
+                WorkingVerb = null;
+                StepText = null;
+                ElapsedText = null;
+                ElapsedCompact = null;
+                Save();
+            }
+            if (ReferenceEquals(_generateCts, turnCts)) _generateCts = null;
+            turnCts.Dispose();
+        }
+    }
+
+    private void ResetGenerationLaneProgress()
+    {
+        GenerationLaneProgressRows.Clear();
+        foreach (var lane in StrategyGenerationLaneCatalogV1.Ordered)
+            GenerationLaneProgressRows.Add(new StrategyGenerationLaneProgressRow(lane));
+        NotifyGenerationProgressChanged();
+    }
+
+    private void ApplyGenerationLaneProgress(StrategyGenerationLaneProgressV1 progress)
+    {
+        var row = GenerationLaneProgressRows.FirstOrDefault(candidate => candidate.Lane == progress.Lane);
+        if (row is null) return;
+        row.State = progress.State;
+        NotifyGenerationProgressChanged();
+    }
+
+    private void SetFinalGenerationLaneProgress(ParallelStrategyGenerationResultV1 result)
+    {
+        foreach (var lane in result.Lanes)
+        {
+            var state = lane.Readiness is StrategyGenerationReadinessV1.Generated or
+                StrategyGenerationReadinessV1.PackageValid or StrategyGenerationReadinessV1.TestPassed
+                    ? StrategyGenerationLaneProgressStateV1.Completed
+                    : StrategyGenerationLaneProgressStateV1.Failed;
+            ApplyGenerationLaneProgress(new StrategyGenerationLaneProgressV1(lane.Lane, state));
+        }
+    }
+
+    private void NotifyGenerationProgressChanged()
+    {
+        OnPropertyChanged(nameof(GenerationProgressSummary));
+        if (IsGeneratingCandidates) StepText = GenerationProgressSummary;
+    }
+
+    private void ApplyParallelCandidateBatch(ParallelStrategyGenerationResultV1 result)
+    {
+        if (!string.Equals(result.StrategyId, StrategyId.Trim(), StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                $"Candidate batch '{result.StrategyId}' does not belong to strategy '{StrategyId.Trim()}'.");
+        var issues = StrategyGenerationBatchValidationV1.Validate(result);
+        if (issues.Count > 0)
+            throw new InvalidOperationException(string.Join(Environment.NewLine, issues.Select(issue =>
+                $"{issue.Path}: {issue.Message}")));
+
+        CandidateRestoreWarning = null;
+        ClearSemanticCandidate();
+        SetEditorBaseGeneratedCandidateHash(null);
+        SelectedGeneratedCandidateOption = null;
+        ChosenGeneratedCandidateHash = null;
+        ClearGeneratedCandidateOptionFlags();
+        GeneratedCandidateOptions.Clear();
+        _parallelCandidateBatch = result;
+        foreach (var lane in result.Lanes) GeneratedCandidateOptions.Add(new StrategyGenerationCandidateOption(lane));
+        SelectedGeneratedCandidateOption = GeneratedCandidateOptions.FirstOrDefault(static option => option.Result.Selectable)
+            ?? GeneratedCandidateOptions.FirstOrDefault();
+        NotifyParallelCandidateStateChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanChooseGeneratedCandidateAction))]
+    private void ChooseGeneratedCandidate()
+    {
+        if (_parallelCandidateBatch is null || SelectedGeneratedCandidateOption?.CandidateHashSha256 is not { } hash)
+            return;
+
+        var selection = StrategyGenerationBatchValidationV1.Select(_parallelCandidateBatch, hash);
+        if (!selection.Success)
+        {
+            var detail = string.Join(Environment.NewLine, selection.Issues.Select(issue =>
+                $"{issue.Path}: {issue.Message}"));
+            AiStatus = "That strategy option is no longer a valid selection.";
+            Append(AuthoringMessage.Tool("Fail", "Candidate not selected", detail));
+            return;
+        }
+
+        var candidate = selection.Candidate!;
+        var laneResult = _parallelCandidateBatch.Lanes.Single(lane =>
+            string.Equals(lane.CandidateHashSha256, selection.CandidateHashSha256, StringComparison.Ordinal));
+        InvalidateDerivedArtifactState(markUnregistered: true);
+        SetFiles([new StrategyFile(candidate.Artifact.FileName, EditableArtifactContent(candidate.Artifact))]);
+        _filesEditedByUser = false;
+        SetEditorBaseGeneratedCandidateHash(selection.CandidateHashSha256);
+        ChosenGeneratedCandidateHash = selection.CandidateHashSha256;
+        WorkbenchTab = 0;
+        if (laneResult.PackageValid)
+        {
+            AiStatus = $"{StrategyGenerationLaneCatalogV1.DisplayName(candidate.Lane)} selected at package-valid hash {selection.CandidateHashSha256![..12]}…. It has not been tested or run.";
+            Status = candidate.PackageBinding.ImporterId is null
+                ? $"Loaded {candidate.Artifact.FileName}. Package validation passed, but no terminal importer is registered; no tests or execution ran."
+                : $"Loaded {candidate.Artifact.FileName} for importer '{candidate.PackageBinding.ImporterId}'. No tests or execution ran.";
+        }
+        else
+        {
+            AiStatus = $"{StrategyGenerationLaneCatalogV1.DisplayName(candidate.Lane)} generated artifact selected at hash {selection.CandidateHashSha256![..12]}…. It is not package-validated, tested, or run.";
+            Status = $"Loaded {candidate.Artifact.FileName}. Its generation format is valid, but this lane has no registered package validator or importer; no tests or execution ran.";
+        }
+        Append(AuthoringMessage.Tool(
+            "Ok",
+            $"Selected {StrategyGenerationLaneCatalogV1.DisplayName(candidate.Lane)}",
+            $"Loaded {candidate.Artifact.FileName} · {(laneResult.PackageValid ? "package valid" : "not package-validated")} · not tested · hash {selection.CandidateHashSha256![..12]}…"));
+        Save();
+    }
+
+    private bool CanChooseGeneratedCandidateAction() => CanChooseGeneratedCandidate;
+
+    [RelayCommand(CanExecute = nameof(CanRevalidateGeneratedCandidateAction))]
+    private void RevalidateGeneratedCandidate()
+    {
+        if (_parallelCandidateBatch is null ||
+            _editorBaseGeneratedCandidateHash is not { } priorHash ||
+            Files.Count != 1)
+            return;
+
+        var matchingLanes = _parallelCandidateBatch.Lanes.Where(lane => lane.Candidate is not null &&
+            string.Equals(lane.CandidateHashSha256, priorHash, StringComparison.Ordinal)).ToArray();
+        if (matchingLanes.Length != 1) return;
+        var candidate = matchingLanes[0].Candidate!;
+
+        var file = Files[0];
+        StrategyGenerationArtifactV1 editedArtifact;
+        try
+        {
+            if (candidate.Artifact.Source is not null)
+            {
+                editedArtifact = candidate.Artifact with
+                {
+                    FileName = file.Name,
+                    Source = file.Content,
+                    Document = null,
+                };
+            }
+            else if (candidate.Artifact.Document is not null)
+            {
+                using var document = JsonDocument.Parse(file.Content);
+                editedArtifact = candidate.Artifact with
+                {
+                    FileName = file.Name,
+                    Source = null,
+                    Document = document.RootElement.Clone(),
+                };
+            }
+            else
+            {
+                throw new InvalidOperationException("The selected candidate has no editable source or JSON document.");
+            }
+        }
+        catch (JsonException exception)
+        {
+            var detail = $"ARTIFACT_JSON_INVALID · artifact.document: {exception.Message}";
+            AiStatus = "The edited artifact is not valid JSON; the prior candidate remains unchanged.";
+            Status = AiStatus;
+            Append(AuthoringMessage.Tool("Fail", "Local revalidation failed", detail));
+            Save();
+            return;
+        }
+        catch (InvalidOperationException exception)
+        {
+            var detail = $"ARTIFACT_NOT_EDITABLE · artifact: {exception.Message}";
+            AiStatus = "The selected artifact cannot be locally revalidated.";
+            Status = AiStatus;
+            Append(AuthoringMessage.Tool("Fail", "Local revalidation failed", detail));
+            Save();
+            return;
+        }
+
+        var revalidation = StrategyGenerationBatchValidationV1.RevalidateArtifact(
+            _parallelCandidateBatch,
+            priorHash,
+            editedArtifact);
+        if (!revalidation.Applied)
+        {
+            var detail = FormatGenerationIssues(revalidation.Issues);
+            AiStatus = "The edited artifact could not be rebound to this candidate; the prior candidate remains unchanged.";
+            Status = AiStatus;
+            Append(AuthoringMessage.Tool("Fail", "Local revalidation failed", detail));
+            Save();
+            return;
+        }
+
+        var laneResult = revalidation.LaneResult!;
+        var newHash = laneResult.CandidateHashSha256!;
+        ApplyParallelCandidateBatch(revalidation.Batch!);
+        SetEditorBaseGeneratedCandidateHash(newHash);
+        SelectedGeneratedCandidateOption = GeneratedCandidateOptions.First(option =>
+            string.Equals(option.CandidateHashSha256, newHash, StringComparison.Ordinal));
+
+        if (laneResult.Selectable)
+        {
+            ChosenGeneratedCandidateHash = newHash;
+            if (laneResult.PackageValid)
+            {
+                AiStatus = $"The local edit passed package validation at hash {newHash[..12]}…. It has not been tested or run.";
+                Status = laneResult.Candidate!.PackageBinding.ImporterId is null
+                    ? $"Revalidated {file.Name}. Package validation passed, but no terminal importer is registered; no tests or execution ran."
+                    : $"Revalidated {file.Name} for importer '{laneResult.Candidate.PackageBinding.ImporterId}'. No tests or execution ran.";
+                Append(AuthoringMessage.Tool(
+                    "Ok",
+                    $"Revalidated {StrategyGenerationLaneCatalogV1.DisplayName(laneResult.Lane)}",
+                    $"Package valid · not tested · hash {newHash[..12]}…"));
+            }
+            else
+            {
+                var validationBoundary = laneResult.PackageValidationAvailable
+                    ? "No package-valid proof was produced"
+                    : "No package validator or importer is registered for this lane";
+                AiStatus = $"The local edit passed generation-format validation at hash {newHash[..12]}…. It is not package-validated, tested, or run.";
+                Status = $"Revalidated {file.Name}. {validationBoundary}; no tests or execution ran.";
+                Append(AuthoringMessage.Tool(
+                    "Ok",
+                    $"Revalidated {StrategyGenerationLaneCatalogV1.DisplayName(laneResult.Lane)}",
+                    $"Generated · not package-validated · not tested · hash {newHash[..12]}…"));
+            }
+        }
+        else
+        {
+            ChosenGeneratedCandidateHash = null;
+            var detail = FormatGenerationIssues(laneResult.Issues);
+            AiStatus = "The local edit received a new hash but is invalid and cannot be selected. Fix the editor content and revalidate again.";
+            Status = AiStatus;
+            Append(AuthoringMessage.Tool(
+                "Fail",
+                $"{StrategyGenerationLaneCatalogV1.DisplayName(laneResult.Lane)} edit is invalid",
+                detail));
+        }
+
+        Save();
+    }
+
+    private bool CanRevalidateGeneratedCandidateAction() => CanRevalidateGeneratedCandidate;
+
+    private static string FormatGenerationIssues(IReadOnlyList<StrategyCandidateGenerationIssueV1> issues) =>
+        string.Join(Environment.NewLine, issues.Select(issue =>
+            $"{issue.Code} · {issue.Path}: {issue.Message}"));
+
+    private static string EditableArtifactContent(StrategyGenerationArtifactV1 artifact)
+    {
+        if (artifact.Source is { } source) return source;
+        return artifact.Document is { } document
+            ? JsonSerializer.Serialize(document, new JsonSerializerOptions { WriteIndented = true })
+            : string.Empty;
+    }
+
+    private static string FormatParallelCandidates(ParallelStrategyGenerationResultV1 result)
+    {
+        var builder = new StringBuilder("I asked four strategy-generation agents to express the same brief.\n");
+        for (var index = 0; index < result.Lanes.Count; index++)
+        {
+            var lane = result.Lanes[index];
+            builder.AppendLine().Append(index + 1).Append(". ")
+                .Append(StrategyGenerationLaneCatalogV1.DisplayName(lane.Lane)).Append(" — ");
+            if (lane.PackageValid)
+                builder.Append("package-valid · ").Append(lane.Candidate!.Title).Append(" · ")
+                    .Append(lane.Candidate.Artifact.FileName);
+            else if (lane.Selectable)
+                builder.Append("generated, not package-validated · ").Append(lane.Candidate!.Title)
+                    .Append(" · ").Append(lane.Candidate.Artifact.FileName);
+            else if (lane.Readiness == StrategyGenerationReadinessV1.Invalid)
+                builder.Append("generated, invalid · ")
+                    .Append(lane.Issues.FirstOrDefault()?.Message ?? "deterministic validation failed");
+            else
+                builder.Append(lane.Readiness.ToString().ToLowerInvariant()).Append(" · ")
+                    .Append(lane.Issues.FirstOrDefault()?.Message ?? "unknown generation error");
+        }
+        return builder.AppendLine().AppendLine()
+            .Append("Every structurally valid option can be chosen. Package-valid only means an installed package validator passed; none were tested or run.")
+            .ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Legacy semantic lane retained for saved sessions and deployments that have not registered the
+    /// four-way coordinator yet.
+    /// </summary>
+    private async Task SendCandidateTurnAsync(AiProviderChoice choice, string prompt)
+    {
+        var turnStrategyId = StrategyId.Trim();
+        var turnEpoch = Interlocked.Increment(ref _generationContextEpoch);
+        Composer = string.Empty;
+        Append(new AuthoringMessage(CodegenRole.User, prompt));
+        Activity.Clear();
+        Diagnostics.Clear();
+        CompiledOk = false;
+        AwaitingAnswer = false;
+        IsGenerating = true;
+        AiStatus = CurrentCandidate is null
+            ? "Understanding the strategy and identifying the choices that matter…"
+            : "Applying your clarification to a new candidate revision…";
+
+        _generateCts?.Cancel();
+        _generateCts?.Dispose();
+        var turnCts = new CancellationTokenSource();
+        _generateCts = turnCts;
+        var ticking = TickElapsedAsync(turnCts.Token);
+
+        try
+        {
+            var session = EnsureGenerationSession(choice);
+            var result = await session.SendAsync(prompt, turnCts.Token);
+            if (!IsGenerationContextCurrent(turnEpoch, turnStrategyId)) return;
+            InputTokens += result.Usage.InputTokens;
+            OutputTokens += result.Usage.OutputTokens;
+            CachedTokens += result.Usage.CachedInputTokens;
+
+            if (!result.Success)
+            {
+                var detail = string.Join(Environment.NewLine, result.Issues
+                    .Where(issue => issue.Severity == StrategyCandidateGenerationIssueSeverityV1.Error)
+                    .Select(issue => $"{issue.Path}: {issue.Message}"));
+                AiStatus = "The strategy proposal did not pass the generation contract. Nothing was compiled.";
+                Append(AuthoringMessage.Tool("Fail", "Candidate not accepted", detail));
+                return;
+            }
+
+            var candidate = result.Candidate!;
+            var assessment = result.Assessment!;
+            ClearParallelCandidates();
+            ApplyCandidate(candidate, assessment);
+            Append(new AuthoringMessage(CodegenRole.Assistant, FormatCandidate(candidate, assessment)));
+            Append(AuthoringMessage.Tool(
+                "Ok",
+                $"Candidate revision {candidate.Revision}",
+                $"{result.AgentRuns.Count} agent run(s) · hash {StrategyCandidateCanonicalJsonV1.Hash(candidate)[..12]}…"));
+
+            AwaitingAnswer = HasUserChoice(assessment);
+            AiStatus = CandidateStatusText;
+            WorkbenchTab = 3;
+            _logger.LogInformation(
+                "Strategy candidate turn for {Id}: revision {Revision}, agents={Agents}, confirmable={Confirmable}, lowerable={Lowerable}",
+                StrategyId,
+                candidate.Revision,
+                result.AgentRuns.Count,
+                CanConfirmCandidate,
+                assessment.CanLower);
+        }
+        catch (OperationCanceledException)
+        {
+            if (IsGenerationContextCurrent(turnEpoch, turnStrategyId)) AiStatus = "Stopped.";
+        }
+        catch (Exception ex)
+        {
+            if (IsGenerationContextCurrent(turnEpoch, turnStrategyId))
+            {
+                _logger.LogError(ex, "Strategy candidate generation threw for {Id}", turnStrategyId);
+                AiStatus = $"Candidate generation error: {ex.Message}";
+                Append(AuthoringMessage.System(AiStatus));
+            }
+        }
+        finally
+        {
+            turnCts.Cancel();
+            await ticking;
+            if (IsGenerationContextCurrent(turnEpoch, turnStrategyId))
+            {
+                IsGenerating = false;
+                ElapsedText = null;
+                ElapsedCompact = null;
+                Save();
+            }
+            if (ReferenceEquals(_generateCts, turnCts)) _generateCts = null;
+            turnCts.Dispose();
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanConfirmCandidateAction))]
+    private void ConfirmCandidate()
+    {
+        if (CurrentCandidate is null || CandidateContentHash is null) return;
+
+        var result = _generationSession is null
+            ? StrategyCandidateConfirmationV1.Confirm(CurrentCandidate, CandidateContentHash)
+            : _generationSession.Confirm(CandidateContentHash);
+        if (!result.Success)
+        {
+            var detail = string.Join(Environment.NewLine, result.Issues.Select(issue =>
+                $"{issue.Path}: {issue.Message}"));
+            AiStatus = "This candidate still needs a choice or has changed since you reviewed it.";
+            Append(AuthoringMessage.Tool("Fail", "Cannot confirm candidate", detail));
+            return;
+        }
+
+        ApplyCandidate(result.Candidate!, result.Assessment!);
+        AwaitingAnswer = false;
+        Append(AuthoringMessage.Tool(
+            "Ok",
+            $"Meaning confirmed · revision {result.Candidate!.Revision}",
+            result.Assessment!.CanLower
+                ? "All required build support is present; the confirmed candidate may enter executable lowering."
+                : "The strategy meaning is accepted. Missing data or implementation remains visible below; no code was generated."));
+        AiStatus = CandidateStatusText;
+        Save();
+    }
+
+    private bool CanConfirmCandidateAction() => CanConfirmCandidate && !IsGenerating;
+
+    private void ApplyCandidate(StrategyCandidateV1 candidate, StrategyCandidateAssessmentV1 assessment)
+    {
+        CandidateRestoreWarning = null;
+        CurrentCandidate = candidate;
+        CandidateAssessment = assessment;
+        CandidateContentHash = StrategyCandidateCanonicalJsonV1.Hash(candidate);
+
+        CandidateGroups.Clear();
+        foreach (var row in FlattenCandidateGroups(candidate.Groups)) CandidateGroups.Add(row);
+
+        CandidateOpenQuestions.Clear();
+        foreach (var question in candidate.Groups
+                     .SelectMany(FlattenCandidateGroupsRaw)
+                     .SelectMany(static group => group.Statements)
+                     .Where(static statement => statement.Kind == StrategyCandidateStatementKindV1.Question &&
+                                                statement.State == StrategyCandidateStatementStateV1.Open))
+            CandidateOpenQuestions.Add(question);
+
+        CandidateBuildSupport.Clear();
+        foreach (var support in candidate.BuildSupport)
+            CandidateBuildSupport.Add(new StrategyBuildSupportRow(
+                support.Description,
+                SupportLabel(support.Status),
+                support.Detail,
+                support.RequiredForLowering));
+
+        CandidateIssues.Clear();
+        foreach (var issue in assessment.Issues) CandidateIssues.Add(issue);
+
+        var canConfirm = StrategyCandidateConfirmationV1.Confirm(candidate, CandidateContentHash).Success;
+        CandidateStatusText = assessment.CanLower
+            ? "Confirmed and ready for executable lowering."
+            : candidate.Status == StrategyCandidateStatusV1.Confirmed
+                ? "Strategy meaning confirmed. Data or implementation is still missing; no executable strategy was produced."
+                : HasUserChoice(assessment)
+                    ? "Answer the open choices, then review the next candidate revision."
+                    : canConfirm
+                        ? "Review the exact rules and press Confirm meaning."
+                        : "Review the candidate details and resolve the remaining items.";
+
+        OnPropertyChanged(nameof(CanConfirmCandidate));
+        ConfirmCandidateCommand.NotifyCanExecuteChanged();
+    }
+
+    private StrategyGenerationSessionV1 EnsureGenerationSession(AiProviderChoice choice)
+    {
+        var provider = ResolveClient(choice) ?? choice.Client;
+        var providerKey = $"{provider.ProviderId}\u001f{provider.Model}\u001f{provider.Effort}";
+        if (_generationSession is not null && string.Equals(_generationProviderKey, providerKey, StringComparison.Ordinal))
+            return _generationSession;
+
+        _generationSession = new StrategyGenerationSessionV1(
+            _candidateGenerator!,
+            provider,
+            $"strategy-generation/{StrategyId.Trim()}",
+            DisplayName.Trim(),
+            CurrentCandidate?.CandidateId ?? StrategyId.Trim(),
+            CurrentCandidate is null ? [] : [CurrentCandidate]);
+        _generationProviderKey = providerKey;
+        return _generationSession;
+    }
+
+    private static bool HasUserChoice(StrategyCandidateAssessmentV1 assessment) =>
+        assessment.Issues.Any(static issue => issue.Scope == StrategyCandidateIssueScopeV1.Confirmation &&
+            issue.Code is "CANDIDATE_QUESTION_OPEN" or "CANDIDATE_BUILD_SUPPORT_INCOMPLETE");
+
+    private static string FormatCandidate(
+        StrategyCandidateV1 candidate,
+        StrategyCandidateAssessmentV1 assessment)
+    {
+        var rules = candidate.Groups.SelectMany(FlattenCandidateGroupsRaw)
+            .SelectMany(static group => group.Statements)
+            .Where(static statement => statement.Kind is StrategyCandidateStatementKindV1.Rule or
+                StrategyCandidateStatementKindV1.Constraint)
+            .Select(static statement => $"• {statement.Text}")
+            .ToArray();
+        var questions = candidate.Groups.SelectMany(FlattenCandidateGroupsRaw)
+            .SelectMany(static group => group.Statements)
+            .Where(static statement => statement.Kind == StrategyCandidateStatementKindV1.Question &&
+                                       statement.State == StrategyCandidateStatementStateV1.Open)
+            .Select(static statement => $"• {statement.Text}")
+            .ToArray();
+        var missing = candidate.BuildSupport
+            .Where(static item => item.Status != StrategyBuildSupportStatusV1.Supported)
+            .Select(static item => $"• {item.Description}: {SupportLabel(item.Status)} — {item.Detail}")
+            .ToArray();
+
+        var builder = new StringBuilder()
+            .AppendLine(candidate.Title)
+            .AppendLine()
+            .AppendLine("Interpretation")
+            .AppendLine(candidate.Interpretation.Summary);
+        if (rules.Length > 0)
+            builder.AppendLine().AppendLine("Rules").AppendLine(string.Join(Environment.NewLine, rules));
+        if (questions.Length > 0)
+            builder.AppendLine().AppendLine("Your choices").AppendLine(string.Join(Environment.NewLine, questions));
+        if (missing.Length > 0)
+            builder.AppendLine().AppendLine("What is missing").AppendLine(string.Join(Environment.NewLine, missing));
+        if (!HasUserChoice(assessment))
+            builder.AppendLine().AppendLine("Next").AppendLine("Review the Candidate tab and confirm the exact meaning.");
+        return builder.ToString().TrimEnd();
+    }
+
+    private static IEnumerable<StrategyCandidateGroupRow> FlattenCandidateGroups(
+        IReadOnlyList<StrategyCandidateGroupV1> groups,
+        int depth = 0)
+    {
+        foreach (var group in groups)
+        {
+            yield return new StrategyCandidateGroupRow(depth, group.Kind.ToString(), group.Title, group.Summary, group.Statements);
+            foreach (var child in FlattenCandidateGroups(group.Children, depth + 1)) yield return child;
+        }
+    }
+
+    private static IEnumerable<StrategyCandidateGroupV1> FlattenCandidateGroupsRaw(
+        StrategyCandidateGroupV1 group)
+    {
+        yield return group;
+        foreach (var child in group.Children.SelectMany(FlattenCandidateGroupsRaw)) yield return child;
+    }
+
+    private static string SupportLabel(StrategyBuildSupportStatusV1 status) => status switch
+    {
+        StrategyBuildSupportStatusV1.NeedsUserChoice => "needs your choice",
+        StrategyBuildSupportStatusV1.NeedsImplementation => "needs implementation",
+        StrategyBuildSupportStatusV1.DataUnavailable => "data unavailable",
+        StrategyBuildSupportStatusV1.Unknown => "not checked yet",
+        _ => "supported",
+    };
 
     /// <summary>
     /// One streamed event, on the UI context (<see cref="Progress{T}"/> marshals it). Text grows the
@@ -915,15 +1894,19 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private bool CanStop => IsGenerating;
 
     [RelayCommand(CanExecute = nameof(CanStop))]
-    private void Stop() => _generateCts?.Cancel();
+    private void Stop()
+    {
+        if (!IsGenerating) return;
+        InvalidateGenerationContext();
+        AiStatus = "Stopped. Late provider output will be ignored.";
+    }
 
-    /// <summary>Start over: a fresh thread with the model, the starter template back in the editor. The
-    /// previous chat is NOT deleted — it stays in the picker under its own strategy id, so "new chat" can
-    /// never cost the user a conversation. Give the new one a new id before sending, or it will overwrite
-    /// the old one's file on the first turn.</summary>
+    /// <summary>Start over with a fresh identity, model thread, starter catalog, and editor template.
+    /// The previous chat is not deleted; it remains in the session rail under its saved strategy id.</summary>
     [RelayCommand]
     private void NewChat()
     {
+        InvalidateGenerationContext();
         Save();   // bank the outgoing conversation before abandoning it
 
         _restoring = true;
@@ -932,14 +1915,29 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             ResetSession(null);
             _restoredThread = null;
             _restoredUsage = null;
+            ClearCandidate();
+            StrategyId = DefaultStrategyId;
+            DisplayName = DefaultDisplayName;
+            GenerateCandidateFirst = true;
+            Composer = string.Empty;
+            StarterSearchText = string.Empty;
+            SelectedStarterFamily = AllStarterFamilies;
+            SelectedStarterHorizon = AllStarterHorizons;
+            SelectedStarterData = AllStarterData;
+            RefreshStarterBriefs();
             Messages.Clear();
             Activity.Clear();
             Tasks.Clear();
+            _taskBrief = _taskSkills = _taskGenerate = _taskCompile = _taskAutoFix = _taskReview = _taskSmoke = null;
+            _reviewCardEmitted = _smokeCardEmitted = false;
             Diagnostics.Clear();
-            InputTokens = OutputTokens = 0;
+            SelectedDiagnostic = null;
+            InputTokens = OutputTokens = CachedTokens = 0;
             CompiledOk = false;
             AwaitingAnswer = false;
             IsRegistered = false;
+            WorkbenchTab = 0;
+            SelectedSavedSession = null;
             CloseReview();
             _registeredBaseline.Clear();
             RefreshWorkStatus();
@@ -947,7 +1945,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
             _filesEditedByUser = false;
             AiStatus = null;
-            Status = "New conversation. Give it a strategy id, then describe what you want.";
+            Status = "New strategy. Choose a starter or describe your own idea; its id is derived from the first brief.";
         }
         finally
         {
@@ -975,14 +1973,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         if (session is null) return;
 
-        AuthoringSessionStore.Delete(session.StrategyId);
+        _sessionRepository.Delete(session.StrategyId);
         RefreshSavedSessions();
         Status = $"Deleted the chat for '{session.DisplayName}'. The strategy itself is untouched.";
     }
 
     private void RefreshSavedSessions()
     {
-        var saved = AuthoringSessionStore.List();
+        var saved = _sessionRepository.List();
 
         _restoring = true;   // repopulating the list re-fires the selection binding
         try
@@ -1001,10 +1999,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// token total, AND the model's own thread, so a follow-up like "now tighten the stop" still works.</summary>
     private void Restore(AuthoringSessionSnapshot session)
     {
+        InvalidateGenerationContext();
         _restoring = true;
+        string? restoreWarning = null;
         try
         {
             _session = null;
+            _generationSession = null;
+            _generationProviderKey = null;
             _restoredThread = session.Thread;
             _restoredUsage = new CodegenUsage(session.InputTokens, session.OutputTokens);
 
@@ -1036,17 +2038,125 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             InputTokens = session.InputTokens;
             OutputTokens = session.OutputTokens;
             Diagnostics.Clear();
+            Activity.Clear();
+            Tasks.Clear();
+            Parameters = null;
             CompiledOk = false;
             AwaitingAnswer = false;
-            IsRegistered = session.Registered;
+            // The old snapshot stores only a Boolean, not a live registry receipt bound to the exact
+            // files. Restoring it could claim runnable state after an in-memory-only install vanished.
+            IsRegistered = false;
+            if (session.Registered)
+                restoreWarning = "The chat was restored, but historical registration was cleared because no live, file-hash-bound registration proof exists.";
+            GenerateCandidateFirst = session.FourLaneGenerationEnabled;
+            ClearCandidate();
+            if (!string.IsNullOrWhiteSpace(session.CandidateJson))
+            {
+                try
+                {
+                    var restoredCandidate = StrategyCandidateCanonicalJsonV1.Deserialize(session.CandidateJson);
+                    if (!string.Equals(restoredCandidate.CandidateId, session.StrategyId, StringComparison.Ordinal))
+                        throw new InvalidOperationException(
+                            $"Candidate '{restoredCandidate.CandidateId}' does not belong to session '{session.StrategyId}'.");
+                    ApplyCandidate(restoredCandidate, StrategyCandidateValidatorV1.Assess(restoredCandidate));
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogWarning(exception, "Could not restore strategy candidate for {Id}", session.StrategyId);
+                }
+            }
+            if (!string.IsNullOrWhiteSpace(session.ParallelCandidateBatchJson))
+            {
+                string? recoveryPrompt = null;
+                try
+                {
+                    var restoredBatch = StrategyGenerationCandidateCanonicalJsonV1.DeserializeBatch(
+                        session.ParallelCandidateBatchJson);
+                    recoveryPrompt = restoredBatch.UserPrompt;
+                    ApplyParallelCandidateBatch(restoredBatch);
+
+                    // The editor base survives hand-edits even after the selected-candidate proof
+                    // is cleared. Persist it separately so an invalid edit can be repaired and revalidated
+                    // after a restart without rebinding it to whichever row happens to be selected.
+                    var restoredEditorBaseHash = session.EditorBaseParallelCandidateHash
+                        ?? session.SelectedParallelCandidateHash;
+                    if (!string.IsNullOrWhiteSpace(restoredEditorBaseHash))
+                    {
+                        var editorMatches = restoredBatch.Lanes.Where(lane => lane.Candidate is not null &&
+                            string.Equals(
+                                lane.CandidateHashSha256,
+                                restoredEditorBaseHash,
+                                StringComparison.Ordinal)).ToArray();
+                        if (editorMatches.Length == 1 && EditorMatchesCandidate(editorMatches[0].Candidate!))
+                        {
+                            SetEditorBaseGeneratedCandidateHash(restoredEditorBaseHash);
+                            SelectedGeneratedCandidateOption = GeneratedCandidateOptions.FirstOrDefault(option =>
+                                string.Equals(
+                                    option.CandidateHashSha256,
+                                    restoredEditorBaseHash,
+                                    StringComparison.Ordinal));
+                        }
+                        else
+                        {
+                            restoreWarning = "The chat was restored, but the saved candidate editor proof did not match the restored artifact and was cleared.";
+                            _logger.LogWarning(
+                                "Cleared restored editor-base candidate hash for {Id}: editor files do not match the artifact",
+                                session.StrategyId);
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(session.SelectedParallelCandidateHash) &&
+                        StrategyGenerationBatchValidationV1.Select(
+                            restoredBatch,
+                            session.SelectedParallelCandidateHash) is { Success: true } selection)
+                    {
+                        if (string.Equals(
+                                _editorBaseGeneratedCandidateHash,
+                                selection.CandidateHashSha256,
+                                StringComparison.Ordinal) &&
+                            EditorMatchesCandidate(selection.Candidate!))
+                        {
+                            ChosenGeneratedCandidateHash = selection.CandidateHashSha256;
+                            SelectedGeneratedCandidateOption = GeneratedCandidateOptions.FirstOrDefault(option =>
+                                string.Equals(
+                                    option.CandidateHashSha256,
+                                    selection.CandidateHashSha256,
+                                    StringComparison.Ordinal));
+                        }
+                        else
+                        {
+                            restoreWarning = "The chat was restored, but the saved selected-candidate proof did not match the editor and was cleared.";
+                            _logger.LogWarning(
+                                "Cleared restored parallel candidate hash for {Id}: editor files do not match the selected artifact",
+                                session.StrategyId);
+                        }
+                    }
+                }
+                catch (Exception exception)
+                {
+                    // ApplyParallelCandidateBatch may have populated cards before a later editor-proof
+                    // restore fails. Never leave those cards visible while claiming they were discarded.
+                    ClearParallelCandidates();
+                    if (!string.IsNullOrWhiteSpace(recoveryPrompt)) Composer = recoveryPrompt;
+                    CandidateRestoreWarning =
+                        "Saved candidate results no longer match the current validation contract. " +
+                        "Your chat and code were kept, but the old candidate choices were discarded. " +
+                        (string.IsNullOrWhiteSpace(recoveryPrompt)
+                            ? "Paste or refine the strategy brief in chat, then press Check & generate."
+                            : "The original brief is loaded in the composer; review or refine it, then press Check & generate.");
+                    restoreWarning = CandidateRestoreWarning;
+                    WorkbenchTab = 3;
+                    _logger.LogWarning(exception, "Could not restore parallel strategy candidates for {Id}", session.StrategyId);
+                }
+            }
             CloseReview();
             _registeredBaseline.Clear();   // the diff baseline is per-process; a restored review starts from "all new"
             _filesEditedByUser = false;
 
             SelectedSavedSession = SavedSessions.FirstOrDefault(s => s.StrategyId == session.StrategyId);
-            Status = Messages.Count > 0
+            Status = restoreWarning ?? (Messages.Count > 0
                 ? $"Restored the chat for '{session.DisplayName}' ({session.Age}). Carry on where you left off."
-                : "Describe a strategy in the chat, or write one yourself, then press Compile & Register.";
+                : "Describe the idea to check four strategy-generation lanes, or switch to Expert Code for direct C# authoring.");
         }
         finally
         {
@@ -1075,9 +2185,18 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             BuildEffort: BuildEffort.Wire(),
             InputTokens: InputTokens,
             OutputTokens: OutputTokens,
-            Registered: IsRegistered);
+            Registered: IsRegistered,
+            CandidateJson: CurrentCandidate is null ? null : StrategyCandidateCanonicalJsonV1.Serialize(CurrentCandidate),
+            GenerateCandidateFirst: GenerateCandidateFirst,
+            ParallelCandidateBatchJson: _parallelCandidateBatch is null
+                ? null
+                : StrategyGenerationCandidateCanonicalJsonV1.SerializeBatch(
+                    WithoutRawParallelResponses(_parallelCandidateBatch)),
+            SelectedParallelCandidateHash: ChosenGeneratedCandidateHash,
+            EditorBaseParallelCandidateHash: _editorBaseGeneratedCandidateHash,
+            AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion);
 
-        if (!AuthoringSessionStore.Save(snapshot))
+        if (!_sessionRepository.Save(snapshot))
         {
             _logger.LogWarning("Could not save the authoring chat for {Id}", StrategyId);
             return;
@@ -1116,6 +2235,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         CompiledOk = false;
         Parameters = null;
         CloseReview();
+
+        if (Files.Any(static file => !file.Name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))
+        {
+            Status = "Compile is the C# expert-code path. Use the selected artifact's package importer; none is registered for this file type yet.";
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(StrategyId))
         {
@@ -1257,14 +2382,162 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private void ResetSession(string? note)
     {
+        _generationSession = null;
+        _generationProviderKey = null;
         if (_session is null) return;
         _session = null;
         if (note is not null && Messages.Count > 0)
             Append(AuthoringMessage.System($"{note} The model won't remember what was said above."));
     }
 
+    private bool IsGenerationContextCurrent(long epoch, string strategyId) =>
+        epoch == Volatile.Read(ref _generationContextEpoch) &&
+        string.Equals(strategyId, StrategyId.Trim(), StringComparison.Ordinal);
+
+    private void InvalidateGenerationContext()
+    {
+        var wasGenerating = IsGenerating;
+        if (wasGenerating) CancelActiveGenerationLaneProgress();
+        Interlocked.Increment(ref _generationContextEpoch);
+        var active = _generateCts;
+        _generateCts = null;
+        active?.Cancel();
+        IsGenerating = false;
+        _streamingReply = null;
+        if (wasGenerating) FailRunningTasks();
+        ElapsedText = null;
+        ElapsedCompact = null;
+    }
+
+    /// <summary>Settle transient four-lane rows before advancing the generation epoch. Provider
+    /// cancellation callbacks arrive after the token is canceled and are deliberately rejected by the
+    /// epoch guard, so the view-model must record the terminal state itself. Completed and failed lanes
+    /// keep their truthful terminal result; only work that had not finished becomes canceled.</summary>
+    private void CancelActiveGenerationLaneProgress()
+    {
+        var changed = false;
+        foreach (var row in GenerationLaneProgressRows)
+        {
+            if (row.State is not (StrategyGenerationLaneProgressStateV1.Queued or
+                    StrategyGenerationLaneProgressStateV1.Running))
+                continue;
+
+            row.State = StrategyGenerationLaneProgressStateV1.Canceled;
+            changed = true;
+        }
+
+        if (changed) NotifyGenerationProgressChanged();
+    }
+
+    private void InvalidateGenerationIfActive()
+    {
+        if (IsGenerating) InvalidateGenerationContext();
+    }
+
+    private void InvalidateDerivedArtifactState(bool markUnregistered)
+    {
+        Parameters = null;
+        Diagnostics.Clear();
+        Activity.Clear();
+        Tasks.Clear();
+        CompiledOk = false;
+        AwaitingAnswer = false;
+        CloseReview();
+        if (markUnregistered) IsRegistered = false;
+    }
+
+    private static ParallelStrategyGenerationResultV1 WithoutRawParallelResponses(
+        ParallelStrategyGenerationResultV1 batch) =>
+        batch with
+        {
+            Lanes = batch.Lanes.Select(lane => lane with
+            {
+                AgentRun = lane.AgentRun with { RawResponse = null },
+            }).ToArray(),
+        };
+
+    private void ClearCandidate()
+    {
+        CandidateRestoreWarning = null;
+        ClearSemanticCandidate();
+        ClearParallelCandidates();
+    }
+
+    private void ClearSemanticCandidate()
+    {
+        _generationSession = null;
+        _generationProviderKey = null;
+        CurrentCandidate = null;
+        CandidateAssessment = null;
+        CandidateContentHash = null;
+        CandidateStatusText = null;
+        CandidateGroups.Clear();
+        CandidateOpenQuestions.Clear();
+        CandidateBuildSupport.Clear();
+        CandidateIssues.Clear();
+    }
+
+    private void ClearParallelCandidates()
+    {
+        SetEditorBaseGeneratedCandidateHash(null);
+        _parallelCandidateBatch = null;
+        SelectedGeneratedCandidateOption = null;
+        ChosenGeneratedCandidateHash = null;
+        ClearGeneratedCandidateOptionFlags();
+        GeneratedCandidateOptions.Clear();
+        GenerationLaneProgressRows.Clear();
+        NotifyGenerationProgressChanged();
+        NotifyParallelCandidateStateChanged();
+    }
+
+    private void RefreshGeneratedCandidateOptionFlags()
+    {
+        foreach (var option in GeneratedCandidateOptions)
+        {
+            option.IsPreviewed = ReferenceEquals(option, SelectedGeneratedCandidateOption);
+            option.IsChosen = ChosenGeneratedCandidateHash is { } chosenHash &&
+                string.Equals(option.CandidateHashSha256, chosenHash, StringComparison.Ordinal);
+        }
+    }
+
+    private void ClearGeneratedCandidateOptionFlags()
+    {
+        foreach (var option in GeneratedCandidateOptions)
+        {
+            option.IsPreviewed = false;
+            option.IsChosen = false;
+        }
+    }
+
+    private void NotifyParallelCandidateStateChanged()
+    {
+        RefreshGeneratedCandidateOptionFlags();
+        OnPropertyChanged(nameof(HasGeneratedCandidates));
+        OnPropertyChanged(nameof(HasCandidateContent));
+        OnPropertyChanged(nameof(SelectableGeneratedCandidateCount));
+        OnPropertyChanged(nameof(BlockedGeneratedCandidateCount));
+        OnPropertyChanged(nameof(HasBlockedGeneratedCandidates));
+        OnPropertyChanged(nameof(FirstBlockedGeneratedCandidateOption));
+        OnPropertyChanged(nameof(CandidateBatchHeadline));
+        OnPropertyChanged(nameof(CandidateBacktestAvailabilityText));
+        OnPropertyChanged(nameof(HasSelectedGeneratedCandidate));
+        OnPropertyChanged(nameof(HasChosenGeneratedCandidate));
+        OnPropertyChanged(nameof(ChosenGeneratedCandidateSummary));
+        OnPropertyChanged(nameof(CandidateActionText));
+        OnPropertyChanged(nameof(CanChooseGeneratedCandidate));
+        OnPropertyChanged(nameof(CanRevalidateGeneratedCandidate));
+        ChooseGeneratedCandidateCommand.NotifyCanExecuteChanged();
+        RevalidateGeneratedCandidateCommand.NotifyCanExecuteChanged();
+    }
+
     private void SetFiles(IReadOnlyList<StrategyFile> files)
     {
+        SetEditorBaseGeneratedCandidateHash(null);
+        ChosenGeneratedCandidateHash = null;
+        CompiledOk = false;
+        Parameters = null;
+        IsRegistered = false;
+        CloseReview();
         foreach (var existing in Files) existing.PropertyChanged -= OnFileEdited;
         Files.Clear();
 
@@ -1284,7 +2557,52 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private void OnFileEdited(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(AuthoredFile.Content) or nameof(AuthoredFile.Name))
+        {
             _filesEditedByUser = true;
+            InvalidateEditorProofs("The editor changed; prior compile, registration, and candidate-hash proofs were cleared.");
+        }
+    }
+
+    private void SetEditorBaseGeneratedCandidateHash(string? hash)
+    {
+        if (string.Equals(_editorBaseGeneratedCandidateHash, hash, StringComparison.Ordinal)) return;
+        _editorBaseGeneratedCandidateHash = hash;
+        OnPropertyChanged(nameof(CanRevalidateGeneratedCandidate));
+        RevalidateGeneratedCandidateCommand.NotifyCanExecuteChanged();
+    }
+
+    private void InvalidateEditorProofs(string status)
+    {
+        var hadProof = ChosenGeneratedCandidateHash is not null || CompiledOk || IsRegistered || ReviewOpen;
+        ChosenGeneratedCandidateHash = null;
+        InvalidateDerivedArtifactState(markUnregistered: true);
+        if (hadProof) Status = status;
+    }
+
+    private bool EditorMatchesCandidate(StrategyGenerationCandidateV1 candidate)
+    {
+        if (Files.Count != 1 ||
+            !string.Equals(Files[0].Name, candidate.Artifact.FileName, StringComparison.Ordinal))
+            return false;
+
+        if (candidate.Artifact.Source is { } source)
+            return string.Equals(Files[0].Content, source, StringComparison.Ordinal);
+
+        if (candidate.Artifact.Document is not { } document) return false;
+        try
+        {
+            // JSON whitespace and object-property order are not semantic candidate changes. Use the
+            // same RFC 8785 canonicalizer that hashes the artifact so a locally revalidated JSON edit
+            // can safely recover its editor-base provenance after restart.
+            return string.Equals(
+                ExecutableStrategyDefinitionCanonicalJson.Canonicalize(Files[0].Content),
+                ExecutableStrategyDefinitionCanonicalJson.Canonicalize(document.GetRawText()),
+                StringComparison.Ordinal);
+        }
+        catch (Exception exception) when (exception is JsonException or ArgumentException)
+        {
+            return false;
+        }
     }
 
     private string UniqueFileName(string preferred)
@@ -1414,12 +2732,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     public void Dispose()
     {
+        InvalidateGenerationContext();
         // Hand-edits in the Code tab aren't saved per keystroke; catch them on the way out.
         Save();
 
-        _generateCts?.Cancel();
-        _generateCts?.Dispose();
-        _generateCts = null;
         foreach (var file in Files) file.PropertyChanged -= OnFileEdited;
     }
 
@@ -1578,6 +2894,144 @@ public sealed partial class AuthoringMessage : ObservableObject
 
     public DateTime TimestampLocal { get; } = DateTime.Now;
 }
+
+/// <summary>A flattened display row for one recursively nested candidate group.</summary>
+public sealed record StrategyCandidateGroupRow(
+    int Depth,
+    string Kind,
+    string Title,
+    string Summary,
+    IReadOnlyList<StrategyCandidateStatementV1> Statements)
+{
+    public string Location => Depth == 0 ? Kind : $"{new string('·', Depth)} {Kind}";
+}
+
+/// <summary>Plain-language build-support row for the Candidate tab.</summary>
+public sealed record StrategyBuildSupportRow(
+    string Description,
+    string Status,
+    string Detail,
+    bool RequiredForLowering);
+
+/// <summary>One of the four parallel authoring alternatives shown before the user chooses an artifact.</summary>
+public sealed partial class StrategyGenerationCandidateOption : ObservableObject
+{
+    public StrategyGenerationCandidateOption(StrategyGenerationLaneResultV1 result) => Result = result;
+
+    public StrategyGenerationLaneResultV1 Result { get; }
+
+    [ObservableProperty] private bool _isPreviewed;
+    [ObservableProperty] private bool _isChosen;
+
+    public StrategyGenerationCandidateV1? Candidate => Result.Candidate;
+    public string? CandidateHashSha256 => Result.CandidateHashSha256;
+    public bool IsGenerated => Result.Generated;
+    public bool IsFailed => Result.Readiness is StrategyGenerationReadinessV1.Invalid
+        or StrategyGenerationReadinessV1.Failed
+        or StrategyGenerationReadinessV1.Unsupported;
+    public bool PackageValidationAvailable => Result.PackageValidationAvailable;
+    public string LaneName => StrategyGenerationLaneCatalogV1.DisplayName(Result.Lane);
+    public string Representation => Result.Lane switch
+    {
+        StrategyGenerationLaneV1.VibePython => "editable ordinary Python",
+        StrategyGenerationLaneV1.DeclarativeSpec => "declarative strategy JSON",
+        StrategyGenerationLaneV1.TypedGraph => "canonical DaxAlgo TradeIR module",
+        StrategyGenerationLaneV1.CspPython => "editable CSP event code",
+        _ => Result.Lane.ToString(),
+    };
+    public string StatusText => Result.Readiness switch
+    {
+        StrategyGenerationReadinessV1.PackageValid => "PACKAGE VALID · NOT TESTED",
+        StrategyGenerationReadinessV1.TestPassed => "TEST PASSED",
+        StrategyGenerationReadinessV1.Generated => "GENERATED · NOT PACKAGE-VALIDATED",
+        StrategyGenerationReadinessV1.Invalid => "GENERATED · INVALID",
+        StrategyGenerationReadinessV1.Unsupported => "UNSUPPORTED",
+        _ => "FAILED",
+    };
+    public string FailureHeading => Result.Readiness switch
+    {
+        StrategyGenerationReadinessV1.Unsupported => "LANE UNSUPPORTED",
+        StrategyGenerationReadinessV1.Invalid => "GENERATED ARTIFACT INVALID",
+        StrategyGenerationReadinessV1.Failed => "GENERATION FAILED",
+        _ => "LANE NOT SELECTABLE",
+    };
+    public string ArtifactName => Candidate?.Artifact.FileName ?? "no artifact";
+    public string Summary => Candidate?.Interpretation ?? ErrorText;
+    public StrategyCandidateGenerationIssueV1? FirstIssue =>
+        Result.Issues.FirstOrDefault(static issue =>
+            issue.Severity == StrategyCandidateGenerationIssueSeverityV1.Error)
+        ?? Result.Issues.FirstOrDefault();
+    public string FirstIssueCode => FirstIssue?.Code ?? "No issue code reported";
+    public string FirstIssuePath => FirstIssue?.Path ?? "No issue path reported";
+    public string FirstIssueMessage => FirstIssue?.Message
+        ?? Result.AgentRun.Error
+        ?? "The lane did not return diagnostic detail.";
+    public string ErrorText => string.Join(Environment.NewLine, Result.Issues.Select(issue =>
+        $"{issue.Code} · {issue.Path}: {issue.Message}"));
+    public string ArtifactPreview => Candidate?.Artifact.Source
+        ?? (Candidate?.Artifact.Document is { } document
+            ? JsonSerializer.Serialize(document, new JsonSerializerOptions { WriteIndented = true })
+            : string.Empty);
+    public string FlexibilityText => Candidate is null
+        ? string.Empty
+        : $"{Candidate.Parameters.Count} proposed parameters · {Candidate.VariationAxes.Count} proposed forks";
+}
+
+/// <summary>Live, transient state for one of the four concurrent generation agents.</summary>
+public sealed partial class StrategyGenerationLaneProgressRow : ObservableObject
+{
+    public StrategyGenerationLaneProgressRow(StrategyGenerationLaneV1 lane) => Lane = lane;
+
+    public StrategyGenerationLaneV1 Lane { get; }
+    public string LaneName => StrategyGenerationLaneCatalogV1.DisplayName(Lane);
+    public string AgentName => Lane switch
+    {
+        StrategyGenerationLaneV1.VibePython => "VibeAgent",
+        StrategyGenerationLaneV1.DeclarativeSpec => "SpecAgent",
+        StrategyGenerationLaneV1.TypedGraph => "GraphAgent",
+        StrategyGenerationLaneV1.CspPython => "CspAgent",
+        _ => Lane.ToString(),
+    };
+    public string ArtifactName => Lane switch
+    {
+        StrategyGenerationLaneV1.VibePython => "strategy.py",
+        StrategyGenerationLaneV1.DeclarativeSpec => "strategy.spec.json",
+        StrategyGenerationLaneV1.TypedGraph => "strategy.tradeir.json",
+        StrategyGenerationLaneV1.CspPython => "strategy.csp.py",
+        _ => "strategy artifact",
+    };
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StateLabel))]
+    [NotifyPropertyChangedFor(nameof(StateDetail))]
+    private StrategyGenerationLaneProgressStateV1 _state = StrategyGenerationLaneProgressStateV1.Queued;
+
+    public string StateLabel => State switch
+    {
+        StrategyGenerationLaneProgressStateV1.Queued => "WAITING",
+        StrategyGenerationLaneProgressStateV1.Running => "GENERATING",
+        StrategyGenerationLaneProgressStateV1.Completed => "FINISHED",
+        StrategyGenerationLaneProgressStateV1.Failed => "NEEDS ATTENTION",
+        StrategyGenerationLaneProgressStateV1.Canceled => "CANCELED",
+        _ => State.ToString().ToUpperInvariant(),
+    };
+    public string StateDetail => State switch
+    {
+        StrategyGenerationLaneProgressStateV1.Queued => "Queued for an independent model request",
+        StrategyGenerationLaneProgressStateV1.Running => $"Writing {ArtifactName}",
+        StrategyGenerationLaneProgressStateV1.Completed => "Artifact returned; deterministic checks finished",
+        StrategyGenerationLaneProgressStateV1.Failed => "Provider or deterministic validation blocked this lane",
+        StrategyGenerationLaneProgressStateV1.Canceled => "Stopped by the user",
+        _ => string.Empty,
+    };
+}
+
+/// <summary>One explicit gate between a generated authoring artifact and a runnable backtest.</summary>
+public sealed record CandidateReadinessStageRow(
+    string Step,
+    string Title,
+    string Status,
+    string Detail);
 
 /// <summary>One file's change counts for the per-turn chips ("SweepDetector.cs +64 −8").</summary>
 public sealed record FileChangeSummary(string Name, int Added, int Removed)

@@ -10,6 +10,7 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 /// </summary>
 public sealed class FakeCodegenClient : IStrategyCodegenClient
 {
+    private readonly object _gate = new();
     private readonly Queue<string> _replies;
     private string _last = string.Empty;
 
@@ -36,15 +37,20 @@ public sealed class FakeCodegenClient : IStrategyCodegenClient
 
     public Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
     {
-        CallCount++;
-        LastRequest = request;
-        if (_replies.Count > 0) _last = _replies.Dequeue();
+        string reply;
+        lock (_gate)
+        {
+            CallCount++;
+            LastRequest = request;
+            if (_replies.Count > 0) _last = _replies.Dequeue();
+            reply = _last;
+        }
 
         // A reply with no code is a question — same semantics as a real provider.
-        var files = CodegenCodeExtractor.ExtractFiles(_last);
+        var files = CodegenCodeExtractor.ExtractFiles(reply);
         return Task.FromResult(files.Count == 0
-            ? StrategyCodegenResponse.Reply(_last, Usage)
-            : StrategyCodegenResponse.Ok(files, _last, Usage));
+            ? StrategyCodegenResponse.Reply(reply, Usage)
+            : StrategyCodegenResponse.Ok(files, reply, Usage));
     }
 
     /// <summary>A minimal always-compiling kernel that matches output contract (a): single class, no

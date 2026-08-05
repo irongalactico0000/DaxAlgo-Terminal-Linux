@@ -32,6 +32,21 @@ public static class StrategyCodegenServiceCollectionExtensions
         // once per conversation from the brief, so the system prompt stays cacheable.
         services.AddSingleton(_ => StrategySkillLibrary.Load());
         services.AddSingleton<StrategyCodegenOrchestrator>();
+        services.TryAddSingleton<IStrategyGenerationAgentRouterV1, SameProviderStrategyGenerationAgentRouterV1>();
+        services.AddSingleton<StrategyCandidateGenerationOrchestratorV1>();
+        services.AddSingleton<IStrategyCandidateGeneratorV1>(sp =>
+            sp.GetRequiredService<StrategyCandidateGenerationOrchestratorV1>());
+        services.AddSingleton<IStrategyGenerationLaneAgentV1>(
+            _ => new StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1.VibePython));
+        services.AddSingleton<IStrategyGenerationLaneAgentV1>(
+            _ => new StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1.DeclarativeSpec));
+        services.AddSingleton<IStrategyGenerationLaneAgentV1>(
+            _ => new StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1.TypedGraph));
+        services.AddSingleton<IStrategyGenerationLaneAgentV1>(
+            _ => new StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1.CspPython));
+        services.AddSingleton<ParallelStrategyCandidateGeneratorV1>();
+        services.AddSingleton<IParallelStrategyCandidateGeneratorV1>(sp =>
+            sp.GetRequiredService<ParallelStrategyCandidateGeneratorV1>());
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiCodegenOptions>>().Value;

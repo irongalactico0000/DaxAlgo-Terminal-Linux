@@ -142,6 +142,7 @@
             </Grid>
 
             <Button Classes="aiAction" Content="＋  New strategy"
+                    IsEnabled="{Binding !IsGenerating}"
                     Command="{Binding NewChatCommand}" />
           </StackPanel>
 
@@ -171,6 +172,7 @@
           </StackPanel>
 
           <ListBox Classes="chromeLess" ItemsSource="{Binding SavedSessions}"
+                   IsEnabled="{Binding !IsGenerating}"
                    SelectedItem="{Binding SelectedSavedSession, Mode=TwoWay}">
             <ListBox.Styles>
               <Style Selector="ListBoxItem">
@@ -212,6 +214,7 @@
                     Command="{Binding ToggleRailCommand}" ToolTip.Tip="Expand session rail" />
           </Border>
           <Button Classes="aiAction" Content="＋" Padding="0" Width="34" Height="34"
+                  IsEnabled="{Binding !IsGenerating}"
                   Command="{Binding NewChatCommand}" ToolTip.Tip="New strategy" />
         </StackPanel>
       </Border>
@@ -295,7 +298,7 @@
           </ScrollViewer>
 
           <StackPanel IsVisible="{Binding !HasConversation}" VerticalAlignment="Center"
-                      HorizontalAlignment="Center" MaxWidth="560">
+                      HorizontalAlignment="Center" MaxWidth="600">
             <Border Width="46" Height="46" Background="{StaticResource Gradient.Ai}"
                     CornerRadius="12" HorizontalAlignment="Center">
               <TextBlock Text="VQ" FontSize="16" FontWeight="Bold" Foreground="White"
@@ -303,21 +306,88 @@
             </Border>
             <TextBlock Text="Describe the strategy. Watch it get built."
                        Classes="header" FontSize="16.5" HorizontalAlignment="Center" Margin="0,14,0,4" />
-            <TextBlock Text="Vibe Quant plans, writes, compiles and smoke-tests it — you review and register."
+            <TextBlock Text="Start from an idea across strategy family, horizon, market topology, and data — then edit the brief before four AI agents build alternatives."
                        Classes="muted" FontSize="11.5" TextWrapping="Wrap" TextAlignment="Center"
                        HorizontalAlignment="Center" />
 
-            <ItemsControl ItemsSource="{Binding SuggestionBriefs}" Margin="0,18,0,0"
-                          IsVisible="{Binding AiHasProvider}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Button Classes="pill" Margin="0,3" HorizontalAlignment="Stretch"
-                          Tag="{Binding}" Click="OnUseSuggestion">
-                    <TextBlock Text="{Binding}" TextWrapping="Wrap" MaxWidth="530" />
-                  </Button>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <Grid Margin="0,16,0,0" RowDefinitions="Auto,Auto,Auto,*"
+                  IsVisible="{Binding AiHasProvider}">
+              <TextBox Grid.Row="0" Text="{Binding StarterSearchText, Mode=TwoWay}"
+                       Watermark="Search 22 ideas — momentum, pairs, options, execution…"
+                       MinHeight="32" />
+              <Grid Grid.Row="1" ColumnDefinitions="*,*,*,Auto" Margin="0,7,0,0">
+                <ComboBox Grid.Column="0" ItemsSource="{Binding StarterFamilyOptions}"
+                          SelectedItem="{Binding SelectedStarterFamily, Mode=TwoWay}"
+                          MinWidth="150" Margin="0,0,6,0" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding StarterHorizonOptions}"
+                          SelectedItem="{Binding SelectedStarterHorizon, Mode=TwoWay}" Margin="0,0,6,0" />
+                <ComboBox Grid.Column="2" ItemsSource="{Binding StarterDataOptions}"
+                          SelectedItem="{Binding SelectedStarterData, Mode=TwoWay}" Margin="0,0,6,0" />
+                <Button Grid.Column="3" Classes="ghost" Content="Clear"
+                        Command="{Binding ClearStarterFiltersCommand}" />
+              </Grid>
+              <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="2,7,2,3">
+                <TextBlock Text="STRATEGY STARTERS BY AXIS" Classes="eyebrow" />
+                <TextBlock Grid.Column="1" Text="{Binding StarterResultText}"
+                           Classes="caption" FontFamily="{StaticResource Font.Data}" />
+              </Grid>
+              <ListBox Grid.Row="3" Classes="chromeLess" MaxHeight="300"
+                       ItemsSource="{Binding VisibleStarterBriefs}"
+                       ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ListBox.Styles>
+                  <Style Selector="ListBoxItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Padding" Value="0" />
+                  </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <Button Classes="pill" Margin="0,3" Padding="11,8"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                            Tag="{Binding Prompt}" Click="OnUseStarter">
+                      <Grid RowDefinitions="Auto,Auto,Auto">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                          <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="11.5"
+                                     TextTrimming="CharacterEllipsis" />
+                          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="{Binding AxisLabels.Horizon}" Classes="caption"
+                                       FontFamily="{StaticResource Font.Data}" />
+                            <TextBlock Text="{Binding AxisLabels.Topology}" Classes="caption"
+                                       FontFamily="{StaticResource Font.Data}" />
+                          </StackPanel>
+                        </Grid>
+                        <TextBlock Grid.Row="1" Text="{Binding Summary}" Classes="caption"
+                                   TextWrapping="Wrap" MaxLines="2" Margin="0,3,0,0" />
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,5,0,0">
+                          <ItemsControl ItemsSource="{Binding FamilyLabels}">
+                            <ItemsControl.ItemsPanel>
+                              <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <Border Classes="chip" Margin="0,0,4,0">
+                                  <TextBlock Text="{Binding}" FontSize="9" />
+                                </Border>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                          <ItemsControl ItemsSource="{Binding AxisLabels.Data}">
+                            <ItemsControl.ItemsPanel>
+                              <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <TextBlock Text="{Binding}" Classes="caption" Margin="0,0,5,0" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                      </Grid>
+                    </Button>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
 
             <Border Background="{StaticResource Ai.Soft}" BorderBrush="{StaticResource Ai.Glow.Brush}"
                     BorderThickness="1" CornerRadius="7" Padding="12,10" Margin="0,18,0,0"
@@ -334,7 +404,7 @@
           <Border Background="{StaticResource Ai.Soft}" BorderBrush="{StaticResource Ai.Glow.Brush}"
                   BorderThickness="1" CornerRadius="4" Padding="8,5"
                   IsVisible="{Binding AwaitingAnswer}">
-            <TextBlock Text="The model needs an answer before it writes the strategy — reply below."
+            <TextBlock Text="The strategy still needs one of your choices — reply below."
                        FontWeight="SemiBold" TextWrapping="Wrap" />
           </Border>
           <Grid ColumnDefinitions="*,Auto">
@@ -362,8 +432,25 @@
                      KeyDown="OnComposerKeyDown" />
 
             <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
-              <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                <Button Classes="pill aiPill" ToolTip.Tip="Choose the provider and model.">
+              <WrapPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
+                         IsEnabled="{Binding !IsGenerating}">
+                <Border Background="{StaticResource Ai.Soft}"
+                        BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="1"
+                        CornerRadius="14" Padding="10,4" Margin="0,0,6,4">
+                  <StackPanel Orientation="Horizontal" Spacing="5">
+                    <TextBlock Text="&#x2726;" Foreground="{StaticResource Ai.Text.Brush}" />
+                    <TextBlock Text="{Binding GenerationModeLabel}"
+                               Foreground="{StaticResource Ai.Text.Brush}"
+                               FontWeight="SemiBold" FontSize="10.5" />
+                  </StackPanel>
+                </Border>
+                <Button Classes="ghost" Content="{Binding GenerationModeActionText}"
+                        Command="{Binding ToggleGenerationModeCommand}"
+                        Padding="6,3" FontSize="9.5" Margin="0,0,6,4"
+                        ToolTip.Tip="Switch generation workflow. Four candidates compares editable artifacts; Expert Code writes C# directly." />
+
+                <Button Classes="pill aiPill" Margin="0,0,6,4"
+                        ToolTip.Tip="Choose the provider and model.">
                   <TextBlock>
                     <Run Text="◇ " /><Run Text="{Binding ModelPillText}" /><Run Text="  ▾" />
                   </TextBlock>
@@ -404,7 +491,7 @@
                   </Button.Flyout>
                 </Button>
 
-                <Button Classes="pill" ToolTip.Tip="Builder effort.">
+                <Button Classes="pill" Margin="0,0,6,4" ToolTip.Tip="Builder effort.">
                   <TextBlock><Run Text="Build: " /><Run Text="{Binding BuildEffort}" /><Run Text="  ▾" /></TextBlock>
                   <Button.Flyout>
                     <Flyout Placement="Top">
@@ -414,7 +501,8 @@
                   </Button.Flyout>
                 </Button>
 
-                <Button Classes="pill" IsEnabled="{Binding EffortSupported}" ToolTip.Tip="Model reasoning effort.">
+                <Button Classes="pill" Margin="0,0,6,4"
+                        IsEnabled="{Binding EffortSupported}" ToolTip.Tip="Model reasoning effort.">
                   <TextBlock><Run Text="Reasoning: " /><Run Text="{Binding SelectedEffort}" /><Run Text="  ▾" /></TextBlock>
                   <Button.Flyout>
                     <Flyout Placement="Top">
@@ -423,12 +511,13 @@
                     </Flyout>
                   </Button.Flyout>
                 </Button>
-              </StackPanel>
+              </WrapPanel>
 
-              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                          VerticalAlignment="Bottom" Margin="0,0,0,4">
                 <Button Content="■  Stop" Command="{Binding StopCommand}"
                         IsVisible="{Binding IsGenerating}" />
-                <Button Classes="aiAction" Content="Send  ⌘↵" Command="{Binding SendCommand}"
+                <Button Classes="aiAction" Content="{Binding SendButtonText}" Command="{Binding SendCommand}"
                         IsVisible="{Binding !IsGenerating}" />
               </StackPanel>
             </Grid>
@@ -449,17 +538,28 @@
                 <StackPanel Grid.Column="0" Spacing="3">
                   <TextBlock Text="STRATEGY ID" Classes="eyebrow" />
                   <TextBox Text="{Binding StrategyId, Mode=TwoWay}"
+                           IsEnabled="{Binding !IsGenerating}"
                            FontFamily="{StaticResource Font.Data}" />
                 </StackPanel>
                 <StackPanel Grid.Column="2" Spacing="3">
                   <TextBlock Text="DISPLAY NAME" Classes="eyebrow" />
-                  <TextBox Text="{Binding DisplayName, Mode=TwoWay}" />
+                  <TextBox Text="{Binding DisplayName, Mode=TwoWay}"
+                           IsEnabled="{Binding !IsGenerating}" />
                 </StackPanel>
               </Grid>
 
               <Button Classes="aiAction" Content="⚡  Compile &amp; Register"
                       Command="{Binding CompileCommand}"
+                      IsEnabled="{Binding !IsGenerating}"
+                      IsVisible="{Binding !GenerateCandidateFirst}"
                       ToolTip.Tip="Compile every file, then review before registration" />
+
+              <Border Background="{StaticResource Ai.Soft}" BorderBrush="{StaticResource Ai.Glow.Brush}"
+                      BorderThickness="1" CornerRadius="5" Padding="8,6"
+                      IsVisible="{Binding GenerateCandidateFirst}">
+                <TextBlock Text="Four AI generation agents: Vibe Python, declarative rules, TradeIR graph, and CSP. Every structurally valid artifact can be chosen; package validation is reported separately, and choosing never tests or runs it."
+                           Classes="caption" TextWrapping="Wrap" />
+              </Border>
 
               <Grid ColumnDefinitions="Auto,*">
                 <Border Grid.Column="0" Classes="chip" Background="{StaticResource Warning.Soft}">
@@ -472,30 +572,34 @@
                                IsVisible="{Binding IsRegistered}" />
                   </Grid>
                 </Border>
-                <TextBlock Grid.Column="1" Text="reviewed code runs in-process" Classes="caption"
+                <TextBlock Grid.Column="1" Text="{Binding AuthoringBoundaryText}" Classes="caption"
                            HorizontalAlignment="Right" VerticalAlignment="Center" />
               </Grid>
               <TextBlock Text="{Binding Status}" Classes="caption" TextWrapping="Wrap" />
             </StackPanel>
           </Border>
 
-          <Border DockPanel.Dock="Bottom" Padding="12,7"
+          <Border x:Name="CliWorkspaceFooter" DockPanel.Dock="Bottom" Padding="12,7"
                   BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0"
                   IsVisible="{Binding AvailableClis.Count, Converter={StaticResource PositiveCount}}">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <TextBlock Text="OPEN WORKSPACE IN" Classes="eyebrow" VerticalAlignment="Center" />
-              <ItemsControl ItemsSource="{Binding AvailableClis}">
-                <ItemsControl.ItemsPanel>
-                  <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate>
-                    <Button Classes="ghost" Margin="0,0,5,0" Content="{Binding DisplayName}"
-                            Tag="{Binding}" Click="OnLaunchCli" />
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
+            <ScrollViewer MaxHeight="84"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+              <StackPanel Spacing="5">
+                <TextBlock Text="OPEN WORKSPACE IN" Classes="eyebrow" />
+                <ItemsControl ItemsSource="{Binding AvailableClis}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Button Classes="ghost" Margin="0,0,5,5" Content="{Binding DisplayName}"
+                              Tag="{Binding}" Click="OnLaunchCli" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </ScrollViewer>
           </Border>
 
           <TabControl SelectedIndex="{Binding WorkbenchTab, Mode=TwoWay}"
@@ -526,8 +630,10 @@
                   </ListBox>
                   <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
                     <Button Classes="ghost" Content="＋" Command="{Binding AddFileCommand}"
+                            IsEnabled="{Binding !IsGenerating}"
                             ToolTip.Tip="Add helper file" />
                     <Button Classes="ghost" Content="−" Command="{Binding RemoveFileCommand}"
+                            IsEnabled="{Binding !IsGenerating}"
                             CommandParameter="{Binding SelectedFile}" ToolTip.Tip="Remove selected file" />
                   </StackPanel>
                 </Grid>
@@ -536,6 +642,7 @@
                         BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
                         CornerRadius="4" Margin="0,6,0,0">
                   <TextBox Text="{Binding SelectedFile.Content, Mode=TwoWay}"
+                           IsEnabled="{Binding !IsGenerating}"
                            AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
                            ScrollViewer.HorizontalScrollBarVisibility="Auto"
                            ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -647,6 +754,524 @@
                     </ItemsControl>
                   </ScrollViewer>
                 </Border>
+              </Grid>
+            </TabItem>
+
+            <TabItem Header="Candidate">
+              <Grid Margin="0,8,0,0" RowDefinitions="Auto,*">
+                <Border Grid.Row="0" IsVisible="{Binding IsGeneratingCandidates}"
+                        Background="{StaticResource Ai.Soft}"
+                        BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="1"
+                        CornerRadius="5" Padding="9,8" Margin="0,0,0,8">
+                  <StackPanel Spacing="7">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Grid.Column="0" Spacing="1">
+                        <TextBlock Text="Generating four candidates" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Ai.Text.Brush}" />
+                        <TextBlock Text="Each lane is a separate AI request and produces a different editable representation."
+                                   Classes="caption" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="1" Text="{Binding GenerationProgressSummary}"
+                                 Classes="caption" FontFamily="{StaticResource Font.Data}"
+                                 VerticalAlignment="Center" />
+                    </Grid>
+                    <ProgressBar Height="3" IsIndeterminate="True" />
+                    <ItemsControl ItemsSource="{Binding GenerationLaneProgressRows}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <UniformGrid Columns="2" Rows="2" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Background="{StaticResource Background.Elevated}"
+                                  BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                  CornerRadius="4" Padding="7,5" Margin="2">
+                            <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+                              <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding AgentName}"
+                                         FontWeight="SemiBold" FontSize="10.5" />
+                              <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding StateLabel}"
+                                         Foreground="{StaticResource Ai.Text.Brush}"
+                                         FontFamily="{StaticResource Font.Data}" FontSize="9" />
+                              <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding LaneName}"
+                                         Classes="caption" />
+                              <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding StateDetail}"
+                                         Classes="caption" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </Grid>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Border>
+
+                <Grid Grid.Row="1" IsVisible="{Binding !HasCandidateContent}">
+                  <StackPanel IsVisible="{Binding !IsGeneratingCandidates}"
+                              VerticalAlignment="Center" HorizontalAlignment="Center"
+                              MaxWidth="300" Spacing="7">
+                    <StackPanel IsVisible="{Binding !HasCandidateRestoreWarning}" Spacing="7">
+                      <TextBlock Text="No strategy options yet" FontWeight="SemiBold"
+                                 HorizontalAlignment="Center" />
+                      <TextBlock Text="Describe a trading idea in chat. Four candidates is the primary generation mode."
+                                 Classes="caption" TextWrapping="Wrap" TextAlignment="Center" />
+                    </StackPanel>
+                    <Border IsVisible="{Binding HasCandidateRestoreWarning}"
+                            Padding="12,10" CornerRadius="6"
+                            Background="{StaticResource Warning.Soft}"
+                            BorderBrush="{StaticResource Warning.Brush}" BorderThickness="1"
+                            AutomationProperties.Name="Saved candidate recovery">
+                      <StackPanel Spacing="6">
+                        <TextBlock Text="Saved candidates need fresh generation"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource Warning.Brush}" />
+                        <TextBlock Text="{Binding CandidateRestoreWarning}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="Next: review the recovered brief in the composer, then press Check &amp; generate."
+                                   Classes="caption" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Border>
+                  </StackPanel>
+                </Grid>
+
+                <ScrollViewer Grid.Row="1" IsVisible="{Binding HasGeneratedCandidates}"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              AutomationProperties.Name="Scrollable candidate results">
+                  <StackPanel Margin="0,0,4,0">
+                  <Border Margin="0,0,0,7" Padding="9,8"
+                          Background="{StaticResource Background.Elevated}"
+                          BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="1"
+                          CornerRadius="5"
+                          AutomationProperties.Name="Candidate outcome and next steps">
+                    <StackPanel Spacing="5">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Spacing="1">
+                          <TextBlock Text="CANDIDATE OUTCOME" Classes="eyebrow" />
+                          <TextBlock Text="{Binding CandidateBatchHeadline}"
+                                     FontWeight="SemiBold" FontSize="12" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Text="4 AI lanes" Classes="caption"
+                                   FontFamily="{StaticResource Font.Data}"
+                                   VerticalAlignment="Center" />
+                      </Grid>
+
+                      <Border IsVisible="{Binding HasBlockedGeneratedCandidates}"
+                              Background="{StaticResource Warning.Soft}"
+                              BorderBrush="{StaticResource Warning.Brush}" BorderThickness="1"
+                              CornerRadius="4" Padding="6,4"
+                              ToolTip.Tip="{Binding FirstBlockedGeneratedCandidateOption.FirstIssueMessage}">
+                        <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*">
+                          <TextBlock Grid.Row="0" Grid.Column="0"
+                                     Text="{Binding FirstBlockedGeneratedCandidateOption.LaneName}"
+                                     Foreground="{StaticResource Warning.Brush}"
+                                     FontWeight="SemiBold" FontSize="10" Margin="0,0,6,0" />
+                          <TextBlock Grid.Row="0" Grid.Column="1"
+                                     Text="{Binding FirstBlockedGeneratedCandidateOption.FirstIssueCode}"
+                                     FontFamily="{StaticResource Font.Data}" FontSize="9.5"
+                                     TextWrapping="Wrap" />
+                          <TextBlock Grid.Row="1" Grid.ColumnSpan="2"
+                                     Text="{Binding FirstBlockedGeneratedCandidateOption.FirstIssuePath}"
+                                     Classes="caption" FontFamily="{StaticResource Font.Data}"
+                                     TextWrapping="Wrap" Margin="0,2,0,0" />
+                          <TextBlock Grid.Row="2" Grid.ColumnSpan="2"
+                                     Text="{Binding FirstBlockedGeneratedCandidateOption.FirstIssueMessage}"
+                                     Classes="caption" TextTrimming="CharacterEllipsis"
+                                     Margin="0,2,0,0" />
+                        </Grid>
+                      </Border>
+
+                      <TextBlock Text="Generated = structurally shaped draft only — not proven correct, runnable, tested, or backtest-ready."
+                                 Classes="caption" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding CandidateBacktestAvailabilityText}"
+                                 Foreground="{StaticResource Warning.Brush}"
+                                 FontSize="10" FontWeight="SemiBold" TextWrapping="Wrap" />
+                      <TextBlock Text="Draft flow · Preview → Use selected → edit → Revalidate. Runnable path · switch mode, ask for a C# reimplementation, then Compile &amp; Register."
+                                 Classes="caption" TextWrapping="Wrap" />
+
+                      <StackPanel Spacing="1" IsVisible="{Binding HasChosenGeneratedCandidate}">
+                        <TextBlock Text="{Binding ChosenGeneratedCandidateSummary}"
+                                   FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Bullish.Brush}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Classes="caption" FontFamily="{StaticResource Font.Data}"
+                                   TextTrimming="CharacterEllipsis">
+                          <Run Text="SHA-256  " />
+                          <Run Text="{Binding ChosenGeneratedCandidateHash}" />
+                        </TextBlock>
+                      </StackPanel>
+
+                      <WrapPanel HorizontalAlignment="Right">
+                        <Button Classes="ghost" Content="Switch to Expert C#"
+                                Command="{Binding ToggleGenerationModeCommand}"
+                                Margin="0,2,6,0"
+                                ToolTip.Tip="Switches authoring mode only. Ask the agent to reimplement the brief as C# before Compile &amp; Register." />
+                        <Button Classes="ghost" Content="Revalidate edit"
+                                Command="{Binding RevalidateGeneratedCandidateCommand}"
+                                IsEnabled="{Binding CanRevalidateGeneratedCandidate}"
+                                Margin="0,2,6,0"
+                                ToolTip.Tip="Hashes the artifact currently loaded in the editor, reruns its deterministic format checks, and uses a package validator when one is registered; no model call, test, import, or execution occurs." />
+                        <Button Classes="aiAction" Content="{Binding CandidateActionText}"
+                                Command="{Binding ChooseGeneratedCandidateCommand}"
+                                IsEnabled="{Binding CanChooseGeneratedCandidate}"
+                                Margin="0,2,0,0"
+                                ToolTip.Tip="Loads this exact artifact into the existing editor; no model call or execution occurs." />
+                      </WrapPanel>
+                    </StackPanel>
+                  </Border>
+
+                  <ListBox Classes="chromeLess" MaxHeight="238"
+                           ItemsSource="{Binding GeneratedCandidateOptions}"
+                           SelectedItem="{Binding SelectedGeneratedCandidateOption, Mode=TwoWay}">
+                    <ListBox.Styles>
+                      <Style Selector="ListBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0" />
+                      </Style>
+                    </ListBox.Styles>
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <UniformGrid Columns="2" Rows="2" />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <Grid MinHeight="104" Margin="3">
+                          <Border Background="{StaticResource Background.Elevated}"
+                                  BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                  CornerRadius="5" />
+                          <Border IsVisible="{Binding IsPreviewed}"
+                                  BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="2"
+                                  CornerRadius="5" IsHitTestVisible="False" />
+                          <Border IsVisible="{Binding IsChosen}"
+                                  BorderBrush="{StaticResource Bullish.Brush}" BorderThickness="0,0,0,3"
+                                  CornerRadius="5" IsHitTestVisible="False" />
+                          <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" Margin="8,7">
+                            <TextBlock Grid.Row="0" Text="{Binding LaneName}"
+                                       FontWeight="SemiBold" FontSize="10.5"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Row="1" Text="{Binding StatusText}"
+                                       Classes="caption" FontFamily="{StaticResource Font.Data}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4" Margin="0,4,0,2">
+                              <Border IsVisible="{Binding IsPreviewed}"
+                                      Background="{StaticResource Ai.Soft}"
+                                      BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="1"
+                                      CornerRadius="8" Padding="5,1">
+                                <TextBlock Text="PREVIEW" FontSize="8" FontWeight="Bold"
+                                           Foreground="{StaticResource Ai.Text.Brush}" />
+                              </Border>
+                              <Border IsVisible="{Binding IsChosen}"
+                                      Background="{StaticResource Bullish.Soft}"
+                                      BorderBrush="{StaticResource Bullish.Brush}" BorderThickness="1"
+                                      CornerRadius="8" Padding="5,1">
+                                <TextBlock Text="ACTIVE IN EDITOR" FontSize="8" FontWeight="Bold"
+                                           Foreground="{StaticResource Bullish.Brush}" />
+                              </Border>
+                            </StackPanel>
+                            <TextBlock Grid.Row="3" Text="{Binding Representation}"
+                                       Classes="caption" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Row="4" Text="{Binding ArtifactName}" Classes="caption"
+                                       FontFamily="{StaticResource Font.Data}"
+                                       TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                            <TextBlock Grid.Row="5" Text="{Binding FlexibilityText}"
+                                       Classes="caption" TextTrimming="CharacterEllipsis" />
+                          </Grid>
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+
+                  <Border IsVisible="{Binding HasChosenGeneratedCandidate}"
+                          Background="{StaticResource Background.Elevated}"
+                          BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                          CornerRadius="5" Padding="8" Margin="3,7,3,8">
+                    <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+                      <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                        <TextBlock Text="{Binding BacktestReadinessTitle}" Classes="eyebrow" />
+                        <TextBlock Text="{Binding BacktestReadinessText}" Classes="caption"
+                                   TextWrapping="Wrap" MaxWidth="310" />
+                      </StackPanel>
+                      <Button Grid.Row="0" Grid.Column="1" Classes="ghost"
+                              Content="{Binding BacktestActionText}"
+                              IsEnabled="{Binding CanPrepareGeneratedCandidateForBacktest}"
+                              ToolTip.Tip="Backtest enables only after an exact-hash importer, runtime binding, data binding, and target admission are registered." />
+                      <ItemsControl Grid.Row="1" Grid.ColumnSpan="2" Margin="0,6,0,0"
+                                    ItemsSource="{Binding BacktestReadinessStages}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <UniformGrid Columns="2" Rows="2" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Grid ColumnDefinitions="18,*,Auto" Margin="2,2,8,2"
+                                  ToolTip.Tip="{Binding Detail}">
+                              <TextBlock Grid.Column="0" Text="{Binding Step}" Classes="caption"
+                                         FontFamily="{StaticResource Font.Data}" />
+                              <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="10" />
+                              <TextBlock Grid.Column="2" Text="{Binding Status}" Classes="caption"
+                                         FontFamily="{StaticResource Font.Data}" />
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <TextBlock Grid.Row="2" Grid.ColumnSpan="2"
+                                 Text="Package-valid is not the same as runnable. No backtest is started from this screen yet."
+                                 Classes="caption" TextWrapping="Wrap" Margin="0,5,0,0" />
+                    </Grid>
+                  </Border>
+
+                  <StackPanel Margin="0,8,0,0" Spacing="8">
+                    <Border IsVisible="{Binding SelectedGeneratedCandidateOption.IsFailed}"
+                            Background="{StaticResource Warning.Soft}"
+                            BorderBrush="{StaticResource Warning.Brush}" BorderThickness="1"
+                            CornerRadius="4" Padding="8">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding SelectedGeneratedCandidateOption.FailureHeading}" Classes="eyebrow" />
+                        <TextBlock Text="{Binding SelectedGeneratedCandidateOption.ErrorText}"
+                                   TextWrapping="Wrap" FontSize="10.5" />
+                      </StackPanel>
+                    </Border>
+
+                    <StackPanel IsVisible="{Binding HasSelectedGeneratedCandidate}">
+                      <StackPanel Spacing="10" Margin="0,0,4,0">
+                        <StackPanel Spacing="3">
+                          <TextBlock Text="{Binding SelectedGeneratedCandidateOption.Candidate.Title}"
+                                     FontWeight="SemiBold" FontSize="13" />
+                          <TextBlock Classes="caption" FontFamily="{StaticResource Font.Data}">
+                            <Run Text="{Binding SelectedGeneratedCandidateOption.Candidate.Artifact.FileName}" />
+                            <Run Text="  ·  " />
+                            <Run Text="{Binding SelectedGeneratedCandidateOption.CandidateHashSha256}" />
+                          </TextBlock>
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                          <TextBlock Text="INTERPRETATION" Classes="eyebrow" />
+                          <TextBlock Text="{Binding SelectedGeneratedCandidateOption.Candidate.Interpretation}"
+                                     TextWrapping="Wrap" FontSize="10.5" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                          <TextBlock Text="UNRESOLVED QUESTIONS" Classes="eyebrow" />
+                          <ItemsControl ItemsSource="{Binding SelectedGeneratedCandidateOption.Candidate.UnresolvedQuestions}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Classes="caption" Margin="0,1" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                          <TextBlock Text="ASSUMPTIONS" Classes="eyebrow" />
+                          <ItemsControl ItemsSource="{Binding SelectedGeneratedCandidateOption.Candidate.Assumptions}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Classes="caption" Margin="0,1" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                          <TextBlock Text="PROPOSED PARAMETERS" Classes="eyebrow" />
+                          <ItemsControl ItemsSource="{Binding SelectedGeneratedCandidateOption.Candidate.Parameters}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <Border Background="{StaticResource Background.Elevated}"
+                                        BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                        CornerRadius="4" Padding="7,5" Margin="0,2">
+                                  <StackPanel Spacing="2">
+                                    <TextBlock FontSize="10.5">
+                                      <Run Text="{Binding Name}" FontWeight="SemiBold" />
+                                      <Run Text=" = " /><Run Text="{Binding DefaultValue}" />
+                                      <Run Text="  " /><Run Text="{Binding Unit}" />
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Description}" Classes="caption" TextWrapping="Wrap" />
+                                  </StackPanel>
+                                </Border>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                          <TextBlock Text="PROPOSED FORKS" Classes="eyebrow" />
+                          <ItemsControl ItemsSource="{Binding SelectedGeneratedCandidateOption.Candidate.VariationAxes}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <StackPanel Spacing="1" Margin="0,2">
+                                  <TextBlock FontSize="10.5">
+                                    <Run Text="{Binding AxisId}" FontWeight="SemiBold" />
+                                    <Run Text="  ·  " /><Run Text="{Binding Kind}" />
+                                  </TextBlock>
+                                  <TextBlock Text="{Binding Description}" Classes="caption" TextWrapping="Wrap" />
+                                  <ItemsControl ItemsSource="{Binding Choices}">
+                                    <ItemsControl.ItemTemplate>
+                                      <DataTemplate>
+                                        <TextBlock Text="{Binding}" Classes="caption" Margin="6,0,0,0" />
+                                      </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                  </ItemsControl>
+                                </StackPanel>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                          <TextBlock Text="EDITING NOTES" Classes="eyebrow" />
+                          <TextBlock Text="{Binding SelectedGeneratedCandidateOption.Candidate.Explanation}"
+                                     TextWrapping="Wrap" Classes="caption" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                          <TextBlock Text="ARTIFACT PREVIEW" Classes="eyebrow" />
+                          <Border Background="{StaticResource Background.Elevated}"
+                                  BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                  CornerRadius="4">
+                            <TextBox Text="{Binding SelectedGeneratedCandidateOption.ArtifactPreview, Mode=OneWay}"
+                                     IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                                     MinHeight="96" MaxHeight="260" Padding="8,6"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     Background="Transparent" BorderThickness="0"
+                                     FontFamily="{StaticResource Font.Data}" FontSize="10.5" />
+                          </Border>
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                          <TextBlock Text="PROPOSED TESTS" Classes="eyebrow" />
+                          <ItemsControl ItemsSource="{Binding SelectedGeneratedCandidateOption.Candidate.ProposedTests}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Classes="caption" Margin="0,1" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                      </StackPanel>
+                    </StackPanel>
+                  </StackPanel>
+                  </StackPanel>
+                </ScrollViewer>
+
+                <Grid Grid.Row="1" IsVisible="{Binding HasCandidate}" RowDefinitions="Auto,*">
+                  <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,8">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Grid.Column="0" Spacing="2">
+                        <TextBlock Text="{Binding CurrentCandidate.Title}" FontWeight="SemiBold" FontSize="13" />
+                        <TextBlock Classes="caption" FontFamily="{StaticResource Font.Data}">
+                          <Run Text="revision " /><Run Text="{Binding CurrentCandidate.Revision}" />
+                          <Run Text="  ·  " /><Run Text="{Binding CurrentCandidate.Status}" />
+                        </TextBlock>
+                      </StackPanel>
+                      <Button Grid.Column="1" Classes="aiAction" Content="Confirm meaning"
+                              Command="{Binding ConfirmCandidateCommand}"
+                              IsEnabled="{Binding CanConfirmCandidate}"
+                              ToolTip.Tip="Confirms the exact displayed candidate hash; it does not generate code." />
+                    </Grid>
+                    <TextBlock Text="{Binding CandidateStatusText}" Classes="caption" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding CandidateContentHash}" Classes="caption"
+                               FontFamily="{StaticResource Font.Data}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+
+                  <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="10" Margin="0,0,4,0">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="INPUT" Classes="eyebrow" />
+                        <TextBlock Text="{Binding CurrentCandidate.RawIntent}"
+                                   TextWrapping="Wrap" FontSize="11" />
+                      </StackPanel>
+
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="INTERPRETATION" Classes="eyebrow" />
+                        <TextBlock Text="{Binding CurrentCandidate.Interpretation.Summary}"
+                                   TextWrapping="Wrap" FontSize="11" />
+                        <ItemsControl ItemsSource="{Binding CurrentCandidate.Interpretation.Alternatives}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <TextBlock Classes="caption" TextWrapping="Wrap" Margin="0,2,0,0">
+                                <Run Text="Other reading: " FontWeight="SemiBold" />
+                                <Run Text="{Binding Summary}" />
+                              </TextBlock>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+
+                      <StackPanel Spacing="4" IsVisible="{Binding CandidateOpenQuestions.Count, Converter={StaticResource PositiveCount}}">
+                        <TextBlock Text="YOUR CHOICES" Classes="eyebrow" />
+                        <ItemsControl ItemsSource="{Binding CandidateOpenQuestions}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Background="{StaticResource Warning.Soft}"
+                                      BorderBrush="{StaticResource Warning.Brush}" BorderThickness="1"
+                                      CornerRadius="4" Padding="7,5" Margin="0,2">
+                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="10.5" />
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="GROUPS AND RULES" Classes="eyebrow" />
+                        <ItemsControl ItemsSource="{Binding CandidateGroups}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Background="{StaticResource Background.Elevated}"
+                                      BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                      CornerRadius="4" Padding="7,6" Margin="0,2">
+                                <StackPanel Spacing="3">
+                                  <TextBlock Text="{Binding Location}" Classes="caption"
+                                             FontFamily="{StaticResource Font.Data}" />
+                                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="10.5" />
+                                  <TextBlock Text="{Binding Summary}" Classes="caption" TextWrapping="Wrap" />
+                                  <ItemsControl ItemsSource="{Binding Statements}">
+                                    <ItemsControl.ItemTemplate>
+                                      <DataTemplate>
+                                        <Grid ColumnDefinitions="64,*" Margin="0,2,0,0">
+                                          <TextBlock Text="{Binding Kind}" Classes="caption"
+                                                     FontFamily="{StaticResource Font.Data}" />
+                                          <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="10.5"
+                                                     TextWrapping="Wrap" />
+                                        </Grid>
+                                      </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                  </ItemsControl>
+                                </StackPanel>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="BUILD SUPPORT" Classes="eyebrow" />
+                        <ItemsControl ItemsSource="{Binding CandidateBuildSupport}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Background="{StaticResource Background.Elevated}"
+                                      BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                      CornerRadius="4" Padding="7,6" Margin="0,2">
+                                <StackPanel Spacing="2">
+                                  <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="{Binding Description}" FontWeight="SemiBold" FontSize="10.5" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Status}" Classes="caption"
+                                               FontFamily="{StaticResource Font.Data}" />
+                                  </Grid>
+                                  <TextBlock Text="{Binding Detail}" Classes="caption" TextWrapping="Wrap" />
+                                </StackPanel>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </StackPanel>
+                  </ScrollViewer>
+                </Grid>
               </Grid>
             </TabItem>
 
