@@ -162,6 +162,9 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         vibePrompt.Should().Contain("`on_event(event, state, parameters)`");
         vibePrompt.Should().Contain("outputs inert");
         vibePrompt.Should().Contain("does not identify a Python runtime package");
+        vibePrompt.Should().Contain("must maintain and ratchet the position watermark or stop level");
+        vibePrompt.Should().Contain("never recompute a");
+        vibePrompt.Should().Contain("trailing stop from the current close alone");
 
         var specPrompt = PromptFor(provider, StrategyGenerationLaneV1.DeclarativeSpec);
         specPrompt.Should().Contain("SpecAgent");
@@ -171,6 +174,10 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         specPrompt.Should().Contain("exitRules");
         specPrompt.Should().Contain("risk");
         specPrompt.Should().Contain("No lowerer, importer, executable DSL package");
+        specPrompt.Should().Contain("not valid completed values for");
+        specPrompt.Should().Contain("dataRequirements, entryRules, exitRules, or outputs");
+        specPrompt.Should().Contain("id, type, description, default, minimum");
+        specPrompt.Should().Contain("maximum, step, and choices");
 
         var graphPrompt = PromptFor(provider, StrategyGenerationLaneV1.TypedGraph);
         graphPrompt.Should().Contain("GraphAgent");
@@ -190,6 +197,10 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         graphPrompt.Should().Contain("`option`, or `index`");
         graphPrompt.Should().Contain("Use singular `future`, never `futures`");
         graphPrompt.Should().Contain("Do not author typedInputs, typedOutputs");
+        graphPrompt.Should().Contain("not valid completed graph");
+        graphPrompt.Should().Contain("at least one complete data requirement");
+        graphPrompt.Should().Contain("one node, and at least one output");
+        graphPrompt.Should().Contain("do not invent operators, data, or approximate replacement behavior");
 
         var cspPrompt = PromptFor(provider, StrategyGenerationLaneV1.CspPython);
         cspPrompt.Should().Contain("CspAgent");
@@ -206,6 +217,10 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             prompt.Should().Contain("requestHashSha256");
             prompt.Should().Contain($"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}");
             prompt.Should().Contain("never claim a backtest, metric, or package check passed");
+            prompt.Should().Contain("every explicit user clause about direction, thresholds, lookbacks, filters, exits");
+            prompt.Should().Contain("Artifact defaults must preserve those clauses exactly");
+            prompt.Should().Contain("Variation axes may offer alternatives only after");
+            prompt.Should().Contain("cross-check the interpretation, parameter defaults, and artifact logic");
         }
 
         result.Lanes.Should().ContainSingle(lane => lane.PackageValid && lane.Lane == StrategyGenerationLaneV1.TypedGraph);

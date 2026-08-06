@@ -42,13 +42,21 @@ internal static class ParallelStrategyGenerationPromptV1
 
         Strategy-generation rules:
         - Translate the user's idea into concrete, editable strategy logic in your assigned format.
+        - Treat every explicit user clause about direction, thresholds, lookbacks, filters, exits,
+          sizing, and timing as mandatory. Artifact defaults must preserve those clauses exactly;
+          never disable a requested filter, widen a requested direction, replace a requested exit,
+          or otherwise weaken explicit behavior.
         - Use only data available at each decision time. Do not use future bars, centered windows, or
           revised values unless the proposal explicitly treats them as unavailable at decision time.
         - Do not fetch data, call brokers, submit orders, contact venues, or generate package/SDK glue.
         - Expose every adjustable value in parameters and make meaningful forks explicit in variationAxes.
+          Variation axes may offer alternatives only after the artifact's defaults implement the exact
+          requested behavior; alternatives must not silently become the default.
         - Preserve material ambiguity in unresolvedQuestions instead of silently inventing a choice.
         - proposedTests describe tests to run later; never claim a backtest, metric, or package check passed.
         - Generation and structural validation do not make an artifact runnable or tested.
+        - Before returning, cross-check the interpretation, parameter defaults, and artifact logic against
+          every explicit clause in userPrompt and repair any omission or contradiction.
 
         Return exactly one JSON object with no markdown, code fence, or prose. Every property and array
         shown here is required, including nullable source/document properties:

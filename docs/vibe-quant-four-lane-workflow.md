@@ -230,6 +230,26 @@ still be rejected when it asks for bars, tape, an unsupported operator, or a mat
 runner cannot truthfully bind. The enabled button proves only that the unchanged package-valid hash
 can be submitted; synthetic data, closed-target, runtime, and execution checks run after the click.
 
+### Why the 5-minute momentum starter cannot run yet
+
+The momentum brief requires prior-bar highs, a 1.5× rolling volume average, and a ratcheting
+ATR(14) stop. The installed Graph catalog currently has bar close and rolling maximum operators, but
+does not have the required bar-high, volume-average, true-range/ATR, or ATR-trailing-state operators.
+The QuoteL1 smoke target also does not admit five-minute OHLCV data. A Graph result for that brief
+must therefore remain blocked instead of substituting a different strategy.
+
+The other three outputs do not bypass that boundary: Vibe Python and CSP are inert source-review
+drafts with no registered runtime/importer, and Declarative Rules has no deterministic TradeIR
+lowerer. Restarting the app does not change these capabilities. The Candidate tab reports the
+selected source-review lane and the Graph lane's exact rejection together, and offers the separate
+QuoteL1 EMA starter only for testing the currently installed smoke path.
+
+Generation prompts now require explicit direction, threshold, lookback, filter, exit, sizing, and
+timing clauses to remain mandatory in the default artifact. For example, a requested 1.5× volume
+filter cannot default to disabled, and a requested ATR trail cannot become an opposite-channel exit.
+This reduces model drift, but it is still a prompt/structural check rather than deterministic proof of
+economic equivalence.
+
 Vibe Python, Declarative Rules, and CSP remain non-runnable because no deterministic lowerer/runtime
 is registered for those formats. They must not borrow the Graph test result. The existing Expert C#
 route remains a separate manual reimplementation path:

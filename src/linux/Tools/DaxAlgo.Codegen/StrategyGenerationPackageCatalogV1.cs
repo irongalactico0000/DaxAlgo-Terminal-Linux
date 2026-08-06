@@ -162,7 +162,9 @@ internal static class StrategyGenerationPackageCatalogV1
                 parameters explicitly, keep all outputs inert (for example signal or target
                 proposals), and do not fetch data, call a broker, start a runtime, or include
                 terminal/package scaffolding. Use comments and unresolvedQuestions to preserve facts
-                that the prompt does not establish.
+                that the prompt does not establish. When the request specifies a trailing stop, state
+                must maintain and ratchet the position watermark or stop level; never recompute a
+                supposedly trailing stop from the current close alone.
                 """;
         }
 
@@ -205,6 +207,13 @@ internal static class StrategyGenerationPackageCatalogV1
                   "risk": {},
                   "outputs": []
                 }
+
+                The empty arrays above are outline placeholders, not valid completed values for
+                dataRequirements, entryRules, exitRules, or outputs. Populate each of those four
+                sections with at least one complete schema-valid item. Every parameters[] item must
+                include exactly these required properties: id, type, description, default, minimum,
+                maximum, step, and choices, using null or an empty choices array where the schema
+                requires it for that parameter type.
 
                 The normative closed schema is docs/schemas/vibe-quant-declarative-rules-v1.schema.json;
                 do not add unknown properties. Keep rules declarative and causal. Represent references by stable ids, keep adjustable
@@ -349,6 +358,12 @@ internal static class StrategyGenerationPackageCatalogV1
                 "flattenOnEnd": true
               }
             }
+
+            The empty arrays in that object are outline placeholders, not valid completed graph
+            output. A completed graph must contain at least one complete data requirement, at least
+            one node, and at least one output. If the installed manifest cannot express the requested
+            semantics, do not invent operators, data, or approximate replacement behavior; preserve
+            the gap in unresolvedQuestions and allow the deterministic validator to reject the graph.
 
             Nodes contain only nodeId, operatorId, operatorVersion, inputBindings, and closed typed
             literal parameters. Do not author typedInputs, typedOutputs, port types, edges, groups,

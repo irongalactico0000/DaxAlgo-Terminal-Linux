@@ -432,6 +432,7 @@ public static class StrategyStarterCatalog
             "Trade a volume-confirmed range break with an ATR trailing stop.",
             FiveMinuteMomentumBreakoutPrompt,
             ["Donchian", "20-bar high", "volume surge", "ATR trail"],
+            exposure: ExposureGeometryKind.LongOnly,
             information: [StrategyInformationKind.Bar],
             hypotheses: [ReturnHypothesisKind.Momentum],
             triggers: [StrategyTriggerKind.Bar, StrategyTriggerKind.OrderEvent],

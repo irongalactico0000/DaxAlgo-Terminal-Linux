@@ -911,7 +911,7 @@
                       <TextBlock Text="{Binding CandidateBacktestAvailabilityText}"
                                  Foreground="{StaticResource Warning.Brush}"
                                  FontSize="10" FontWeight="SemiBold" TextWrapping="Wrap" />
-                      <TextBlock Text="Test flow · Preview Graph · Typed → Use selected in editor → Run synthetic smoke test. Other lanes still require a lowerer/runtime."
+                      <TextBlock Text="Graph validation and smoke compatibility are separate. Invalid or unsupported graphs cannot run; the installed runner supports the known QuoteL1 EMA smoke profile only."
                                  Classes="caption" TextWrapping="Wrap" />
 
                       <StackPanel Spacing="1" IsVisible="{Binding HasChosenGeneratedCandidate}">
@@ -927,6 +927,11 @@
                       </StackPanel>
 
                       <WrapPanel HorizontalAlignment="Right">
+                        <Button Classes="ghost" Content="Load QuoteL1 EMA smoke starter"
+                                Command="{Binding UseQuoteL1EmaSmokeStarterCommand}"
+                                IsEnabled="{Binding !IsGenerating}"
+                                Margin="0,2,6,0"
+                                ToolTip.Tip="Loads the known smoke-compatible brief into the composer for review; it does not generate or run anything." />
                         <Button Classes="ghost" Content="Expert C# (separate path)"
                                 Command="{Binding ToggleGenerationModeCommand}"
                                 Margin="0,2,6,0"

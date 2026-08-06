@@ -61,6 +61,15 @@ public sealed class StrategyStarterCatalogTests
     }
 
     [Fact]
+    public void Five_minute_momentum_breakout_is_classified_as_long_only()
+    {
+        var starter = Find("starter.five-minute-momentum-breakout");
+
+        starter.Prompt.Should().Be(StrategyStarterCatalog.FiveMinuteMomentumBreakoutPrompt);
+        starter.Classification.Context.Exposure.Should().Be(ExposureGeometryKind.LongOnly);
+    }
+
+    [Fact]
     public void Catalog_spans_every_value_of_the_canonical_discovery_axes()
     {
         var specifications = StrategyStarterCatalog.All

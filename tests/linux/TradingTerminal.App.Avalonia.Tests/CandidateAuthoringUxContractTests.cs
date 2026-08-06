@@ -136,7 +136,14 @@ public sealed class CandidateAuthoringUxContractTests
             (string?)element.Attribute("Text") == "{Binding CandidateBacktestAvailabilityText}");
         outcome.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
             (string?)element.Attribute("Text") ==
-                "Test flow · Preview Graph · Typed → Use selected in editor → Run synthetic smoke test. Other lanes still require a lowerer/runtime.");
+                "Graph validation and smoke compatibility are separate. Invalid or unsupported graphs cannot run; the installed runner supports the known QuoteL1 EMA smoke profile only.");
+
+        var smokeStarter = outcome.Descendants(Avalonia + "Button").Single(element =>
+            (string?)element.Attribute("Content") == "Load QuoteL1 EMA smoke starter");
+        smokeStarter.Attribute("Command")!.Value
+            .Should().Be("{Binding UseQuoteL1EmaSmokeStarterCommand}");
+        smokeStarter.Attribute("IsEnabled")!.Value
+            .Should().Be("{Binding !IsGenerating}");
 
         var expert = outcome.Descendants(Avalonia + "Button").Single(element =>
             (string?)element.Attribute("Content") == "Expert C# (separate path)");

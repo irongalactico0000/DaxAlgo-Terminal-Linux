@@ -47,10 +47,78 @@ public sealed partial class StrategyAuthoringViewModel
             if (_tradeIrSimulatedBacktestRunner is null)
                 return "Backtest unavailable · the TradeIR smoke runner is not registered in this app build.";
             if (TryResolveActiveTradeIr(out _, out _, out var label, out _))
-                return $"Synthetic smoke test ready · {label} · deterministic QuoteL1 · not historical.";
+            {
+                if (TradeIrBacktestResult is { Status: TradeIrSimulatedBacktestStatusV1.Rejected } rejected)
+                {
+                    var issue = rejected.Issues.FirstOrDefault();
+                    var detail = issue is null
+                        ? "closed-target admission rejected the exact graph"
+                        : $"{issue.Code}: {issue.Message}";
+                    return $"Graph valid · smoke-incompatible with the installed QuoteL1 EMA runner · {detail}";
+                }
+
+                if (TradeIrBacktestResult is { Succeeded: true })
+                    return $"QuoteL1 EMA smoke passed · {label} · deterministic and not historical.";
+
+                return $"Graph valid · {label} is active. Smoke compatibility is not proven; " +
+                       "the installed runner supports the QuoteL1 EMA smoke profile only and checks admission on run.";
+            }
+
+            if (SelectedGeneratedCandidateOption is { Result.Lane: StrategyGenerationLaneV1.TypedGraph } graph)
+            {
+                if (!graph.Result.Selectable)
+                {
+                    var state = graph.Result.Readiness switch
+                    {
+                        StrategyGenerationReadinessV1.Invalid => "invalid",
+                        StrategyGenerationReadinessV1.Unsupported => "unsupported",
+                        StrategyGenerationReadinessV1.Failed => "generation failed",
+                        _ => "not package-valid",
+                    };
+                    return $"Graph {state} · {graph.FirstIssueCode}: {graph.FirstIssueMessage} " +
+                           "It cannot enter the smoke runner. Load the QuoteL1 EMA smoke starter or regenerate.";
+                }
+
+                return "Graph valid · preview only. Smoke compatibility is separate; the installed runner supports " +
+                       "the QuoteL1 EMA smoke profile only. Use selected in editor, then run admission.";
+            }
+
+            var sourceReview = SelectedGeneratedCandidateOption is { } previewed
+                ? previewed.Result.Lane switch
+                {
+                    StrategyGenerationLaneV1.VibePython =>
+                        "Vibe · Python is an inert source-review draft; no Python importer or runtime is registered. ",
+                    StrategyGenerationLaneV1.DeclarativeSpec =>
+                        "Spec · Rules is a source-review draft; no deterministic Rules-to-TradeIR lowerer is registered. ",
+                    StrategyGenerationLaneV1.CspPython =>
+                        "CSP · Events is an inert source-review draft; no CSP host or importer is registered. ",
+                    _ => string.Empty,
+                }
+                : string.Empty;
+            var batchGraph = GeneratedCandidateOptions.FirstOrDefault(static option =>
+                option.Result.Lane == StrategyGenerationLaneV1.TypedGraph);
+            if (batchGraph is { Result.Selectable: false })
+            {
+                var state = batchGraph.Result.Readiness switch
+                {
+                    StrategyGenerationReadinessV1.Invalid => "invalid",
+                    StrategyGenerationReadinessV1.Unsupported => "unsupported",
+                    StrategyGenerationReadinessV1.Failed => "generation failed",
+                    _ => "not package-valid",
+                };
+                return $"{sourceReview}Graph {state} · {batchGraph.FirstIssueCode}: " +
+                       $"{batchGraph.FirstIssueMessage} This batch cannot enter the smoke runner. " +
+                       "Load the QuoteL1 EMA smoke starter or regenerate.";
+            }
+
+            if (batchGraph is { Result.Selectable: true })
+                return $"{sourceReview}A package-valid Graph candidate exists, but smoke compatibility is separate. " +
+                       "Preview and load Graph · Typed to request admission to the QuoteL1 EMA runner.";
+
             if (ChosenGeneratedCandidateOption is { Result.Lane: not StrategyGenerationLaneV1.TypedGraph })
-                return "Backtest unavailable for this lane · choose a package-valid Graph · Typed candidate.";
-            return "To test here: preview Graph · Typed → Use selected in editor → Run synthetic smoke test.";
+                return $"{sourceReview}This batch has no package-valid Graph · Typed artifact for the QuoteL1 EMA runner.";
+            return "No runnable Graph · Typed artifact is active. Invalid or unsupported graphs cannot run; " +
+                   "the installed runner supports the QuoteL1 EMA smoke profile only.";
         }
     }
 
@@ -71,7 +139,25 @@ public sealed partial class StrategyAuthoringViewModel
         get
         {
             if (TryResolveActiveTradeIr(out _, out _, out _, out _))
-                return "This exact TradeIR hash can be submitted to the closed in-process target. Run the test to perform data and target admission before any synthetic QuoteL1 event is evaluated. This is not historical performance or worker isolation.";
+            {
+                if (TradeIrBacktestResult is { Status: TradeIrSimulatedBacktestStatusV1.Rejected } rejected)
+                {
+                    var issue = rejected.Issues.FirstOrDefault();
+                    var detail = issue is null
+                        ? "Closed-target admission rejected this exact hash."
+                        : $"{issue.Code} at {issue.Path}: {issue.Message}";
+                    return "Graph package validation passed, but this graph is smoke-incompatible with the installed " +
+                           $"QuoteL1 EMA target. {detail}";
+                }
+
+                if (TradeIrBacktestResult is { Succeeded: true })
+                    return "Graph package validation and QuoteL1 EMA smoke admission passed for this exact hash. " +
+                           "The deterministic synthetic run completed; this is not historical performance or worker isolation.";
+
+                return "Graph package validation passed; smoke compatibility has not. The installed in-process runner " +
+                       "supports the QuoteL1 EMA smoke profile only and performs exact data and target admission on run. " +
+                       "This is not historical performance or worker isolation.";
+            }
 
             return ChosenGeneratedCandidateOption?.Result.Lane switch
             {

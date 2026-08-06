@@ -150,7 +150,7 @@ public sealed partial class StrategyAuthoringViewModel
                 Append(AuthoringMessage.Tool(
                     "Ok",
                     $"Synthesized TradeIR from {result.Receipt!.Sources.Count} source draft(s)",
-                    $"target {targetHash[..12]}… · receipt {receiptHash[..12]}… · package valid · ready to load for synthetic smoke"));
+                    $"target {targetHash[..12]}… · receipt {receiptHash[..12]}… · package valid · ready to load for smoke admission"));
             }
             else
             {
@@ -210,12 +210,12 @@ public sealed partial class StrategyAuthoringViewModel
         _filesEditedByUser = false;
         SetLoadedCombinedTradeIrCandidateHash(candidateHash);
         WorkbenchTab = 3;
-        AiStatus = $"Combined TradeIR loaded at exact synthesized hash {candidateHash[..12]}…. The synthetic smoke action is now visible below; editing the artifact clears this receipt proof.";
+        AiStatus = $"Combined TradeIR loaded at exact synthesized hash {candidateHash[..12]}…. The smoke admission action is now visible below; compatibility is not proven until run, and editing the artifact clears this receipt proof.";
         Status = "Canonical TradeIR is in the editor. Choose Run synthetic smoke test to perform exact-hash data, target, and runtime admission.";
         Append(AuthoringMessage.Tool(
             "Ok",
             "Loaded combined TradeIR",
-            $"{candidate.Artifact.FileName} · target {candidateHash[..12]}… · receipt {result.ReceiptHashSha256![..12]}… · synthetic smoke available"));
+            $"{candidate.Artifact.FileName} · target {candidateHash[..12]}… · receipt {result.ReceiptHashSha256![..12]}… · smoke admission available"));
         Save();
     }
 

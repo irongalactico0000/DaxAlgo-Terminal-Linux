@@ -232,6 +232,13 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (!string.IsNullOrWhiteSpace(brief)) Composer = brief;
     }
 
+    [RelayCommand]
+    private void UseQuoteL1EmaSmokeStarter()
+    {
+        Composer = StrategyStarterCatalog.QuoteL1EmaSmokePrompt;
+        AiStatus = "Loaded the known QuoteL1 EMA smoke starter. Review the brief, then generate a fresh candidate batch.";
+    }
+
     /// <summary>Collapses the session rail to an icon strip — the workspace's only chrome toggle.</summary>
     [ObservableProperty] private bool _railCollapsed;
 
@@ -388,6 +395,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         OnPropertyChanged(nameof(CanChooseGeneratedCandidate));
         OnPropertyChanged(nameof(CanRevalidateGeneratedCandidate));
         OnPropertyChanged(nameof(CandidateActionText));
+        OnPropertyChanged(nameof(CandidateBacktestAvailabilityText));
         ChooseGeneratedCandidateCommand.NotifyCanExecuteChanged();
         RevalidateGeneratedCandidateCommand.NotifyCanExecuteChanged();
     }
@@ -1392,12 +1400,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _filesEditedByUser = false;
         SetEditorBaseGeneratedCandidateHash(selection.CandidateHashSha256);
         ChosenGeneratedCandidateHash = selection.CandidateHashSha256;
-        // Keep a package-valid graph on Candidate so the newly unlocked exact-hash test is visible.
+        // Keep a package-valid graph on Candidate so the exact-hash admission action is visible.
         // Source-review lanes still open Code because they have no runnable target yet.
         WorkbenchTab = candidate.Lane == StrategyGenerationLaneV1.TypedGraph ? 3 : 0;
         if (laneResult.PackageValid)
         {
-            AiStatus = $"{StrategyGenerationLaneCatalogV1.DisplayName(candidate.Lane)} loaded at package-valid hash {selection.CandidateHashSha256![..12]}…. The synthetic smoke action is now visible below; nothing has run yet.";
+            AiStatus = $"{StrategyGenerationLaneCatalogV1.DisplayName(candidate.Lane)} loaded at package-valid hash {selection.CandidateHashSha256![..12]}…. The smoke admission action is now visible below; compatibility is not proven and nothing has run yet.";
             Status = $"Loaded {candidate.Artifact.FileName}. Choose Run synthetic smoke test to perform exact-hash data, target, and runtime admission. This is not a historical backtest.";
         }
         else
@@ -1408,7 +1416,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Append(AuthoringMessage.Tool(
             "Ok",
             $"Selected {StrategyGenerationLaneCatalogV1.DisplayName(candidate.Lane)}",
-            $"Loaded {candidate.Artifact.FileName} · {(laneResult.PackageValid ? "package valid · synthetic smoke unlocked" : "not package-validated")} · not tested · hash {selection.CandidateHashSha256![..12]}…"));
+            $"Loaded {candidate.Artifact.FileName} · {(laneResult.PackageValid ? "package valid · smoke admission available" : "not package-validated")} · not tested · hash {selection.CandidateHashSha256![..12]}…"));
         Save();
     }
 

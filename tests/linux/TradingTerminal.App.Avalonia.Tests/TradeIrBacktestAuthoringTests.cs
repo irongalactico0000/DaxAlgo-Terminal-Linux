@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using TradingTerminal.App.Authoring;
 using TradingTerminal.Backtest.Engine.TradeIr;
 using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Backtesting;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Definition;
@@ -48,9 +49,23 @@ public sealed class TradeIrBacktestAuthoringTests
             "the newly unlocked smoke action must remain visible in Candidate");
         viewModel.ChosenGeneratedCandidateHash.Should().Be(candidateHash);
         viewModel.CanPrepareGeneratedCandidateForBacktest.Should().BeTrue();
-        viewModel.BacktestReadinessText.Should().Contain("submitted to the closed in-process target");
+        viewModel.CandidateBacktestAvailabilityText.Should().ContainAll(
+            "Graph valid",
+            "Smoke compatibility is not proven",
+            "QuoteL1 EMA smoke profile only");
+        viewModel.BacktestReadinessText.Should().ContainAll(
+            "Graph package validation passed; smoke compatibility has not",
+            "QuoteL1 EMA smoke profile only");
         viewModel.BacktestReadinessStages.Single(stage => stage.Step == "4").Status
             .Should().Be("CHECK ON RUN");
+
+        viewModel.TradeIrBacktestResult = SuccessfulSmokeResult(candidateHash, module);
+        viewModel.CandidateBacktestAvailabilityText.Should().Contain("QuoteL1 EMA smoke passed");
+        viewModel.BacktestReadinessText.Should().ContainAll(
+            "QuoteL1 EMA smoke admission passed for this exact hash",
+            "not historical performance or worker isolation");
+        viewModel.BacktestReadinessText.Should().NotContain("compatibility has not");
+        viewModel.TradeIrBacktestResult = null;
 
         await viewModel.RunTradeIrSimulatedBacktestCommand.ExecuteAsync(null);
 
@@ -60,7 +75,17 @@ public sealed class TradeIrBacktestAuthoringTests
         OperatorGraphModuleCanonicalJsonV1.Hash(runner.Request.Module)
             .Should().Be(OperatorGraphModuleCanonicalJsonV1.Hash(module));
         viewModel.TradeIrBacktestStatusText.Should().Be("ADMISSION BLOCKED");
-        viewModel.TradeIrBacktestIssueText.Should().Contain("TEST_BLOCKED · test.target");
+        viewModel.TradeIrBacktestIssueText.Should().Contain(
+            "TRADEIR_PLAN_DATA_REQUIREMENT_KIND · definition.dataRequirements[0].dataKind");
+        viewModel.CandidateBacktestAvailabilityText.Should().ContainAll(
+            "Graph valid",
+            "smoke-incompatible",
+            "QuoteL1 EMA runner",
+            "TRADEIR_PLAN_DATA_REQUIREMENT_KIND");
+        viewModel.BacktestReadinessText.Should().ContainAll(
+            "Graph package validation passed",
+            "smoke-incompatible",
+            "requires QuoteL1");
 
         viewModel.SelectedFile!.Content += Environment.NewLine;
 
@@ -68,6 +93,87 @@ public sealed class TradeIrBacktestAuthoringTests
             "editing the active bytes must clear the exact generated-hash proof");
         viewModel.TradeIrBacktestResult.Should().BeNull(
             "a result for the pre-edit hash must not remain attached to edited bytes");
+    }
+
+    [Theory]
+    [InlineData(StrategyGenerationReadinessV1.Invalid, "Graph invalid")]
+    [InlineData(StrategyGenerationReadinessV1.Unsupported, "Graph unsupported")]
+    public void Unavailable_graph_preview_reports_its_real_state_and_loads_the_known_smoke_starter(
+        StrategyGenerationReadinessV1 readiness,
+        string expectedState)
+    {
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            sessionRepository: new MemoryAuthoringSessionRepository(),
+            tradeIrSimulatedBacktestRunner: new RecordingSmokeRunner());
+        viewModel.SelectedGeneratedCandidateOption = new StrategyGenerationCandidateOption(
+            new StrategyGenerationLaneResultV1(
+                StrategyGenerationLaneV1.TypedGraph,
+                readiness,
+                null,
+                null,
+                [new StrategyCandidateGenerationIssueV1(
+                    StrategyCandidateGenerationIssueSeverityV1.Error,
+                    "GRAPH_UNAVAILABLE",
+                    "artifact",
+                    "The Typed Graph did not pass deterministic validation.")],
+                Run(StrategyGenerationLaneV1.TypedGraph, success: true)));
+
+        viewModel.CanChooseGeneratedCandidate.Should().BeFalse();
+        viewModel.CanPrepareGeneratedCandidateForBacktest.Should().BeFalse();
+        viewModel.CandidateBacktestAvailabilityText.Should().ContainAll(
+            expectedState,
+            "GRAPH_UNAVAILABLE",
+            "cannot enter the smoke runner",
+            "QuoteL1 EMA smoke starter");
+        viewModel.CandidateBacktestAvailabilityText.Should().NotContain("Run synthetic smoke test");
+
+        viewModel.UseQuoteL1EmaSmokeStarterCommand.Execute(null);
+
+        viewModel.Composer.Should().Be(StrategyStarterCatalog.QuoteL1EmaSmokePrompt);
+        viewModel.AiStatus.Should().Contain("known QuoteL1 EMA smoke starter");
+    }
+
+    [Fact]
+    public void Source_review_preview_still_surfaces_the_batch_graph_blocker()
+    {
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            sessionRepository: new MemoryAuthoringSessionRepository(),
+            tradeIrSimulatedBacktestRunner: new RecordingSmokeRunner());
+        var vibe = new StrategyGenerationCandidateOption(new StrategyGenerationLaneResultV1(
+            StrategyGenerationLaneV1.VibePython,
+            StrategyGenerationReadinessV1.Generated,
+            null,
+            null,
+            [],
+            Run(StrategyGenerationLaneV1.VibePython, success: true)));
+        var graph = new StrategyGenerationCandidateOption(new StrategyGenerationLaneResultV1(
+            StrategyGenerationLaneV1.TypedGraph,
+            StrategyGenerationReadinessV1.Invalid,
+            null,
+            null,
+            [new StrategyCandidateGenerationIssueV1(
+                StrategyCandidateGenerationIssueSeverityV1.Error,
+                "GRAPH_DATA_REQUIREMENT_REQUIRED",
+                "$.definition.dataRequirements",
+                "At least one complete data requirement is required.")],
+            Run(StrategyGenerationLaneV1.TypedGraph, success: true)));
+        viewModel.GeneratedCandidateOptions.Add(vibe);
+        viewModel.GeneratedCandidateOptions.Add(graph);
+        viewModel.SelectedGeneratedCandidateOption = vibe;
+
+        viewModel.CandidateBacktestAvailabilityText.Should().ContainAll(
+            "Vibe · Python is an inert source-review draft",
+            "no Python importer or runtime is registered",
+            "Graph invalid",
+            "GRAPH_DATA_REQUIREMENT_REQUIRED",
+            "At least one complete data requirement is required",
+            "This batch cannot enter the smoke runner");
     }
 
     private static (ParallelStrategyGenerationResultV1 Batch, OperatorGraphModuleV1 Module, string CandidateHash)
@@ -211,6 +317,41 @@ public sealed class TradeIrBacktestAuthoringTests
         null,
         CodegenUsage.None);
 
+    private static TradeIrSimulatedBacktestResultV1 SuccessfulSmokeResult(
+        string candidateHash,
+        OperatorGraphModuleV1 module)
+    {
+        var moduleHash = OperatorGraphModuleCanonicalJsonV1.Hash(module);
+        var placeholderHash = new string('a', 64);
+        return new TradeIrSimulatedBacktestResultV1(
+            TradeIrSimulatedBacktestStatusV1.Succeeded,
+            new BacktestReport(
+                new RunSummary(DateTime.UnixEpoch, DateTime.UnixEpoch.AddMinutes(1), 100_000, 100_000, 512, 1),
+                new MetricSet(new Dictionary<string, double>
+                {
+                    [MetricSet.Keys.MaxDrawdown] = 0,
+                }),
+                [],
+                [],
+                []),
+            new TradeIrSimulatedBacktestEvidenceV1(
+                TradeIrSimulatedBacktestContractV1.ExecutionMode,
+                IsWorkerIsolated: false,
+                IsHistoricalData: false,
+                candidateHash,
+                moduleHash,
+                placeholderHash,
+                placeholderHash,
+                placeholderHash,
+                placeholderHash,
+                placeholderHash,
+                placeholderHash,
+                placeholderHash,
+                EventsProcessed: 512,
+                SubmittedOrderCount: 0),
+            []);
+    }
+
     private sealed class RecordingSmokeRunner : ITradeIrSimulatedBacktestRunnerV1
     {
         public TradeIrSimulatedBacktestRequestV1? Request { get; private set; }
@@ -224,7 +365,10 @@ public sealed class TradeIrBacktestAuthoringTests
                 TradeIrSimulatedBacktestStatusV1.Rejected,
                 Report: null,
                 Evidence: null,
-                [new TradeIrSimulatedBacktestIssueV1("TEST_BLOCKED", "test.target", "Deliberate fixture rejection.")]));
+                [new TradeIrSimulatedBacktestIssueV1(
+                    "TRADEIR_PLAN_DATA_REQUIREMENT_KIND",
+                    "definition.dataRequirements[0].dataKind",
+                    "The synthetic smoke target requires QuoteL1, not 'BarOhlcv'.")]));
         }
     }
 
