@@ -30,23 +30,56 @@ public sealed partial class StrategyAuthoringViewModel
 
     public bool CanPrepareGeneratedCandidateForBacktest =>
         _tradeIrSimulatedBacktestRunner is not null &&
+        !HasPendingFourLanePrompt &&
         !IsGenerating &&
         !IsRunningTradeIrBacktest &&
         TryResolveActiveTradeIr(out _, out _, out _, out _);
 
     public string BacktestActionText => IsRunningTradeIrBacktest
-        ? "Running synthetic test…"
+        ? "Running exact-hash smoke…"
         : TradeIrBacktestResult is not null
-            ? "Run synthetic test again"
-            : "Run synthetic smoke test";
+            ? "Run exact-hash smoke again"
+            : "Run exact-hash synthetic smoke";
 
     public string CandidateBacktestAvailabilityText
     {
         get
         {
             if (_tradeIrSimulatedBacktestRunner is null)
-                return "Backtest unavailable · the TradeIR smoke runner is not registered in this app build.";
-            if (TryResolveActiveTradeIr(out _, out _, out var label, out _))
+                return "TEST DISABLED · the synthetic TradeIR smoke runner is not registered in this app build.";
+            if (IsRunningTradeIrBacktest)
+                return "TEST RUNNING · the exact active TradeIR hash is executing against deterministic synthetic QuoteL1 data.";
+            if (IsGenerating)
+                return "TEST DISABLED · candidate generation is in progress. Wait for the replacement batch to finish before testing.";
+            if (HasPendingFourLanePrompt)
+                return "TEST DISABLED · the visible candidates belong to the previous completed brief. " +
+                       "A stopped or failed refinement is restored in the composer; apply it with Check & generate, or discard the pending request, before testing.";
+
+            var selected = SelectedGeneratedCandidateOption;
+            var chosen = ChosenGeneratedCandidateOption;
+            var selectedIsActive = selected?.CandidateHashSha256 is { } selectedHash &&
+                chosen?.CandidateHashSha256 is { } chosenHash &&
+                string.Equals(selectedHash, chosenHash, StringComparison.Ordinal);
+            var hasActiveTradeIr = TryResolveActiveTradeIr(out _, out _, out var label, out _);
+
+            if (selected is { Result.Lane: not StrategyGenerationLaneV1.TypedGraph } sourceReview)
+            {
+                var boundary = SourceReviewTestBoundary(sourceReview.Result.Lane);
+                if (hasActiveTradeIr)
+                    return $"{boundary} TEST ENABLED only for the active {label} exact hash below; " +
+                           "the action does not test the previewed source draft.";
+
+                var availableGraph = GeneratedCandidateOptions.FirstOrDefault(static option =>
+                    option.Result.Lane == StrategyGenerationLaneV1.TypedGraph);
+                if (availableGraph is { Result.PackageValid: true })
+                    return $"{boundary} To test: preview Graph · Typed → Use selected in editor → " +
+                           "run exact-hash synthetic smoke.";
+                if (availableGraph is not null)
+                    return $"{boundary} {GraphBlockerText(availableGraph)} This batch has no synthetic smoke target.";
+                return $"{boundary} This batch has no Graph · Typed artifact for synthetic smoke.";
+            }
+
+            if (hasActiveTradeIr && (selected is null || selectedIsActive || HasLoadedCombinedTradeIr))
             {
                 if (TradeIrBacktestResult is { Status: TradeIrSimulatedBacktestStatusV1.Rejected } rejected)
                 {
@@ -60,66 +93,63 @@ public sealed partial class StrategyAuthoringViewModel
                 if (TradeIrBacktestResult is { Succeeded: true })
                     return $"QuoteL1 EMA smoke passed · {label} · deterministic and not historical.";
 
-                return $"Graph valid · {label} is active. Smoke compatibility is not proven; " +
+                return $"TEST ENABLED · {label} is active at its exact package-valid hash. " +
+                       "Smoke compatibility is not proven; " +
                        "the installed runner supports the QuoteL1 EMA smoke profile only and checks admission on run.";
             }
 
-            if (SelectedGeneratedCandidateOption is { Result.Lane: StrategyGenerationLaneV1.TypedGraph } graph)
+            if (selected is { Result.Lane: StrategyGenerationLaneV1.TypedGraph } graph)
             {
-                if (!graph.Result.Selectable)
-                {
-                    var state = graph.Result.Readiness switch
-                    {
-                        StrategyGenerationReadinessV1.Invalid => "invalid",
-                        StrategyGenerationReadinessV1.Unsupported => "unsupported",
-                        StrategyGenerationReadinessV1.Failed => "generation failed",
-                        _ => "not package-valid",
-                    };
-                    return $"Graph {state} · {graph.FirstIssueCode}: {graph.FirstIssueMessage} " +
-                           "It cannot enter the smoke runner. Load the QuoteL1 EMA smoke starter or regenerate.";
-                }
+                if (!graph.Result.PackageValid)
+                    return $"TEST DISABLED · {GraphBlockerText(graph)} It cannot enter the smoke runner. " +
+                           "Load the QuoteL1 EMA smoke starter or regenerate.";
 
-                return "Graph valid · preview only. Smoke compatibility is separate; the installed runner supports " +
-                       "the QuoteL1 EMA smoke profile only. Use selected in editor, then run admission.";
+                return "TEST DISABLED · Graph · Typed is package-valid but preview-only. " +
+                       "Use selected in editor to bind its exact generated hash; then the synthetic smoke action enables. " +
+                       "QuoteL1 EMA compatibility is checked only when that action runs.";
             }
 
-            var sourceReview = SelectedGeneratedCandidateOption is { } previewed
-                ? previewed.Result.Lane switch
-                {
-                    StrategyGenerationLaneV1.VibePython =>
-                        "Vibe · Python is an inert source-review draft; no Python importer or runtime is registered. ",
-                    StrategyGenerationLaneV1.DeclarativeSpec =>
-                        "Spec · Rules is a source-review draft; no deterministic Rules-to-TradeIR lowerer is registered. ",
-                    StrategyGenerationLaneV1.CspPython =>
-                        "CSP · Events is an inert source-review draft; no CSP host or importer is registered. ",
-                    _ => string.Empty,
-                }
-                : string.Empty;
             var batchGraph = GeneratedCandidateOptions.FirstOrDefault(static option =>
                 option.Result.Lane == StrategyGenerationLaneV1.TypedGraph);
-            if (batchGraph is { Result.Selectable: false })
-            {
-                var state = batchGraph.Result.Readiness switch
-                {
-                    StrategyGenerationReadinessV1.Invalid => "invalid",
-                    StrategyGenerationReadinessV1.Unsupported => "unsupported",
-                    StrategyGenerationReadinessV1.Failed => "generation failed",
-                    _ => "not package-valid",
-                };
-                return $"{sourceReview}Graph {state} · {batchGraph.FirstIssueCode}: " +
-                       $"{batchGraph.FirstIssueMessage} This batch cannot enter the smoke runner. " +
+            if (batchGraph is { Result.PackageValid: false })
+                return $"TEST DISABLED · {GraphBlockerText(batchGraph)} " +
+                       "This batch cannot enter the smoke runner. " +
                        "Load the QuoteL1 EMA smoke starter or regenerate.";
-            }
 
-            if (batchGraph is { Result.Selectable: true })
-                return $"{sourceReview}A package-valid Graph candidate exists, but smoke compatibility is separate. " +
-                       "Preview and load Graph · Typed to request admission to the QuoteL1 EMA runner.";
+            if (batchGraph is { Result.PackageValid: true })
+                return "TEST DISABLED · a package-valid Graph candidate exists but is not active in the editor. " +
+                       "Preview Graph · Typed, use it in the editor, then run exact-hash synthetic smoke.";
 
             if (ChosenGeneratedCandidateOption is { Result.Lane: not StrategyGenerationLaneV1.TypedGraph })
-                return $"{sourceReview}This batch has no package-valid Graph · Typed artifact for the QuoteL1 EMA runner.";
-            return "No runnable Graph · Typed artifact is active. Invalid or unsupported graphs cannot run; " +
+                return "TEST DISABLED · the active source-review lane has no executable runtime target. " +
+                       "A package-valid Graph · Typed artifact is required.";
+            return "TEST DISABLED · no package-valid Graph · Typed artifact is active. " +
+                   "Invalid or unsupported graphs cannot run; " +
                    "the installed runner supports the QuoteL1 EMA smoke profile only.";
         }
+    }
+
+    private static string SourceReviewTestBoundary(StrategyGenerationLaneV1 lane) => lane switch
+    {
+        StrategyGenerationLaneV1.VibePython =>
+            "SELECTED LANE NOT TESTABLE · Vibe · Python is source-review only; no Python importer or runtime is registered.",
+        StrategyGenerationLaneV1.DeclarativeSpec =>
+            "SELECTED LANE NOT TESTABLE · Spec · Rules is source-review only; no deterministic Rules-to-TradeIR lowerer is registered.",
+        StrategyGenerationLaneV1.CspPython =>
+            "SELECTED LANE NOT TESTABLE · CSP · Events is source-review only; no CSP host or importer is registered.",
+        _ => "SELECTED LANE NOT TESTABLE · this format has no registered executable runtime target.",
+    };
+
+    private static string GraphBlockerText(StrategyGenerationCandidateOption graph)
+    {
+        var state = graph.Result.Readiness switch
+        {
+            StrategyGenerationReadinessV1.Invalid => "Graph invalid",
+            StrategyGenerationReadinessV1.Unsupported => "Graph unsupported",
+            StrategyGenerationReadinessV1.Failed => "Graph generation failed",
+            _ => "Graph not package-valid",
+        };
+        return $"{state} · {graph.FirstIssueCode}: {graph.FirstIssueMessage}";
     }
 
     public string BacktestReadinessTitle
@@ -129,8 +159,8 @@ public sealed partial class StrategyAuthoringViewModel
             if (TryResolveActiveTradeIr(out _, out _, out var label, out _))
                 return $"Synthetic test readiness · {label}";
             return ChosenGeneratedCandidateOption is { } chosen
-                ? $"Backtest readiness · {chosen.LaneName}"
-                : "Backtest readiness";
+                ? $"Test availability · {chosen.LaneName}"
+                : "Synthetic test availability";
         }
     }
 
@@ -421,4 +451,22 @@ public sealed partial class StrategyAuthoringViewModel
         _tradeIrBacktestCts?.Dispose();
         _tradeIrBacktestCts = null;
     }
+}
+
+public sealed partial class StrategyGenerationCandidateOption
+{
+    public string SyntheticTestCapabilityText => Result.Lane switch
+    {
+        StrategyGenerationLaneV1.VibePython =>
+            "Not testable · Python importer/runtime missing",
+        StrategyGenerationLaneV1.DeclarativeSpec =>
+            "Not testable · Rules→TradeIR lowerer missing",
+        StrategyGenerationLaneV1.TypedGraph when Result.PackageValid =>
+            "Synthetic eligibility · exact hash + registered runner required",
+        StrategyGenerationLaneV1.TypedGraph =>
+            "Not testable · package-valid Graph required",
+        StrategyGenerationLaneV1.CspPython =>
+            "Not testable · CSP host/importer missing",
+        _ => "Not testable · no runtime target",
+    };
 }

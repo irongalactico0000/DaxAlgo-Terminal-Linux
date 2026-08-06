@@ -1,6 +1,6 @@
 # TradingTerminal.App.Avalonia — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
+Generated from source fingerprint `cb463a404ff1`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Shell/TradingTerminal.App.Avalonia/App.axaml.cs
@@ -67,8 +67,8 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/Shell/TradingTerminal.App.Avalonia/Composition/ServiceConfiguration.cs
 ```cs
-   59: public static class ServiceConfiguration
-   61: public static IHost BuildHost(IPluginConsentPrompt? pluginConsentPrompt = null)
+   60: public static class ServiceConfiguration
+   62: public static IHost BuildHost(IPluginConsentPrompt? pluginConsentPrompt = null)
 ```
 
 ## src/linux/Shell/TradingTerminal.App.Avalonia/Diagnostics/CrashGuard.cs

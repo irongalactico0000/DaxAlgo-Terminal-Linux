@@ -43,6 +43,19 @@ public sealed class TradeIrBacktestAuthoringTests
 
         viewModel.SelectedGeneratedCandidateOption = viewModel.GeneratedCandidateOptions.Single(option =>
             option.Result.Lane == StrategyGenerationLaneV1.TypedGraph);
+
+        viewModel.CanPrepareGeneratedCandidateForBacktest.Should().BeFalse(
+            "previewing a valid graph does not yet bind its exact hash to the editor");
+        viewModel.CanChooseGeneratedCandidate.Should().BeTrue();
+        viewModel.CandidateActionText.Should().Be("Use selected in editor");
+        viewModel.CandidateBacktestAvailabilityText.Should().ContainAll(
+            "TEST DISABLED",
+            "package-valid but preview-only",
+            "Use selected in editor",
+            "exact generated hash");
+        viewModel.SelectedGeneratedCandidateOption.SyntheticTestCapabilityText.Should().Be(
+            "Synthetic eligibility · exact hash + registered runner required");
+
         viewModel.ChooseGeneratedCandidateCommand.Execute(null);
 
         viewModel.WorkbenchTab.Should().Be(3,
@@ -50,7 +63,8 @@ public sealed class TradeIrBacktestAuthoringTests
         viewModel.ChosenGeneratedCandidateHash.Should().Be(candidateHash);
         viewModel.CanPrepareGeneratedCandidateForBacktest.Should().BeTrue();
         viewModel.CandidateBacktestAvailabilityText.Should().ContainAll(
-            "Graph valid",
+            "TEST ENABLED",
+            "active at its exact package-valid hash",
             "Smoke compatibility is not proven",
             "QuoteL1 EMA smoke profile only");
         viewModel.BacktestReadinessText.Should().ContainAll(
@@ -124,11 +138,14 @@ public sealed class TradeIrBacktestAuthoringTests
         viewModel.CanChooseGeneratedCandidate.Should().BeFalse();
         viewModel.CanPrepareGeneratedCandidateForBacktest.Should().BeFalse();
         viewModel.CandidateBacktestAvailabilityText.Should().ContainAll(
+            "TEST DISABLED",
             expectedState,
             "GRAPH_UNAVAILABLE",
             "cannot enter the smoke runner",
             "QuoteL1 EMA smoke starter");
         viewModel.CandidateBacktestAvailabilityText.Should().NotContain("Run synthetic smoke test");
+        viewModel.SelectedGeneratedCandidateOption.SyntheticTestCapabilityText.Should().Be(
+            "Not testable · package-valid Graph required");
 
         viewModel.UseQuoteL1EmaSmokeStarterCommand.Execute(null);
 
@@ -168,12 +185,97 @@ public sealed class TradeIrBacktestAuthoringTests
         viewModel.SelectedGeneratedCandidateOption = vibe;
 
         viewModel.CandidateBacktestAvailabilityText.Should().ContainAll(
-            "Vibe · Python is an inert source-review draft",
+            "SELECTED LANE NOT TESTABLE",
+            "Vibe · Python is source-review only",
             "no Python importer or runtime is registered",
             "Graph invalid",
             "GRAPH_DATA_REQUIREMENT_REQUIRED",
             "At least one complete data requirement is required",
-            "This batch cannot enter the smoke runner");
+            "no synthetic smoke target");
+        vibe.SyntheticTestCapabilityText.Should().Be(
+            "Not testable · Python importer/runtime missing");
+    }
+
+    [Theory]
+    [InlineData(StrategyGenerationLaneV1.VibePython, "Python importer/runtime missing")]
+    [InlineData(StrategyGenerationLaneV1.DeclarativeSpec, "Rules→TradeIR lowerer missing")]
+    [InlineData(StrategyGenerationLaneV1.CspPython, "CSP host/importer missing")]
+    public void Source_review_cards_name_the_missing_runtime_boundary(
+        StrategyGenerationLaneV1 lane,
+        string expectedBoundary)
+    {
+        var option = new StrategyGenerationCandidateOption(new StrategyGenerationLaneResultV1(
+            lane,
+            StrategyGenerationReadinessV1.Generated,
+            null,
+            null,
+            [],
+            Run(lane, success: true)));
+
+        option.SyntheticTestCapabilityText.Should().ContainAll("Not testable", expectedBoundary);
+    }
+
+    [Fact]
+    public void Missing_smoke_runner_has_an_explicit_disabled_reason()
+    {
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            sessionRepository: new MemoryAuthoringSessionRepository());
+
+        viewModel.CanPrepareGeneratedCandidateForBacktest.Should().BeFalse();
+        viewModel.CandidateBacktestAvailabilityText.Should().Be(
+            "TEST DISABLED · the synthetic TradeIR smoke runner is not registered in this app build.");
+    }
+
+    [Fact]
+    public void Pending_refinement_disables_the_exact_hash_smoke_for_the_retained_graph()
+    {
+        const string strategyId = "ema-smoke";
+        const string prompt = "Build the QuoteL1 EMA smoke-compatible starter.";
+        const string pending = "Use a faster EMA and require a wider spread filter.";
+        var (batch, _, candidateHash) = ValidGraphBatch(strategyId, prompt);
+        var graph = batch.Lanes.Single(lane => lane.Lane == StrategyGenerationLaneV1.TypedGraph).Candidate!;
+        var saved = new AuthoringSessionSnapshot(
+            StrategyId: strategyId,
+            DisplayName: "EMA smoke",
+            Chat: [new AuthoringChatEntry(AuthoringChatEntry.User, prompt, DateTime.Now)],
+            Thread: [],
+            Files: [new StrategyFile(graph.Artifact.FileName, graph.Artifact.Document!.Value.GetRawText())],
+            GenerateCandidateFirst: true,
+            FourLaneStrategyBrief: prompt,
+            PendingFourLanePrompt: pending,
+            ParallelCandidateBatchJson: StrategyGenerationCandidateCanonicalJsonV1.SerializeBatch(batch),
+            SelectedParallelCandidateHash: candidateHash,
+            EditorBaseParallelCandidateHash: candidateHash,
+            AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion,
+            UpdatedUtc: DateTime.UtcNow);
+
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            sessionRepository: new MemoryAuthoringSessionRepository(saved),
+            tradeIrSimulatedBacktestRunner: new RecordingSmokeRunner());
+
+        viewModel.HasChosenGeneratedCandidate.Should().BeTrue();
+        viewModel.HasPendingFourLanePrompt.Should().BeTrue();
+        viewModel.Composer.Should().Be(pending);
+        viewModel.CanPrepareGeneratedCandidateForBacktest.Should().BeFalse();
+        viewModel.CandidateBacktestAvailabilityText.Should().ContainAll(
+            "TEST DISABLED",
+            "previous completed brief",
+            "restored in the composer",
+            "Check & generate");
+
+        viewModel.DiscardPendingFourLanePromptCommand.Execute(null);
+
+        viewModel.HasPendingFourLanePrompt.Should().BeFalse();
+        viewModel.Composer.Should().BeEmpty();
+        viewModel.HasChosenGeneratedCandidate.Should().BeTrue();
+        viewModel.CanPrepareGeneratedCandidateForBacktest.Should().BeTrue(
+            "discarding only the uncommitted request restores the exact retained graph gate");
     }
 
     private static (ParallelStrategyGenerationResultV1 Batch, OperatorGraphModuleV1 Module, string CandidateHash)

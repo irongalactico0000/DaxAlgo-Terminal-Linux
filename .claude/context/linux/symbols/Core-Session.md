@@ -1,6 +1,6 @@
 # TradingTerminal.Core / Session — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
+Generated from source fingerprint `cb463a404ff1`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Core/TradingTerminal.Core/Session/SessionContext.cs

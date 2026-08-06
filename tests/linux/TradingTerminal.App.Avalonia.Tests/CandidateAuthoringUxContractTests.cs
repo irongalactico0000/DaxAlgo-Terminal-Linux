@@ -30,6 +30,8 @@ public sealed class CandidateAuthoringUxContractTests
             (string?)border.Attribute("IsVisible") == "{Binding IsChosen}" &&
             border.Descendants(Avalonia + "TextBlock").Any(label =>
                 (string?)label.Attribute("Text") == "ACTIVE IN EDITOR"));
+        candidateList.Descendants(Avalonia + "TextBlock").Should().Contain(label =>
+            (string?)label.Attribute("Text") == "{Binding SyntheticTestCapabilityText}");
 
         var candidateAction = root.Descendants(Avalonia + "Button").Single(element =>
             (string?)element.Attribute("Command") == "{Binding ChooseGeneratedCandidateCommand}");
@@ -93,9 +95,14 @@ public sealed class CandidateAuthoringUxContractTests
     public void Package_valid_graph_exposes_an_explicit_synthetic_smoke_action_and_boundary()
     {
         var root = LoadAuthoringWindow();
+        var testRegion = root.Descendants(Avalonia + "Border").Single(element =>
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "AutomationProperties.Name" &&
+                attribute.Value == "Candidate synthetic test action"));
         var backtestAction = root.Descendants(Avalonia + "Button").Single(element =>
             (string?)element.Attribute("Content") == "{Binding BacktestActionText}");
 
+        backtestAction.Ancestors().Should().Contain(testRegion);
         backtestAction.Attribute("IsEnabled")!.Value
             .Should().Be("{Binding CanPrepareGeneratedCandidateForBacktest}");
         backtestAction.Attribute("Command")!.Value
@@ -107,6 +114,45 @@ public sealed class CandidateAuthoringUxContractTests
                 "{Binding TradeIrBacktestBoundaryText}");
         root.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
             (string?)element.Attribute("Text") == "{Binding TradeIrBacktestSummary}");
+    }
+
+    [Fact]
+    public void Regeneration_and_testing_are_distinct_actions_with_an_exact_hash_gate()
+    {
+        var root = LoadAuthoringWindow();
+        var generation = root.Descendants(Avalonia + "Border").Single(element =>
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "AutomationProperties.Name" &&
+                attribute.Value == "Candidate generation action"));
+        var testing = root.Descendants(Avalonia + "Border").Single(element =>
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "AutomationProperties.Name" &&
+                attribute.Value == "Candidate synthetic test action"));
+
+        generation.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "GENERATE / REGENERATE");
+        generation.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "Creates four replacement drafts only. It does not compile, test, run, or backtest.");
+        var regenerate = generation.Descendants(Avalonia + "Button").Single(element =>
+            (string?)element.Attribute("Content") == "Regenerate 4 candidates");
+        regenerate.Attribute("Command")!.Value.Should().Be("{Binding RegenerateFourCandidatesCommand}");
+
+        testing.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "TEST · SYNTHETIC ONLY");
+        testing.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "1 Preview Graph · Typed  →  2 Use selected in editor  →  3 Run exact-hash smoke");
+        testing.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "{Binding CandidateBacktestAvailabilityText}");
+        testing.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "Historical backtest unavailable here · Backtest Studio is a separate workflow.");
+
+        var smoke = testing.Descendants(Avalonia + "Button").Single();
+        smoke.Attribute("Command")!.Value.Should().Be("{Binding RunTradeIrSimulatedBacktestCommand}");
+        smoke.Attribute("IsEnabled")!.Value
+            .Should().Be("{Binding CanPrepareGeneratedCandidateForBacktest}");
     }
 
     [Fact]
@@ -132,11 +178,21 @@ public sealed class CandidateAuthoringUxContractTests
         outcome.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
             (string?)element.Attribute("Text") ==
                 "Generated = structurally shaped draft only — not proven correct, runnable, tested, or backtest-ready.");
+        var pending = outcome.Descendants(Avalonia + "Border").Single(element =>
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "AutomationProperties.Name" &&
+                attribute.Value == "Pending strategy refinement"));
+        pending.Attribute("IsVisible")!.Value.Should().Be("{Binding HasPendingFourLanePrompt}");
+        pending.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "PENDING REQUEST NOT APPLIED");
+        var discardPending = pending.Descendants(Avalonia + "Button").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") ==
+                "Discard pending strategy request");
+        discardPending.Attribute("Content")!.Value.Should().Be("Discard pending request");
+        discardPending.Attribute("Command")!.Value
+            .Should().Be("{Binding DiscardPendingFourLanePromptCommand}");
         outcome.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
             (string?)element.Attribute("Text") == "{Binding CandidateBacktestAvailabilityText}");
-        outcome.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
-            (string?)element.Attribute("Text") ==
-                "Graph validation and smoke compatibility are separate. Invalid or unsupported graphs cannot run; the installed runner supports the known QuoteL1 EMA smoke profile only.");
 
         var smokeStarter = outcome.Descendants(Avalonia + "Button").Single(element =>
             (string?)element.Attribute("Content") == "Load QuoteL1 EMA smoke starter");
@@ -226,7 +282,8 @@ public sealed class CandidateAuthoringUxContractTests
     {
         var root = LoadAuthoringWindow();
         var send = root.Descendants(Avalonia + "Button").Single(element =>
-            (string?)element.Attribute("Command") == "{Binding SendCommand}");
+            (string?)element.Attribute("Command") == "{Binding SendCommand}" &&
+            (string?)element.Attribute("Content") == "{Binding SendButtonText}");
         var actionGrid = send.Ancestors(Avalonia + "Grid").First(element =>
             (string?)element.Attribute("ColumnDefinitions") == "*,Auto");
 

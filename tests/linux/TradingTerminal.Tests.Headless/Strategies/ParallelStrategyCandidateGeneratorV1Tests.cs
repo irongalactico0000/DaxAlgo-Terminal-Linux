@@ -214,13 +214,21 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         foreach (var lane in StrategyGenerationLaneCatalogV1.Ordered)
         {
             var prompt = PromptFor(provider, lane);
+            var binding = ExecutableStrategyDefinitionCanonicalJson.Serialize(
+                StrategyGenerationPackageCatalogV1.RequireBinding(lane));
             prompt.Should().Contain("requestHashSha256");
             prompt.Should().Contain($"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}");
+            prompt.Should().Contain($"\"packageBinding\": {binding}");
+            prompt.Should().NotContain("\"packageBinding\": { \"copy\"");
+            prompt.Should().NotContain("__HOST_PACKAGE_BINDING_JSON__");
             prompt.Should().Contain("never claim a backtest, metric, or package check passed");
             prompt.Should().Contain("every explicit user clause about direction, thresholds, lookbacks, filters, exits");
-            prompt.Should().Contain("Artifact defaults must preserve those clauses exactly");
+            prompt.Should().Contain("that has not been superseded by a later refinement as mandatory");
+            prompt.Should().Contain("Artifact defaults must preserve those non-superseded clauses exactly");
             prompt.Should().Contain("Variation axes may offer alternatives only after");
             prompt.Should().Contain("cross-check the interpretation, parameter defaults, and artifact logic");
+            prompt.Should().Contain("every explicit clause in userPrompt that has not been superseded");
+            prompt.Should().Contain("defaultValue may be a JSON string, number, or boolean scalar");
         }
 
         result.Lanes.Should().ContainSingle(lane => lane.PackageValid && lane.Lane == StrategyGenerationLaneV1.TypedGraph);
@@ -299,6 +307,68 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
                 StrategyGenerationLaneProgressStateV1.ValidatingArtifact,
                 StrategyGenerationLaneProgressStateV1.Completed);
         }
+    }
+
+    [Fact]
+    public async Task Numeric_and_boolean_parameter_defaults_are_normalized_from_raw_model_JSON()
+    {
+        var lane = StrategyGenerationLaneV1.VibePython;
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var candidate = CandidateForLane(lane, candidateId, Request) with
+        {
+            Parameters =
+            [
+                new StrategyGenerationParameterV1("lookback", "integer", "20", "bars", "Breakout lookback."),
+                new StrategyGenerationParameterV1("decimalLookback", "number", "20.0", "bars", "Decimal spelling."),
+                new StrategyGenerationParameterV1("exponentLookback", "number", "2e1", "bars", "Exponent spelling."),
+                new StrategyGenerationParameterV1("enabled", "boolean", "true", null, "Enable the filter."),
+            ],
+        };
+        var raw = StrategyGenerationCandidateCanonicalJsonV1.Serialize(candidate)
+            .Replace("\"defaultValue\":\"20\"", "\"defaultValue\":20", StringComparison.Ordinal)
+            .Replace("\"defaultValue\":\"20.0\"", "\"defaultValue\":20.0", StringComparison.Ordinal)
+            .Replace("\"defaultValue\":\"2e1\"", "\"defaultValue\":2e1", StringComparison.Ordinal)
+            .Replace("\"defaultValue\":\"true\"", "\"defaultValue\":true", StringComparison.Ordinal);
+        raw.Should().Contain("\"defaultValue\":20");
+        raw.Should().Contain("\"defaultValue\":20.0");
+        raw.Should().Contain("\"defaultValue\":2e1");
+        raw.Should().Contain("\"defaultValue\":true");
+
+        var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            new RawResponseProvider(raw),
+            Request,
+            candidateId);
+
+        result.Readiness.Should().Be(StrategyGenerationReadinessV1.Generated, Describe(result.Issues));
+        result.Selectable.Should().BeTrue(Describe(result.Issues));
+        result.Candidate!.Parameters.Select(parameter => parameter.DefaultValue)
+            .Should().Equal("20", "20", "20", "true");
+        var canonical = StrategyGenerationCandidateCanonicalJsonV1.Serialize(result.Candidate);
+        canonical.Should().Contain("\"defaultValue\":\"20\"");
+        canonical.Should().Contain("\"defaultValue\":\"true\"");
+        canonical.Should().NotContain("\"defaultValue\":\"20.0\"");
+        canonical.Should().NotContain("\"defaultValue\":\"2e1\"");
+    }
+
+    [Fact]
+    public async Task Structured_parameter_default_remains_rejected_as_invalid_model_JSON()
+    {
+        var lane = StrategyGenerationLaneV1.VibePython;
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var candidate = CandidateForLane(lane, candidateId, Request);
+        var raw = StrategyGenerationCandidateCanonicalJsonV1.Serialize(candidate)
+            .Replace("\"defaultValue\":\"4\"", "\"defaultValue\":{\"unexpected\":4}", StringComparison.Ordinal);
+
+        var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            new RawResponseProvider(raw),
+            Request,
+            candidateId);
+
+        result.Readiness.Should().Be(StrategyGenerationReadinessV1.Invalid);
+        result.Candidate.Should().BeNull();
+        result.Issues.Should().ContainSingle(issue =>
+            issue.Code == "LANE_JSON_INVALID" &&
+            issue.Message.Contains("string, number, or boolean scalar", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1496,6 +1566,18 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             Interlocked.Increment(ref _callCount);
             return Task.FromResult(StrategyCodegenResponse.Fail("This provider should not be called."));
         }
+    }
+
+    private sealed class RawResponseProvider(string raw) : IStrategyCodegenClient
+    {
+        public string ProviderId => "raw-response";
+        public string DisplayName => "Raw response";
+        public bool IsAvailable => true;
+
+        public Task<StrategyCodegenResponse> GenerateAsync(
+            StrategyCodegenRequest request,
+            CancellationToken ct = default) =>
+            Task.FromResult(StrategyCodegenResponse.Reply(raw, new CodegenUsage(10, 5)));
     }
 
     private sealed class FourLaneArtifactProvider : IStrategyCodegenClient

@@ -15,10 +15,131 @@ namespace TradingTerminal.App.Avalonia.Tests;
 public sealed class CandidateRestoreRecoveryTests
 {
     [Fact]
+    public async Task Explicit_regenerate_reuses_the_preserved_brief_without_composer_text()
+    {
+        const string originalBrief =
+            "Buy a causal opening-range breakout and trail a 14-period ATR stop.";
+        var generator = new RecordingParallelGenerator();
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            ai: new StubAiStrategyBuilder(new StubCodegenClient()),
+            parallelCandidateGenerator: generator,
+            sessionRepository: new MemoryAuthoringSessionRepository());
+
+        viewModel.Composer = originalBrief;
+        await viewModel.SendCommand.ExecuteAsync(null);
+
+        viewModel.Composer.Should().BeEmpty();
+        viewModel.RegenerateFourCandidatesCommand.CanExecute(null).Should().BeTrue();
+        await viewModel.RegenerateFourCandidatesCommand.ExecuteAsync(null);
+
+        generator.CallCount.Should().Be(2);
+        generator.LastRequest.Should().Be(new ParallelStrategyGenerationRequestV1(
+            viewModel.StrategyId,
+            originalBrief));
+        viewModel.Composer.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Four_lane_refinement_carries_and_persists_the_original_strategy_brief()
+    {
+        const string originalBrief =
+            "Buy the opening-range breakout, use a 14-period ATR stop, and flatten before the close.";
+        const string refinement = "Run backtest with a 20 period ATR.";
+        var sessions = new MemoryAuthoringSessionRepository();
+        var generator = new RecordingParallelGenerator();
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            ai: new StubAiStrategyBuilder(new StubCodegenClient()),
+            parallelCandidateGenerator: generator,
+            sessionRepository: sessions);
+
+        viewModel.Composer = originalBrief;
+        await viewModel.SendCommand.ExecuteAsync(null);
+
+        generator.CallCount.Should().Be(1);
+        generator.LastRequest!.UserPrompt.Should().Be(originalBrief);
+        sessions.List().Should().ContainSingle()
+            .Which.FourLaneStrategyBrief.Should().Be(originalBrief);
+
+        viewModel.Composer = refinement;
+        await viewModel.SendCommand.ExecuteAsync(null);
+
+        generator.CallCount.Should().Be(2);
+        generator.LastRequest!.UserPrompt.Should().ContainAll(
+            originalBrief,
+            "Follow-up refinement",
+            refinement);
+        sessions.List().Should().ContainSingle()
+            .Which.FourLaneStrategyBrief.Should().Be(generator.LastRequest.UserPrompt);
+    }
+
+    [Fact]
+    public async Task Backtest_navigation_preserves_the_batch_and_brief_across_restore()
+    {
+        const string originalBrief =
+            "Trade a causal momentum breakout with an ATR stop and flatten before the close.";
+        const string backtestNavigation = "gow to backtest";
+        const string refinementAfterRestore = "Require volume above its 20-period average.";
+        var sessions = new MemoryAuthoringSessionRepository();
+        var initialGenerator = new RecordingParallelGenerator();
+
+        using (var viewModel = new StrategyAuthoringViewModel(
+                   new StubCompiler(),
+                   new StubRegistry(),
+                   NullLogger<StrategyAuthoringViewModel>.Instance,
+                   ai: new StubAiStrategyBuilder(new StubCodegenClient()),
+                   parallelCandidateGenerator: initialGenerator,
+                   sessionRepository: sessions))
+        {
+            viewModel.Composer = originalBrief;
+            await viewModel.SendCommand.ExecuteAsync(null);
+            var originalBatchJson = sessions.List().Single().ParallelCandidateBatchJson;
+
+            viewModel.Composer = backtestNavigation;
+            await viewModel.SendCommand.ExecuteAsync(null);
+
+            initialGenerator.CallCount.Should().Be(1,
+                "backtest navigation is not a replacement strategy-generation request");
+            viewModel.GeneratedCandidateOptions.Should().HaveCount(4);
+            viewModel.WorkbenchTab.Should().Be(3);
+            viewModel.AiStatus.Should().StartWith("No replacement candidates were generated");
+            var saved = sessions.List().Single();
+            saved.FourLaneStrategyBrief.Should().Be(originalBrief);
+            saved.ParallelCandidateBatchJson.Should().Be(originalBatchJson);
+        }
+
+        var restoredGenerator = new RecordingParallelGenerator();
+        using var restored = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            ai: new StubAiStrategyBuilder(new StubCodegenClient()),
+            parallelCandidateGenerator: restoredGenerator,
+            sessionRepository: sessions);
+
+        restored.Composer = refinementAfterRestore;
+        await restored.SendCommand.ExecuteAsync(null);
+
+        restoredGenerator.CallCount.Should().Be(1);
+        restoredGenerator.LastRequest!.UserPrompt.Should().ContainAll(
+            originalBrief,
+            "Follow-up refinement",
+            refinementAfterRestore);
+        restoredGenerator.LastRequest.UserPrompt.Should().NotContain(backtestNavigation,
+            "navigation chatter must not become strategy logic after restore");
+    }
+
+    [Fact]
     public async Task Replacement_generation_keeps_last_completed_batch_through_stop_and_restart()
     {
         const string strategyId = "saved-strategy";
         const string oldPrompt = "Compare two causal moving averages.";
+        const string pendingRefinement = "Replace the slow EMA with a 20-period EMA.";
         var batch = ValidBatchWithDeclarativeCandidate(strategyId, oldPrompt);
         var saved = new AuthoringSessionSnapshot(
             StrategyId: strategyId,
@@ -43,7 +164,7 @@ public sealed class CandidateRestoreRecoveryTests
                    sessionRepository: sessions))
         {
             viewModel.GeneratedCandidateOptions.Should().HaveCount(4);
-            viewModel.Composer = "Replace the slow EMA with a 20-period EMA.";
+            viewModel.Composer = pendingRefinement;
 
             var send = viewModel.SendCommand.ExecuteAsync(null);
             await generator.Started.WaitAsync(TimeSpan.FromSeconds(5));
@@ -55,6 +176,17 @@ public sealed class CandidateRestoreRecoveryTests
             viewModel.StopCommand.Execute(null);
             await send.WaitAsync(TimeSpan.FromSeconds(5));
             viewModel.GeneratedCandidateOptions.Should().HaveCount(4);
+            viewModel.Composer.Should().Be(pendingRefinement,
+                "a canceled replacement should remain available for retry");
+            viewModel.HasPendingFourLanePrompt.Should().BeTrue();
+            viewModel.CanChooseGeneratedCandidate.Should().BeFalse(
+                "the retained cards do not include the canceled refinement");
+            viewModel.RegenerateFourCandidatesCommand.CanExecute(null).Should().BeFalse(
+                "rerunning the committed brief must not discard a pending refinement");
+            var stopped = sessions.List().Single();
+            stopped.FourLaneStrategyBrief.Should().Be(oldPrompt,
+                "the durable brief must remain bound to the retained completed batch");
+            stopped.PendingFourLanePrompt.Should().Be(pendingRefinement);
         }
 
         using var restored = new StrategyAuthoringViewModel(
@@ -65,6 +197,191 @@ public sealed class CandidateRestoreRecoveryTests
         restored.GeneratedCandidateOptions.Should().HaveCount(4,
             "the preserved completed batch must survive process restart");
         restored.HasCandidateRestoreWarning.Should().BeFalse();
+        restored.HasPendingFourLanePrompt.Should().BeTrue();
+        restored.Composer.Should().Be(pendingRefinement);
+        restored.CanChooseGeneratedCandidate.Should().BeFalse();
+        restored.RegenerateFourCandidatesCommand.CanExecute(null).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("go to backtest")]
+    [InlineData("gow to backtest")]
+    [InlineData("let's go to backtest")]
+    [InlineData("let’s go to backtest")]
+    [InlineData("can you go to backtest")]
+    [InlineData("i said do backtest after make it")]
+    [InlineData("make it and backtest those")]
+    [InlineData("okay can be backtest")]
+    public async Task Fresh_session_backtest_navigation_never_starts_candidate_generation(string navigation)
+    {
+        var sessions = new MemoryAuthoringSessionRepository();
+        var generator = new RecordingParallelGenerator();
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            ai: new StubAiStrategyBuilder(new StubCodegenClient()),
+            parallelCandidateGenerator: generator,
+            sessionRepository: sessions);
+
+        viewModel.Composer = navigation;
+        await viewModel.SendCommand.ExecuteAsync(null);
+
+        generator.CallCount.Should().Be(0);
+        viewModel.WorkbenchTab.Should().Be(3);
+        viewModel.HasPendingFourLanePrompt.Should().BeFalse();
+        viewModel.GeneratedCandidateOptions.Should().BeEmpty();
+        viewModel.AiStatus.Should().StartWith("No replacement candidates were generated");
+    }
+
+    [Fact]
+    public async Task Navigation_does_not_hide_an_existing_pending_refinement()
+    {
+        const string oldPrompt = "Compare two causal moving averages.";
+        const string pending = "Require the fast average to rise for three events.";
+        var batch = ValidBatchWithDeclarativeCandidate("saved-strategy", oldPrompt);
+        var saved = new AuthoringSessionSnapshot(
+            StrategyId: "saved-strategy",
+            DisplayName: "Saved strategy",
+            Chat: [new AuthoringChatEntry(AuthoringChatEntry.User, oldPrompt, DateTime.Now)],
+            Thread: [],
+            Files: [new StrategyFile("Strategy.cs", "// unchanged editor")],
+            GenerateCandidateFirst: true,
+            FourLaneStrategyBrief: oldPrompt,
+            PendingFourLanePrompt: pending,
+            ParallelCandidateBatchJson: StrategyGenerationCandidateCanonicalJsonV1.SerializeBatch(batch),
+            AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion,
+            UpdatedUtc: DateTime.UtcNow);
+        var generator = new RecordingParallelGenerator();
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            ai: new StubAiStrategyBuilder(new StubCodegenClient()),
+            parallelCandidateGenerator: generator,
+            sessionRepository: new MemoryAuthoringSessionRepository(saved));
+
+        viewModel.Composer = "can you go to backtest";
+        await viewModel.SendCommand.ExecuteAsync(null);
+
+        generator.CallCount.Should().Be(0);
+        viewModel.Composer.Should().Be(pending);
+        viewModel.HasPendingFourLanePrompt.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Returning_from_expert_mode_restores_a_saved_pending_four_lane_prompt()
+    {
+        const string pending = "Require the fast average to rise for three events.";
+        var saved = new AuthoringSessionSnapshot(
+            StrategyId: "saved-strategy",
+            DisplayName: "Saved strategy",
+            Chat: [new AuthoringChatEntry(AuthoringChatEntry.User, "Expert C# turn", DateTime.Now)],
+            Thread: [],
+            Files: [new StrategyFile("Strategy.cs", "// expert editor")],
+            GenerateCandidateFirst: false,
+            PendingFourLanePrompt: pending,
+            AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion,
+            UpdatedUtc: DateTime.UtcNow);
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            sessionRepository: new MemoryAuthoringSessionRepository(saved));
+
+        viewModel.Composer.Should().BeEmpty();
+        viewModel.ToggleGenerationModeCommand.Execute(null);
+
+        viewModel.GenerateCandidateFirst.Should().BeTrue();
+        viewModel.Composer.Should().Be(pending);
+        viewModel.HasPendingFourLanePrompt.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Provider_failure_persists_the_uncommitted_refinement_for_restart()
+    {
+        const string strategyId = "saved-strategy";
+        const string oldPrompt = "Compare two causal moving averages.";
+        const string pendingRefinement = "Require the fast average to rise for three events.";
+        var batch = ValidBatchWithDeclarativeCandidate(strategyId, oldPrompt);
+        var saved = new AuthoringSessionSnapshot(
+            StrategyId: strategyId,
+            DisplayName: "Saved strategy",
+            Chat: [new AuthoringChatEntry(AuthoringChatEntry.User, oldPrompt, DateTime.Now)],
+            Thread: [],
+            Files: [new StrategyFile("Strategy.cs", "// unchanged editor")],
+            GenerateCandidateFirst: true,
+            FourLaneStrategyBrief: oldPrompt,
+            ParallelCandidateBatchJson: StrategyGenerationCandidateCanonicalJsonV1.SerializeBatch(batch),
+            AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion,
+            UpdatedUtc: DateTime.UtcNow);
+        var sessions = new MemoryAuthoringSessionRepository(saved);
+
+        using (var viewModel = new StrategyAuthoringViewModel(
+                   new StubCompiler(),
+                   new StubRegistry(),
+                   NullLogger<StrategyAuthoringViewModel>.Instance,
+                   ai: new StubAiStrategyBuilder(new StubCodegenClient()),
+                   parallelCandidateGenerator: new ThrowingParallelGenerator(),
+                   sessionRepository: sessions))
+        {
+            viewModel.Composer = pendingRefinement;
+            await viewModel.SendCommand.ExecuteAsync(null);
+
+            viewModel.Composer.Should().Be(pendingRefinement);
+            viewModel.HasPendingFourLanePrompt.Should().BeTrue();
+            viewModel.GeneratedCandidateOptions.Should().HaveCount(4);
+            viewModel.CanChooseGeneratedCandidate.Should().BeFalse();
+            viewModel.AiStatus.Should().Contain("Candidate generation error");
+        }
+
+        var persisted = sessions.List().Single();
+        persisted.FourLaneStrategyBrief.Should().Be(oldPrompt);
+        persisted.PendingFourLanePrompt.Should().Be(pendingRefinement);
+
+        using var restored = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            sessionRepository: sessions);
+        restored.GeneratedCandidateOptions.Should().HaveCount(4);
+        restored.Composer.Should().Be(pendingRefinement);
+        restored.HasPendingFourLanePrompt.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Legacy_expert_only_chat_is_not_recovered_as_a_four_lane_strategy_brief()
+    {
+        var legacy = new AuthoringSessionSnapshot(
+            StrategyId: "legacy-expert",
+            DisplayName: "Legacy expert",
+            Chat:
+            [
+                new AuthoringChatEntry(
+                    AuthoringChatEntry.User,
+                    "Write a C# helper class for my registered strategy.",
+                    DateTime.Now),
+                new AuthoringChatEntry(
+                    AuthoringChatEntry.Assistant,
+                    "Here is the compiled C# implementation.",
+                    DateTime.Now),
+            ],
+            Thread: [],
+            Files: [new StrategyFile("Strategy.cs", "// expert code")],
+            GenerateCandidateFirst: null,
+            AuthoringUxVersion: 0,
+            UpdatedUtc: DateTime.UtcNow);
+
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            ai: new StubAiStrategyBuilder(new StubCodegenClient()),
+            parallelCandidateGenerator: new RecordingParallelGenerator(),
+            sessionRepository: new MemoryAuthoringSessionRepository(legacy));
+
+        viewModel.RegenerateFourCandidatesCommand.CanExecute(null).Should().BeFalse();
+        viewModel.Composer.Should().BeEmpty();
     }
 
     [Fact]
@@ -167,6 +484,55 @@ public sealed class CandidateRestoreRecoveryTests
     }
 
     [Fact]
+    public async Task Stale_batch_recovery_prefers_the_explicit_durable_brief_over_its_old_prompt()
+    {
+        const string strategyId = "saved-strategy";
+        const string oldBatchPrompt = "Trade a causal momentum breakout.";
+        const string durableBrief = """
+            Ordered strategy request. Later refinements supersede only directly conflicting earlier clauses.
+            Preserve every non-conflicting requirement, and do not implement a superseded clause alongside its replacement.
+
+            Original strategy brief:
+            Trade a causal momentum breakout.
+
+            Follow-up refinement:
+            Use a 20-period ATR stop.
+            """;
+        var staleBatch = new ParallelStrategyGenerationResultV1(
+            strategyId,
+            oldBatchPrompt,
+            StrategyGenerationCandidateCanonicalJsonV1.PromptHash(strategyId, oldBatchPrompt),
+            [],
+            CodegenUsage.None);
+        var saved = new AuthoringSessionSnapshot(
+            StrategyId: strategyId,
+            DisplayName: "Saved strategy",
+            Chat: [new AuthoringChatEntry(AuthoringChatEntry.User, oldBatchPrompt, DateTime.Now)],
+            Thread: [],
+            Files: [new StrategyFile("SavedStrategy.cs", "// saved code")],
+            GenerateCandidateFirst: true,
+            FourLaneStrategyBrief: durableBrief,
+            ParallelCandidateBatchJson: StrategyGenerationCandidateCanonicalJsonV1.SerializeBatch(staleBatch),
+            AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion,
+            UpdatedUtc: DateTime.UtcNow);
+        var generator = new RecordingParallelGenerator();
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            ai: new StubAiStrategyBuilder(new StubCodegenClient()),
+            parallelCandidateGenerator: generator,
+            sessionRepository: new MemoryAuthoringSessionRepository(saved));
+
+        viewModel.Composer.Should().Be(durableBrief);
+        viewModel.HasCandidateRestoreWarning.Should().BeTrue();
+
+        await viewModel.RegenerateRecoveredCandidatesCommand.ExecuteAsync(null);
+
+        generator.LastRequest!.UserPrompt.Should().Be(durableBrief);
+    }
+
+    [Fact]
     public void Retired_batch_shape_recovers_its_raw_prompt_before_typed_deserialization_fails()
     {
         const string strategyId = "saved-strategy";
@@ -200,6 +566,80 @@ public sealed class CandidateRestoreRecoveryTests
             "prompt recovery must not depend on successfully deserializing the retired batch type");
         viewModel.HasCandidateRestoreWarning.Should().BeTrue();
         viewModel.GeneratedCandidateOptions.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Legacy_batch_generated_from_backtest_navigation_recovers_the_original_chat_brief()
+    {
+        const string strategyId = "saved-strategy";
+        const string originalBrief =
+            "Trade a causal momentum breakout with an ATR stop and flatten before the close.";
+        const string backtestNavigation = "gow to backtest";
+        var misroutedBatch = ValidBatchWithDeclarativeCandidate(strategyId, backtestNavigation);
+        var saved = new AuthoringSessionSnapshot(
+            StrategyId: strategyId,
+            DisplayName: "Saved strategy",
+            Chat:
+            [
+                new AuthoringChatEntry(AuthoringChatEntry.User, originalBrief, DateTime.Now),
+                new AuthoringChatEntry(AuthoringChatEntry.User, backtestNavigation, DateTime.Now),
+            ],
+            Thread: [],
+            Files: [new StrategyFile("SavedStrategy.cs", "// saved code")],
+            GenerateCandidateFirst: true,
+            ParallelCandidateBatchJson: StrategyGenerationCandidateCanonicalJsonV1.SerializeBatch(misroutedBatch),
+            AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion,
+            UpdatedUtc: DateTime.UtcNow);
+        var generator = new RecordingParallelGenerator();
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            ai: new StubAiStrategyBuilder(new StubCodegenClient()),
+            parallelCandidateGenerator: generator,
+            sessionRepository: new MemoryAuthoringSessionRepository(saved));
+
+        generator.CallCount.Should().Be(0, "restore must never issue a replacement provider request");
+        viewModel.GeneratedCandidateOptions.Should().BeEmpty(
+            "a structurally valid batch is still unusable when its prompt was navigation chatter");
+        viewModel.HasCandidateRestoreWarning.Should().BeTrue();
+        viewModel.Composer.Should().Be(originalBrief);
+
+        await viewModel.RegenerateRecoveredCandidatesCommand.ExecuteAsync(null);
+
+        generator.CallCount.Should().Be(1);
+        generator.LastRequest.Should().Be(new ParallelStrategyGenerationRequestV1(strategyId, originalBrief));
+    }
+
+    [Fact]
+    public async Task Explicit_expert_session_chat_does_not_become_a_four_lane_brief()
+    {
+        const string expertPrompt = "Write a custom C# strategy with a helper class.";
+        const string firstFourLaneBrief = "Build a four-lane causal EMA crossover.";
+        var saved = new AuthoringSessionSnapshot(
+            StrategyId: "saved-strategy",
+            DisplayName: "Saved strategy",
+            Chat: [new AuthoringChatEntry(AuthoringChatEntry.User, expertPrompt, DateTime.Now)],
+            Thread: [],
+            Files: [new StrategyFile("SavedStrategy.cs", "// saved code")],
+            GenerateCandidateFirst: false,
+            AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion,
+            UpdatedUtc: DateTime.UtcNow);
+        var generator = new RecordingParallelGenerator();
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            ai: new StubAiStrategyBuilder(new StubCodegenClient()),
+            parallelCandidateGenerator: generator,
+            sessionRepository: new MemoryAuthoringSessionRepository(saved));
+
+        viewModel.ToggleGenerationModeCommand.Execute(null);
+        viewModel.Composer = firstFourLaneBrief;
+        await viewModel.SendCommand.ExecuteAsync(null);
+
+        generator.LastRequest!.UserPrompt.Should().Be(firstFourLaneBrief);
+        generator.LastRequest.UserPrompt.Should().NotContain(expertPrompt);
     }
 
     private static ParallelStrategyGenerationResultV1 ValidBatchWithDeclarativeCandidate(
@@ -450,6 +890,17 @@ public sealed class CandidateRestoreRecoveryTests
             await Task.Delay(Timeout.InfiniteTimeSpan, ct);
             throw new InvalidOperationException("The canceled fixture must never complete.");
         }
+    }
+
+    private sealed class ThrowingParallelGenerator : IParallelStrategyCandidateGeneratorV1
+    {
+        public Task<ParallelStrategyGenerationResultV1> GenerateAsync(
+            IStrategyCodegenClient provider,
+            ParallelStrategyGenerationRequestV1 request,
+            CancellationToken ct = default,
+            IProgress<StrategyGenerationLaneProgressV1>? progress = null) =>
+            Task.FromException<ParallelStrategyGenerationResultV1>(
+                new InvalidOperationException("Fixture provider failure."));
     }
 
     private sealed class StubAiStrategyBuilder(IStrategyCodegenClient provider) : IAiStrategyBuilder

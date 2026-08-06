@@ -23,6 +23,9 @@ Rules contract is [JSON Schema Draft 2020-12](schemas/vibe-quant-declarative-rul
 6. When generation finishes, select a candidate card to preview it. Review its assumptions,
    unresolved questions, proposed parameters, tests, and exact artifact before choosing
    **Use selected in editor**.
+7. The Candidate action panels deliberately separate **Generate / Regenerate** from
+   **Test · synthetic only**. Testing requires **Graph · Typed → Use selected in editor → Run
+   exact-hash synthetic smoke**; it never reruns the generation agents.
 
 One submission starts four concurrent provider calls:
 
@@ -66,6 +69,27 @@ does not silently replace the active artifact.
 
 Choosing or locally revalidating an artifact does not call the model, compile it, import it, or run
 it. A local edit receives a new SHA-256 content hash after deterministic revalidation.
+
+## Follow-up turns preserve the strategy
+
+The first four-lane submission becomes the session's durable strategy brief. Later strategy
+refinements are appended in order; a later clause supersedes only a directly conflicting earlier
+clause. For example, `change the ATR period to 20` retains the original entry, filter, sizing, and
+timing requirements while replacing the earlier ATR period. The cumulative brief is saved with the
+authoring session and restored after restarting the app.
+
+A short navigation request such as `go to backtest` or the previously observed typo
+`gow to backtest` is not strategy logic. Vibe Quant keeps the current batch and hashes, opens the
+Candidate test guidance, and makes no provider request. A mixed request containing new strategy
+facts, such as `backtest with a 20-period ATR and 1 bp fees`, remains a refinement so those facts are
+not silently discarded. Generation and testing remain separate explicit actions.
+
+The shared candidate envelope also normalizes model-authored scalar parameter defaults. A provider
+may return `defaultValue` as a JSON string, number, or boolean; the host stores its invariant scalar
+spelling as a string for comparison and canonical hashing. Objects and arrays remain invalid. This
+does not coerce the lane artifact itself: each artifact contract still owns its native parameter
+types. Every prompt now embeds the exact host-owned `packageBinding` object, so a model cannot satisfy
+the contract with a `copy` placeholder.
 
 ## From four drafts to one canonical artifact
 
@@ -188,7 +212,14 @@ the stop.
 When a completed batch already exists, starting a replacement generation keeps that last validated
 batch until the replacement fully validates. Canceling, closing the app, or losing the provider does
 not replace the committed batch with an empty one. A first-ever generation interrupted before any
-response completes still has no candidate artifact to recover.
+response completes still has no candidate artifact to recover. In both cases, the submitted but
+uncommitted refinement is saved separately and restored into the composer after Stop or restart.
+When an older completed batch is retained, Candidate labels it **PENDING REQUEST NOT APPLIED** and
+disables selection, revalidation, unchanged-brief regeneration, and synthetic testing until the
+restored refinement is applied with **Check & generate**. If the request is no longer wanted, choose
+**Discard pending request** to keep the prior completed batch and hashes without making any provider,
+synthesis, or test call. This prevents an old candidate hash from being mistaken for the result of
+the newer request.
 
 The current one-shot CLI adapter does not prove process-tree termination. A child provider process
 may finish after the UI has stopped listening; its output remains ignored. Start a new turn to retry.
@@ -214,7 +245,7 @@ package-valid **Graph · Typed** artifact or a package-valid combined TradeIR ar
    blocked, refine and regenerate; a sibling Vibe, Rules, or CSP result cannot enter this runner.
 4. Choose **Use selected in editor**. Preview alone is not enough; the editor must still match the
    exact candidate hash.
-5. In **Synthetic test readiness**, choose **Run synthetic smoke test**.
+5. In **Test · synthetic only**, choose **Run exact-hash synthetic smoke**.
 6. Read the normal report summary or the exact rejection code and JSON path.
 
 The runner independently recomputes the persisted module hash, creates and hashes a deterministic

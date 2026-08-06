@@ -881,6 +881,25 @@
                                    VerticalAlignment="Center" />
                       </Grid>
 
+                      <Border IsVisible="{Binding HasPendingFourLanePrompt}"
+                              Background="{StaticResource Warning.Soft}"
+                              BorderBrush="{StaticResource Warning.Brush}" BorderThickness="1"
+                              CornerRadius="4" Padding="7,6"
+                              AutomationProperties.Name="Pending strategy refinement">
+                        <StackPanel Spacing="2">
+                          <TextBlock Text="PENDING REQUEST NOT APPLIED"
+                                     Foreground="{StaticResource Warning.Brush}"
+                                     FontWeight="SemiBold" FontSize="10" />
+                          <TextBlock Text="These cards are the previous completed batch. A stopped or failed refinement is back in the composer; select Check &amp; generate to apply it. Selection, revalidation, and synthetic testing stay disabled until then."
+                                     Classes="caption" TextWrapping="Wrap" />
+                          <Button Classes="ghost" Content="Discard pending request"
+                                  Command="{Binding DiscardPendingFourLanePromptCommand}"
+                                  HorizontalAlignment="Left"
+                                  AutomationProperties.Name="Discard pending strategy request"
+                                  ToolTip.Tip="Keeps the previous completed batch and exact hashes. Does not generate, select, synthesize, test, or backtest." />
+                        </StackPanel>
+                      </Border>
+
                       <Border IsVisible="{Binding HasBlockedGeneratedCandidates}"
                               Background="{StaticResource Warning.Soft}"
                               BorderBrush="{StaticResource Warning.Brush}" BorderThickness="1"
@@ -908,11 +927,6 @@
 
                       <TextBlock Text="Generated = structurally shaped draft only — not proven correct, runnable, tested, or backtest-ready."
                                  Classes="caption" TextWrapping="Wrap" />
-                      <TextBlock Text="{Binding CandidateBacktestAvailabilityText}"
-                                 Foreground="{StaticResource Warning.Brush}"
-                                 FontSize="10" FontWeight="SemiBold" TextWrapping="Wrap" />
-                      <TextBlock Text="Graph validation and smoke compatibility are separate. Invalid or unsupported graphs cannot run; the installed runner supports the known QuoteL1 EMA smoke profile only."
-                                 Classes="caption" TextWrapping="Wrap" />
 
                       <StackPanel Spacing="1" IsVisible="{Binding HasChosenGeneratedCandidate}">
                         <TextBlock Text="{Binding ChosenGeneratedCandidateSummary}"
@@ -925,6 +939,50 @@
                           <Run Text="{Binding ChosenGeneratedCandidateHash}" />
                         </TextBlock>
                       </StackPanel>
+
+                      <Grid ColumnDefinitions="*,*" Margin="0,3,0,1">
+                        <Border Grid.Column="0" Margin="0,0,3,0" Padding="7,6"
+                                Background="{StaticResource Background.Base}"
+                                BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                CornerRadius="4"
+                                AutomationProperties.Name="Candidate generation action">
+                          <StackPanel Spacing="4">
+                            <TextBlock Text="GENERATE / REGENERATE" Classes="eyebrow" />
+                            <TextBlock Text="Creates four replacement drafts only. It does not compile, test, run, or backtest."
+                                       Classes="caption" TextWrapping="Wrap" />
+                            <Button Classes="ghost" Content="Regenerate 4 candidates"
+                                    Command="{Binding RegenerateFourCandidatesCommand}"
+                                    HorizontalAlignment="Left"
+                                    AutomationProperties.Name="Regenerate four candidate drafts"
+                                    ToolTip.Tip="Reruns four model calls with the preserved strategy brief. It does not run a test or backtest." />
+                            <TextBlock Text="Uses the preserved brief. Add a composer refinement and use Check &amp; generate to change it."
+                                       Classes="caption" TextWrapping="Wrap" />
+                          </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="1" Margin="3,0,0,0" Padding="7,6"
+                                Background="{StaticResource Background.Base}"
+                                BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="1"
+                                CornerRadius="4"
+                                AutomationProperties.Name="Candidate synthetic test action">
+                          <StackPanel Spacing="4">
+                            <TextBlock Text="TEST · SYNTHETIC ONLY" Classes="eyebrow" />
+                            <TextBlock Text="1 Preview Graph · Typed  →  2 Use selected in editor  →  3 Run exact-hash smoke"
+                                       Classes="caption" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding CandidateBacktestAvailabilityText}"
+                                       Foreground="{StaticResource Warning.Brush}"
+                                       FontSize="10" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <Button Classes="aiAction" Content="{Binding BacktestActionText}"
+                                    Command="{Binding RunTradeIrSimulatedBacktestCommand}"
+                                    IsEnabled="{Binding CanPrepareGeneratedCandidateForBacktest}"
+                                    HorizontalAlignment="Left"
+                                    AutomationProperties.Name="Run exact-hash synthetic smoke"
+                                    ToolTip.Tip="Enabled only for the unchanged package-valid TradeIR artifact active in the editor. Admission and execution use deterministic synthetic QuoteL1 data." />
+                            <TextBlock Text="Historical backtest unavailable here · Backtest Studio is a separate workflow."
+                                       Classes="caption" TextWrapping="Wrap" />
+                          </StackPanel>
+                        </Border>
+                      </Grid>
 
                       <WrapPanel HorizontalAlignment="Right">
                         <Button Classes="ghost" Content="Load QuoteL1 EMA smoke starter"
@@ -950,7 +1008,7 @@
                     </StackPanel>
                   </Border>
 
-                  <ListBox Classes="chromeLess" MaxHeight="238"
+                  <ListBox Classes="chromeLess" MaxHeight="274"
                            ItemsSource="{Binding GeneratedCandidateOptions}"
                            SelectedItem="{Binding SelectedGeneratedCandidateOption, Mode=TwoWay}">
                     <ListBox.Styles>
@@ -967,7 +1025,7 @@
                     </ListBox.ItemsPanel>
                     <ListBox.ItemTemplate>
                       <DataTemplate>
-                        <Grid MinHeight="104" Margin="3">
+                        <Grid MinHeight="124" Margin="3">
                           <Border Background="{StaticResource Background.Elevated}"
                                   BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
                                   CornerRadius="5" />
@@ -977,7 +1035,7 @@
                           <Border IsVisible="{Binding IsChosen}"
                                   BorderBrush="{StaticResource Bullish.Brush}" BorderThickness="0,0,0,3"
                                   CornerRadius="5" IsHitTestVisible="False" />
-                          <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" Margin="8,7">
+                          <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="8,7">
                             <TextBlock Grid.Row="0" Text="{Binding LaneName}"
                                        FontWeight="SemiBold" FontSize="10.5"
                                        TextTrimming="CharacterEllipsis" />
@@ -1007,6 +1065,10 @@
                                        TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
                             <TextBlock Grid.Row="5" Text="{Binding FlexibilityText}"
                                        Classes="caption" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Row="6" Text="{Binding SyntheticTestCapabilityText}"
+                                       Classes="caption" FontFamily="{StaticResource Font.Data}"
+                                       Foreground="{StaticResource Ai.Text.Brush}"
+                                       TextWrapping="Wrap" Margin="0,3,0,0" />
                           </Grid>
                         </Grid>
                       </DataTemplate>
@@ -1093,11 +1155,6 @@
                         <TextBlock Text="{Binding BacktestReadinessText}" Classes="caption"
                                    TextWrapping="Wrap" MaxWidth="310" />
                       </StackPanel>
-                      <Button Grid.Row="0" Grid.Column="1" Classes="ghost"
-                              Content="{Binding BacktestActionText}"
-                              Command="{Binding RunTradeIrSimulatedBacktestCommand}"
-                              IsEnabled="{Binding CanPrepareGeneratedCandidateForBacktest}"
-                              ToolTip.Tip="Runs this exact package-valid TradeIR candidate through closed-target admission and deterministic synthetic QuoteL1 events. It is not historical and is not worker-isolated." />
                       <ItemsControl Grid.Row="1" Grid.ColumnSpan="2" Margin="0,6,0,0"
                                     ItemsSource="{Binding BacktestReadinessStages}">
                         <ItemsControl.ItemsPanel>

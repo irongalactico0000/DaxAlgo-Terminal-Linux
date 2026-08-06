@@ -1,6 +1,6 @@
 # macOS index / UI
 
-Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
+Generated from source fingerprint `cb463a404ff1`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
@@ -10,9 +10,12 @@ Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
 | `src/linux/UI/TradingTerminal.Settings/Archive/TelegramArchiveCredentialProtection.cs` | 272 | linux | TradingTerminal.Settings | product | Y | Protects Telegram archive credentials with the current user's platform secret store. Windows |
 | `src/linux/UI/TradingTerminal.Settings/Authoring/AiCodegenUserFile.cs` | 92 | linux | TradingTerminal.Settings | product | Y | Absolute path to |
 | `src/linux/UI/TradingTerminal.Settings/Authoring/AiProvidersSettingsViewModel.cs` | 100 | linux | TradingTerminal.Settings | product | Y | Store (or clear, when blank) the pasted key in the platform credential |
-| `src/linux/UI/TradingTerminal.Settings/Authoring/AuthoringSessionStore.cs` | 161 | linux | TradingTerminal.Settings | product | Y | One bubble as the user saw it. Kept separately from the model |
+| `src/linux/UI/TradingTerminal.Settings/Authoring/AuthoringSessionStore.cs` | 204 | linux | TradingTerminal.Settings | product | Y | One bubble as the user saw it. Kept separately from the model |
 | `src/linux/UI/TradingTerminal.Settings/Authoring/LineDiff.cs` | 94 | linux | TradingTerminal.Settings | product | Y | One line of a rendered diff: |
-| `src/linux/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.cs` | 1645 | linux | TradingTerminal.Settings | product | Y | Keeps the activity strip and the chat from growing without bound over |
+| `src/linux/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.TradeIrBacktest.cs` | 472 | linux | TradingTerminal.Settings | product | Y | Exact-hash bridge from an active, package-valid TradeIR candidate to the deliberately narrow |
+| `src/linux/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.TradeIrSynthesis.cs` | 265 | linux | TradingTerminal.Settings | product | Y | Review-bound bridge from the four independently generated authoring drafts to one new |
+| `src/linux/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.cs` | 3520 | linux | TradingTerminal.Settings | product | Y | Keeps the activity strip and the chat from growing without bound over |
+| `src/linux/UI/TradingTerminal.Settings/Authoring/StrategyStarterCatalog.cs` | 1058 | linux | TradingTerminal.Settings | product | Y | Overlapping navigation lenses derived from the normalized specification. |
 | `src/linux/UI/TradingTerminal.Settings/Notifications/NotificationsSettingsViewModel.cs` | 226 | linux | TradingTerminal.Settings | product | Y | Per-provider default text/vision model ids, pre-filled when the user picks a provider |
 | `src/linux/UI/TradingTerminal.Settings/Notifications/NotificationsUserFile.cs` | 84 | linux | TradingTerminal.Settings | product | Y | Writes the notifications section, preserving any other keys that may exist. |
 | `src/linux/UI/TradingTerminal.Settings/Research/ResearchSettingsViewModel.cs` | 106 | linux | TradingTerminal.Settings | product | Y | When on, the app launches the Python sidecar itself on startup (no |

@@ -1,6 +1,6 @@
 # TradingTerminal.Core / Strategies — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `b2d2bcde9e83`. Declaration lines only;
+Generated from source fingerprint `cb463a404ff1`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Core/TradingTerminal.Core/Strategies/Authoring/AiModelChoice.cs
@@ -42,33 +42,35 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    76: public int TotalTokens => InputTokens + OutputTokens;
    79: public bool IsReported => InputTokens > 0 || OutputTokens > 0;
    81: public CodegenUsage Add(CodegenUsage? other) => other is null
-   94: public sealed record StrategyCodegenRequest(string SystemContext, IReadOnlyList<CodegenMessage> Messages);
-  108: public sealed record StrategyCodegenResponse(
-  117: public IReadOnlyList<StrategyFile> FileList => Files ?? (string.IsNullOrWhiteSpace(Code)
-  122: public bool HasFiles => FileList.Count > 0;
-  124: public static StrategyCodegenResponse Ok(string code, string rawText) => new(true, code, rawText, null);
-  126: public static StrategyCodegenResponse Ok(IReadOnlyList<StrategyFile> files, string rawText, CodegenUsage? usage = null) =>
-  130: public static StrategyCodegenResponse Reply(string rawText, CodegenUsage? usage = null) =>
-  133: public static StrategyCodegenResponse Fail(string error) => new(false, null, null, error);
-  142: public abstract record CodegenEvent
-  147: public sealed record TextDelta(string Text) : CodegenEvent;
-  151: public sealed record UsageUpdate(CodegenUsage Usage) : CodegenEvent;
-  154: public sealed record Completed(StrategyCodegenResponse Response) : CodegenEvent;
-  169: public interface IStrategyCodegenClient
-  173:     string ProviderId { get; }
-  176:     string DisplayName { get; }
-  180:     bool IsAvailable { get; }
-  184:     string Model => string.Empty;
-  188:     CodegenEffort Effort => CodegenEffort.Default;
-  192:     IReadOnlyList<string> KnownModels => [];
-  197:     Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default) =>
-  198:     Task.FromResult<IReadOnlyList<string>>([]);
-  200:     Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default);
-  213:     async IAsyncEnumerable<CodegenEvent> StreamAsync(
-  214:     StrategyCodegenRequest request,
-  217:     var response = await GenerateAsync(request, ct).ConfigureAwait(false);
-  218:     if (response.Usage is { IsReported: true } usage) yield return new CodegenEvent.UsageUpdate(usage);
-  219:     yield return new CodegenEvent.Completed(response);
+   89: public enum StrategyCodegenOutputContract
+  102: public sealed record StrategyCodegenRequest(
+  110: public StrategyCodegenOutputContract OutputContract { get; init; } =
+  126: public sealed record StrategyCodegenResponse(
+  135: public IReadOnlyList<StrategyFile> FileList => Files ?? (string.IsNullOrWhiteSpace(Code)
+  140: public bool HasFiles => FileList.Count > 0;
+  142: public static StrategyCodegenResponse Ok(string code, string rawText) => new(true, code, rawText, null);
+  144: public static StrategyCodegenResponse Ok(IReadOnlyList<StrategyFile> files, string rawText, CodegenUsage? usage = null) =>
+  148: public static StrategyCodegenResponse Reply(string rawText, CodegenUsage? usage = null) =>
+  151: public static StrategyCodegenResponse Fail(string error) => new(false, null, null, error);
+  160: public abstract record CodegenEvent
+  165: public sealed record TextDelta(string Text) : CodegenEvent;
+  169: public sealed record UsageUpdate(CodegenUsage Usage) : CodegenEvent;
+  172: public sealed record Completed(StrategyCodegenResponse Response) : CodegenEvent;
+  187: public interface IStrategyCodegenClient
+  191:     string ProviderId { get; }
+  194:     string DisplayName { get; }
+  198:     bool IsAvailable { get; }
+  202:     string Model => string.Empty;
+  206:     CodegenEffort Effort => CodegenEffort.Default;
+  210:     IReadOnlyList<string> KnownModels => [];
+  215:     Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default) =>
+  216:     Task.FromResult<IReadOnlyList<string>>([]);
+  222:     Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default);
+  235:     async IAsyncEnumerable<CodegenEvent> StreamAsync(
+  236:     StrategyCodegenRequest request,
+  239:     var response = await GenerateAsync(request, ct).ConfigureAwait(false);
+  240:     if (response.Usage is { IsReported: true } usage) yield return new CodegenEvent.UsageUpdate(usage);
+  241:     yield return new CodegenEvent.Completed(response);
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCompiler.cs
@@ -113,6 +115,330 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    13: public const string DefaultName = "Strategy.cs";
    26: public sealed record StrategyScript(
    32: public StrategyScript(string id, string displayName, string sourceCode)
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Authoring/TradeIrSimulatedBacktestContractsV1.cs
+```cs
+    9: public static class TradeIrSimulatedBacktestContractV1
+   11: public const string ExecutionMode = "in_process_synthetic_quote_l1_smoke";
+   12: public const int MaximumEventCount = 100_000;
+   13: public const string SchemaId = "canonical.quote-l1";
+   14: public const int SchemaVersion = 1;
+   15: public const string SchemaSemanticContract =
+   19: public static IReadOnlyList<string> PayloadFields { get; } = Array.AsReadOnly(
+   22: public static string SchemaHashSha256 { get; } = Convert.ToHexString(
+   26: public static CanonicalEventSchemaV1 CreateEventSchema() => new(
+   33: public static class TradeIrSimulatedBacktestIssueCodesV1
+   35: public const string RequestRequired = "TRADEIR_SMOKE_REQUEST_REQUIRED";
+   36: public const string SourceCandidateHashInvalid = "TRADEIR_SMOKE_SOURCE_CANDIDATE_HASH_INVALID";
+   37: public const string ModuleHashInvalid = "TRADEIR_SMOKE_MODULE_HASH_INVALID";
+   38: public const string ModuleHashMismatch = "TRADEIR_SMOKE_MODULE_HASH_MISMATCH";
+   39: public const string ModuleInvalid = "TRADEIR_SMOKE_MODULE_INVALID";
+   40: public const string EventCountInvalid = "TRADEIR_SMOKE_EVENT_COUNT_INVALID";
+   41: public const string DataRequirementInvalid = "TRADEIR_SMOKE_DATA_REQUIREMENT_INVALID";
+   42: public const string ArtifactIdentityUnavailable = "TRADEIR_SMOKE_ARTIFACT_IDENTITY_UNAVAILABLE";
+   43: public const string Cancelled = "TRADEIR_SMOKE_CANCELLED";
+   44: public const string RuntimeFailed = "TRADEIR_SMOKE_RUNTIME_FAILED";
+   52: public enum TradeIrSimulatedBacktestStatusV1
+   61: public sealed record TradeIrSimulatedBacktestIssueV1(
+   71: public sealed record TradeIrSimulatedBacktestRequestV1(
+   82: public sealed record TradeIrSimulatedBacktestEvidenceV1(
+   99: public sealed record TradeIrSimulatedBacktestResultV1(
+  105: public bool Succeeded =>
+  116: public interface ITradeIrSimulatedBacktestRunnerV1
+  118:     Task<TradeIrSimulatedBacktestResultV1> RunAsync(
+  119:     TradeIrSimulatedBacktestRequestV1 request,
+  120:     CancellationToken ct = default);
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Definition/ExecutableStrategyDefinitionCanonicalJson.cs
+```cs
+   12: public static class ExecutableStrategyDefinitionCanonicalJson
+   14: public const string AlgorithmVersion = "rfc8785-jcs/v1";
+   18: public static string Serialize(object value)
+   25: public static string Canonicalize(string json)
+   39: public static T Deserialize<T>(string json)
+   46: public static string Sha256(string json)
+   52: public static string Hash(object value) => HashCanonical(Serialize(value));
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Definition/OperatorGraphModuleCanonicalJsonV1.cs
+```cs
+    8: public static class OperatorGraphModuleCanonicalJsonV1
+   10: public static string Serialize(OperatorGraphModuleV1 module)
+   16: public static string Hash(OperatorGraphModuleV1 module)
+   22: public static OperatorGraphModuleV1 Deserialize(string json)
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Definition/StrategyCompilationAdmissionManifestV1.cs
+```cs
+    4: public sealed record StrategyCompilationDataPinV1(
+   17: public sealed record StrategyCompilationAdmissionDocumentV1(
+   26: public const int CurrentSchemaVersion = 1;
+   27: public const string CurrentAdmissionRulesVersion = "trade-ir/compilation-admission/v1";
+   35: public sealed class StrategyCompilationAdmissionManifestV1
+   49: public string CanonicalDefinitionJson { get; }
+   50: public string CanonicalTargetProfileJson { get; }
+   51: public string CanonicalManifestJson { get; }
+   52: public string ManifestHashSha256 { get; }
+  101: public StrategyIntermediateRepresentationV1 ReadDefinitionForCompilation()
+  111: public StrategyCompilationAdmissionDocumentV1 ReadDocument()
+  204: public sealed record StrategyCompilationAdmissionOutcomeV1(
+  208: public bool CanCompile => Assessment.CanCompile && Manifest is not null;
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Definition/StrategyCompilationAdmissionV1.cs
+```cs
+    3: public sealed record StrategyCompilationAdmissionIssueV1(string Code, string Path, string Message);
+    5: public sealed record StrategyCompilationAdmissionResultV1(
+   12: public bool CanCompile =>
+   24: public static class StrategyCompilationAdmissionV1
+   30: public static StrategyCompilationAdmissionOutcomeV1 AssessAndFreeze(
+   96: public static StrategyCompilationAdmissionResultV1 Assess(
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Definition/StrategyIntermediateRepresentationV1.cs
+```cs
+    8: public sealed record StrategyIntermediateRepresentationV1(
+   19: public const int CurrentSchemaVersion = 1;
+   26: public sealed record StrategyOperatorCatalogReferenceV1(
+   31: public enum StrategyClockKindV1
+   40: public sealed record StrategyIrNodeV1(
+   51: public sealed record StrategyLiteralV1(
+   58: public static StrategyLiteralV1 FromBoolean(bool value) =>
+   61: public static StrategyLiteralV1 FromInteger(long value) =>
+   64: public static StrategyLiteralV1 FromNumber(double value) =>
+   67: public static StrategyLiteralV1 FromText(string value) =>
+   71: public enum StrategyLiteralKindV1
+   80: public enum StrategyIrOutputKindV1
+   92: public sealed record StrategyIrOutputBindingV1(
+  102: public sealed record StrategyAxisV1(
+  112: public sealed record StrategyValueTypeV1(
+  119: public enum StrategyValueAvailabilityV1
+  126: public enum StrategyOperatorStateKindV1
+  137: public enum StrategyOperatorPlacementV1
+  145: public sealed record StrategyOperatorKeyV1(string OperatorId, int Version);
+  147: public sealed record StrategyCapabilityRequirementV1(string CapabilityId, string Reason);
+  149: public sealed record StrategyIrIssueV1(string Code, string Path, string Message);
+  151: public sealed record StrategyIrNodeAnalysisV1(
+  161: public sealed record StrategyIrValidationResultV1(
+  166: public bool IsValid => Issues.Count == 0;
+  168: public IReadOnlyList<StrategyCapabilityRequirementV1> RequiredCapabilities => Nodes
+  178: public static class StrategyIrCanonicalJsonV1
+  180: public const string AlgorithmVersion = ExecutableStrategyDefinitionCanonicalJson.AlgorithmVersion;
+  182: public static string Serialize(StrategyIntermediateRepresentationV1 definition) =>
+  185: public static StrategyIntermediateRepresentationV1 Deserialize(string json) =>
+  188: public static string Hash(StrategyIntermediateRepresentationV1 definition) =>
+  191: public static string Canonicalize(string json) =>
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Definition/StrategyIrTargetAssessmentV1.cs
+```cs
+    7: public sealed record StrategyIrTargetProfileV1(
+   22: public sealed record StrategyIrTargetAssessmentV1(
+   30: public bool IsDeclaredCompatible => SemanticValidation.IsValid && Limitations.Count == 0;
+   33: public static class StrategyIrTargetAssessorV1
+   35: public static StrategyIrTargetAssessmentV1 Assess(
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Definition/StrategyIrValidatorV1.cs
+```cs
+    7: public static class StrategyIrValidatorV1
+    9: public static StrategyIrValidationResultV1 Validate(
+   59: public static StrategyIrValidationResultV1 ReadAndValidate(
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Definition/StrategyOperatorRegistryV1.cs
+```cs
+    3: public static class StrategyIrTypeIdsV1
+    5: public const string Number = "core.number@1";
+    6: public const string Boolean = "core.boolean@1";
+    7: public const string PortfolioTarget = "portfolio.target@1";
+    8: public const string ExitIntent = "risk.exit_intent@1";
+    9: public const string QuoteIntent = "strategy.quote_intent@1";
+   10: public const string OrderIntent = "strategy.order_intent@1";
+   13: public sealed record StrategyOperatorBindingContextV1(
+   18: public sealed record StrategyOperatorBindingResultV1(
+   23: public bool IsValid => OutputType is not null && Issues.Count == 0;
+   26: public delegate StrategyOperatorBindingResultV1 StrategyOperatorBinderV1(
+   34: public sealed class StrategyOperatorDescriptorV1
+   36: public StrategyOperatorDescriptorV1(
+   91: public StrategyOperatorKeyV1 Key { get; }
+   92: public IReadOnlyList<string> RequiredInputPorts { get; }
+   93: public IReadOnlyList<string> OptionalInputPorts { get; }
+   94: public StrategyOperatorStateKindV1 StateKind { get; }
+   95: public StrategyOperatorPlacementV1 Placement { get; }
+   96: public IReadOnlyList<StrategyCapabilityRequirementV1> Capabilities { get; }
+   97: public string SemanticContractHashSha256 { get; }
+   98: public string BinderIdentityHashSha256 { get; }
+   99: public StrategyOperatorBinderV1 Binder { get; }
+  134: public interface IStrategyOperatorRegistryV1
+  136:     StrategyOperatorCatalogReferenceV1 Catalog { get; }
+  137:     IReadOnlyList<StrategyOperatorKeyV1> Keys { get; }
+  138:     bool TryResolve(string operatorId, int version, out StrategyOperatorDescriptorV1 descriptor);
+  146: public sealed class StrategyOperatorRegistryV1 : IStrategyOperatorRegistryV1
+  150: public StrategyOperatorRegistryV1(
+  162: public StrategyOperatorRegistryV1(
+  204: public StrategyOperatorCatalogReferenceV1 Catalog { get; }
+  205: public IReadOnlyList<StrategyOperatorKeyV1> Keys { get; }
+  207: public bool TryResolve(string operatorId, int version, out StrategyOperatorDescriptorV1 descriptor) =>
+  210: public static StrategyOperatorRegistryV1 CreateDefault() => new(
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Definition/StrategyValueTypeRulesV1.cs
+```cs
+   10: public static void Validate(
+   64: public static bool IsCompatible(StrategyIrOutputKindV1 kind, StrategyValueTypeV1 valueType) => kind switch
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Definition/TradeIrDataAdmissionValidator.cs
+```cs
+    6: public static class DataAdmissionIssueCodes
+    8: public const string DataKindUnsupported = "DATA_KIND_UNSUPPORTED";
+    9: public const string InstrumentUnbound = "INSTRUMENT_UNBOUND";
+   10: public const string SchemaVersionUnsupported = "SCHEMA_VERSION_UNSUPPORTED";
+   11: public const string TemporalSemanticsMismatch = "TEMPORAL_SEMANTICS_MISMATCH";
+   12: public const string SnapshotHashMissing = "SNAPSHOT_HASH_MISSING";
+   13: public const string CapabilityStale = "CAPABILITY_STALE";
+   20: public sealed record DataAdmissionIssue(
+   28: public sealed record DataAdmissionResult(
+   34: public bool IsAdmitted => Issues.Count == 0;
+   42: public static class DataAdmissionValidator
+   47: public static DataAdmissionResult Assess(
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Definition/TradeIrDataContracts.cs
+```cs
+    6: public enum TradeIrDataKindV1
+   21: public enum TradeIrEventTimeBasisV1
+   32: public enum TradeIrTimestampPrecisionV1
+   42: public enum TradeIrEventOrderingV1
+   50: public enum TradeIrNormalizationPolicyV1
+   60: public enum TradeIrMissingDataPolicyV1
+   69: public enum TradeIrRevisionPolicyV1
+   79: public enum CanonicalEventQualityFlagsV1
+   94: public sealed record DataTemporalSemanticsV1(
+  107: public sealed record SourceIndependentInstrumentRef(
+  118: public sealed record SourceIndependentInstrumentSelectorV1(
+  126: public sealed record CanonicalEventSchemaV1(
+  139: public sealed record CanonicalEventEnvelopeV1(
+  153: public sealed record DataRequirementV1(
+  168: public sealed record DataSourceCapabilityV1(
+  188: public sealed record DataBindingManifestV1(
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Definition/TradeIrModuleValidatorV1.cs
+```cs
+    3: public sealed record StrategyModuleIssueV1(string Code, string Path, string Message);
+    5: public sealed record StrategyModuleValidationV1(IReadOnlyList<StrategyModuleIssueV1> Issues)
+    7: public bool IsValid => Issues.Count == 0;
+   15: public static class TradeIrModuleValidatorV1
+   17: public static StrategyModuleValidationV1 Validate(
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Definition/TradeIrModules.cs
+```cs
+    5: public enum TradeIrDigestAlgorithmV1
+   11: public sealed record TradeIrContentAddressV1(
+   16: public sealed record StrategyModuleInputV1(
+   21: public sealed record StrategyModuleOutputV1(
+   26: public enum StrategyModuleDeterminismV1
+   37: public sealed record StrategyModuleRuntimeContractV1(
+   54: public abstract record TradeIrModuleV1
+   56: public const string CurrentSchemaVersion = "trade-ir/module/v1";
+   64: public string SchemaVersion { get; init; }
+   65: public string ModuleId { get; init; }
+   72: public sealed record OperatorGraphModuleV1 : TradeIrModuleV1
+   74: public OperatorGraphModuleV1(
+   83: public StrategyIntermediateRepresentationV1 Definition { get; init; }
+   90: public sealed record CSharpModuleV1 : TradeIrModuleV1
+   92: public CSharpModuleV1(
+  111: public IReadOnlyList<StrategyModuleInputV1> Inputs { get; init; }
+  112: public IReadOnlyList<StrategyModuleOutputV1> Outputs { get; init; }
+  113: public TradeIrContentAddressV1 SourceAddress { get; init; }
+  114: public string LanguageVersion { get; init; }
+  115: public string EntryPoint { get; init; }
+  116: public StrategyModuleRuntimeContractV1 Runtime { get; init; }
+  123: public sealed record ModelArtifactModuleV1 : TradeIrModuleV1
+  125: public ModelArtifactModuleV1(
+  148: public IReadOnlyList<StrategyModuleInputV1> Inputs { get; init; }
+  149: public IReadOnlyList<StrategyModuleOutputV1> Outputs { get; init; }
+  150: public TradeIrContentAddressV1 ArtifactAddress { get; init; }
+  151: public string Format { get; init; }
+  152: public string EntryPoint { get; init; }
+  153: public string FeatureSchemaHashSha256 { get; init; }
+  154: public string OutputSchemaHashSha256 { get; init; }
+  155: public StrategyModuleRuntimeContractV1 Runtime { get; init; }
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Generation/StrategyCandidateCompositionV1.cs
+```cs
+    8: public sealed record StrategySpecialistRequestV1(
+   16: public sealed record StrategyCandidateDraftV1(
+   24: public sealed record StrategyCandidateAmendmentV1(
+   31: public sealed record StrategyCandidateCompositionIssueV1(
+   36: public sealed record StrategyCandidateCompositionResultV1(
+   41: public bool Success => Candidate is not null && Assessment is not null && Issues.Count == 0;
+   49: public static class StrategyCandidateComposerV1
+   51: public static StrategyCandidateCompositionResultV1 Compose(
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Generation/StrategyCandidateConfirmationV1.cs
+```cs
+    3: public sealed record StrategyCandidateConfirmationIssueV1(
+   13: public sealed record StrategyCandidateConfirmationResultV1(
+   18: public bool Success => Candidate is not null && Assessment is not null && Issues.Count == 0;
+   28: public static class StrategyCandidateConfirmationV1
+   30: public static StrategyCandidateConfirmationResultV1 Confirm(
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Generation/StrategyCandidateLoweringRequestV1.cs
+```cs
+    7: public sealed record StrategyCandidateLoweringRequestV1(
+   14: public const string CurrentSchemaVersion = "strategy-candidate-lowering-request/v1";
+   17: public sealed record StrategyCandidateLoweringRequestResultV1(
+   21: public bool Success => Request is not null && Issues.Count == 0;
+   30: public static class StrategyCandidateLoweringBoundaryV1
+   32: public static StrategyCandidateLoweringRequestResultV1 Create(StrategyCandidateV1? candidate)
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Generation/StrategyCandidateV1.cs
+```cs
+    6: public enum StrategyCandidateStatusV1
+   19: public enum StrategyCandidateGroupKindV1
+   33: public enum StrategyCandidateStatementKindV1
+   46: public enum StrategyCandidateStatementSourceV1
+   58: public enum StrategyCandidateStatementStateV1
+   68: public enum StrategyBuildSupportStatusV1
+   77: public enum StrategyInterpretationConfidenceV1
+   90: public sealed record StrategyCandidateValueV1(
+   95: public sealed record StrategyInterpretationAlternativeV1(
+  100: public sealed record StrategyCandidateInterpretationV1(
+  109: public sealed record StrategyCandidateStatementV1(
+  122: public sealed record StrategyCandidateGroupV1(
+  135: public sealed record StrategyBuildSupportItemV1(
+  148: public sealed record StrategyCandidateV1(
+  160: public const string CurrentSchemaVersion = "strategy-candidate/v1";
+  164: public sealed record StrategyGenerationWorkspaceV1(
+  172: public const string CurrentSchemaVersion = "strategy-generation-workspace/v1";
+  176: public static class StrategyCandidateCanonicalJsonV1
+  178: public static string Serialize(StrategyCandidateV1 candidate) =>
+  181: public static StrategyCandidateV1 Deserialize(string json) =>
+  184: public static string Hash(StrategyCandidateV1 candidate) =>
+  187: public static string Canonicalize(string json) =>
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Generation/StrategyCandidateValidatorV1.cs
+```cs
+    3: public enum StrategyCandidateIssueScopeV1
+   10: public sealed record StrategyCandidateIssueV1(
+   21: public sealed record StrategyCandidateAssessmentV1(
+   25: public bool IsStructurallyValid => Issues.All(static issue => issue.Scope != StrategyCandidateIssueScopeV1.Structure);
+   27: public bool CanConfirm => IsStructurallyValid &&
+   30: public bool CanLower => Status == StrategyCandidateStatusV1.Confirmed && CanConfirm &&
+   34: public static class StrategyCandidateValidatorV1
+   36: public static StrategyCandidateAssessmentV1 Assess(StrategyCandidateV1? candidate)
+   92: public static IReadOnlyList<StrategyCandidateIssueV1> ValidateWorkspace(StrategyGenerationWorkspaceV1? workspace)
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Strategies/IPluginFaultAttribution.cs
@@ -206,6 +532,47 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
     8: public static class PluginFaultEvents
    10: public static event Action<Exception>? Reported;
    12: public static void Report(Exception exception)
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Specification/StrategyCapabilityProfile.cs
+```cs
+    8: public enum StrategyRuntimeCapability
+   43: public sealed record StrategyCapabilityRequirement(
+   48: public sealed record StrategyCapabilityProfile(
+   53: public StrategyCapabilityAssessment Assess(StrategySpec spec)
+   72: public static class StrategyCapabilityInference
+   74: public static IReadOnlyList<StrategyCapabilityRequirement> Infer(StrategySpec spec)
+  260: public sealed record StrategyCapabilityAssessment(
+  266: public bool IsSupported => Issues.Count == 0 && Missing.Count == 0;
+```
+
+## src/linux/Core/TradingTerminal.Core/Strategies/Specification/StrategySpec.cs
+```cs
+    6: public enum StrategyObjectiveKind
+   17: public enum ReturnHypothesisKind
+   36: public enum StrategyTriggerKind
+   50: public enum StrategyHorizonKind
+   60: public enum MarketTopologyKind
+   73: public enum ExposureGeometryKind
+   86: public enum StrategyInformationKind
+  101: public enum SignalModelKind
+  115: public enum PortfolioConstructionKind
+  128: public enum StrategyExecutionPolicyKind
+  144: public enum StrategyStateKind
+  156: public enum StrategyRiskExitKind
+  171: public enum StrategyAdaptationKind
+  186: public sealed record StrategyTimeSemantics(
+  192: public sealed record StrategyContextSpec(
+  200: public sealed record StrategySignalSpec(
+  206: public sealed record StrategyPortfolioSpec(PortfolioConstructionKind Construction);
+  209: public sealed record StrategyRiskSpec(IReadOnlyList<StrategyRiskExitKind> Rules);
+  212: public sealed record StrategyExecutionSpec(IReadOnlyList<StrategyExecutionPolicyKind> Policies);
+  215: public sealed record StrategyStateSpec(
+  226: public sealed record StrategySpec(
+  243: public IReadOnlyList<StrategyCapabilityRequirement> Requirements =>
+  248: public sealed record StrategySpecIssue(string Code, string Path, string Message);
+  251: public static class StrategySpecValidator
+  253: public static IReadOnlyList<StrategySpecIssue> Validate(StrategySpec? spec)
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Strategies/StrategyAssetScope.cs

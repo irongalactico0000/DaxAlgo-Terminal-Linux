@@ -27,6 +27,20 @@ canonical DaxAlgo TradeIR representation. A source profile can influence a new T
 only through the hash-bound synthesis boundary defined below; it is not directly executable merely
 because it is structurally valid.
 
+## Shared candidate envelope
+
+Every lane returns its artifact inside `strategy-generation-candidate/v2`. The host supplies the
+candidate identity, request hash, lane identity, and complete package binding. A response MUST copy
+that package binding exactly; placeholders such as `{ "copy": "..." }`, omissions, or inferred
+package facts are invalid.
+
+The envelope's comparable `parameters[].defaultValue` accepts only a JSON string, number, or boolean
+scalar. The host normalizes that scalar to its invariant JSON spelling and serializes it as a string
+before canonical hashing and persistence. This accommodates native scalar output from model
+providers without making objects, arrays, or unknown properties valid. It does not alter parameter
+typing inside the lane artifact: the Vibe, Declarative Rules, TradeIR, and CSP contracts below remain
+authoritative for their own documents.
+
 ## Vibe Python v1
 
 A Vibe Python artifact is one UTF-8 Python module. It MUST declare all of the following top-level

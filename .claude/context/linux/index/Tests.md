@@ -1,6 +1,6 @@
 # macOS index / Tests
 
-Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
+Generated from source fingerprint `cb463a404ff1`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
@@ -26,8 +26,14 @@ Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
 | `tests/linux/DaxAlgo.Daxq.Vm.Tests/SdkAbi3FrameHostTests.cs` | 150 | linux | DaxAlgo.Daxq.Vm.Tests | test | Y |  |
 | `tests/linux/DaxAlgo.Daxq.Vm.Tests/ValidationAndRuntimeSafetyTests.cs` | 756 | linux | DaxAlgo.Daxq.Vm.Tests | test | Y |  |
 | `tests/linux/Fixtures/DaxAlgo.SamplePlugin/SamplePlugin.cs` | 97 | linux | DaxAlgo.SamplePlugin | test | Y | Catalog descriptor — the metadata the Strategies pane renders. |
-| `tests/linux/TradingTerminal.App.Avalonia.Tests/MacPackagingConfigurationTests.cs` | 265 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
+| `tests/linux/TradingTerminal.App.Avalonia.Tests/AuthoringSessionMigrationTests.cs` | 65 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
+| `tests/linux/TradingTerminal.App.Avalonia.Tests/CandidateAuthoringUxContractTests.cs` | 323 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
+| `tests/linux/TradingTerminal.App.Avalonia.Tests/CandidateRestoreRecoveryTests.cs` | 962 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
+| `tests/linux/TradingTerminal.App.Avalonia.Tests/MacPackagingConfigurationTests.cs` | 285 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
+| `tests/linux/TradingTerminal.App.Avalonia.Tests/StrategyAuthoringFreshSessionTests.cs` | 295 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
+| `tests/linux/TradingTerminal.App.Avalonia.Tests/StrategyStarterCatalogTests.cs` | 216 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
 | `tests/linux/TradingTerminal.App.Avalonia.Tests/ThemeManagerTests.cs` | 18 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
+| `tests/linux/TradingTerminal.App.Avalonia.Tests/TradeIrBacktestAuthoringTests.cs` | 514 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Accounts/AccountGateCoordinatorTests.cs` | 333 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Accounts/AccountGateDiagnosticsTests.cs` | 92 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Accounts/AccountGateEditionProfileTests.cs` | 33 | linux | TradingTerminal.Tests.Headless | test | Y |  |
@@ -45,6 +51,7 @@ Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
 | `tests/linux/TradingTerminal.Tests.Headless/Backtest/StatisticsCalculatorTests.cs` | 88 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtest/TransactionCostAnalysisTests.cs` | 86 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/BacktestEngineTests.cs` | 78 | linux | TradingTerminal.Tests.Headless | test | Y | End-to-end smoke + accounting checks for the new (P1). Drives an |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/BacktestTradeIrTargetV1Tests.cs` | 292 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/Fixtures/MeanReversionKernel.cs` | 82 | linux | TradingTerminal.Tests.Headless | test | Y | Catalog descriptor — its tunable surface for the Studio, the optimizer, and |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/Fixtures/MeanReversionStrategy.cs` | 118 | linux | TradingTerminal.Tests.Headless | test | Y | Test-only copy of the Windows legacy reference strategy; never compiled into the |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/GeneticAndWalkForwardTests.cs` | 71 | linux | TradingTerminal.Tests.Headless | test | Y | Covers the genetic optimizer and walk-forward analysis built on the new engine. |
@@ -54,6 +61,11 @@ Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/PlatformFactAttributes.cs` | 11 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/PythonStrategyTests.cs` | 72 | linux | TradingTerminal.Tests.Headless | test | Y | End-to-end check that a Python-authored strategy (daxalgo_bt example) runs on the new |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/StoreFeedAndPortfolioTests.cs` | 95 | linux | TradingTerminal.Tests.Headless | test | Y | Exercises the store-backed feed's k-way merge and the engine's multi-instrument (portfolio) |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/TradeIrClosedLaneIntegrationTests.cs` | 202 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/TradeIrExecutionPlanCompilerV1Tests.cs` | 368 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/TradeIrRiskGatewayV1Tests.cs` | 671 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/TradeIrRuntimeEvaluatorV1Tests.cs` | 382 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Backtesting/TradeIrSimulatedBacktestRunnerV1Tests.cs` | 277 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/VisualTimelineTests.cs` | 63 | linux | TradingTerminal.Tests.Headless | test | Y | Verifies the engine captures a visual timeline only when asked, with OHLC |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/WorkerCleanupTests.cs` | 155 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Backtesting/WorkerClientTests.cs` | 455 | linux | TradingTerminal.Tests.Headless | test | Y |  |
@@ -119,9 +131,17 @@ Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
 | `tests/linux/TradingTerminal.Tests.Headless/Risk/RiskManagerTests.cs` | 110 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/AuthoredStrategyComposerTests.cs` | 261 | linux | TradingTerminal.Tests.Headless | test | Y | Kernel + descriptor + live view-model, no view — the shape the |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/IndexRegimeAggregatorTests.cs` | 103 | linux | TradingTerminal.Tests.Headless | test | Y | Snapshot whose every timeframe column carries the trend score returned by |
+| `tests/linux/TradingTerminal.Tests.Headless/Strategies/ParallelStrategyCandidateGeneratorV1Tests.cs` | 1676 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/RoslynStrategyCompilerTests.cs` | 100 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Strategies/StrategyCandidateGenerationOrchestratorV1Tests.cs` | 464 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Strategies/StrategyCandidateV1Tests.cs` | 522 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/StrategyClassificationTests.cs` | 98 | linux | TradingTerminal.Tests.Headless | test | Y | Guards the classification defaults on and the broker-capability |
+| `tests/linux/TradingTerminal.Tests.Headless/Strategies/StrategyCompilationAdmissionV1Tests.cs` | 373 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Strategies/StrategyOperatorRegistryIntegrityV1Tests.cs` | 188 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/StrategyParametersTests.cs` | 128 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Strategies/StrategySpecTests.cs` | 234 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Strategies/TradeIrCoreContractsTests.cs` | 272 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Strategies/TradeIrDataBindingTests.cs` | 355 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/TestSupport/ImmediateDispatcher.cs` | 11 | linux | TradingTerminal.Tests.Headless | test | Y | UI dispatcher stand-in for tests; runs everything inline on the calling thread. |
 | `tests/linux/TradingTerminal.Tests.Headless/Ui/PortedStrategyResolutionTests.cs` | 77 | linux | TradingTerminal.Tests.Headless | test | Y | Proves the ported per-strategy view-models resolve from the same headless DI graph |
 | `tests/linux/TradingTerminal.Tests.Headless/Ui/StrategyCatalogViewModelTests.cs` | 49 | linux | TradingTerminal.Tests.Headless | test | Y | Tests the portable strategy-catalog VM (shared by the WPF + Avalonia heads). |

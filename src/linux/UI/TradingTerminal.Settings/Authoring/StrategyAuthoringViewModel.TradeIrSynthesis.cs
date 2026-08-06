@@ -39,13 +39,17 @@ public sealed partial class StrategyAuthoringViewModel
 
     public bool CanSynthesizeTradeIr =>
         _tradeIrCandidateSynthesizer is not null &&
+        !HasPendingFourLanePrompt &&
         _parallelCandidateBatch is not null &&
         SelectableGeneratedCandidateCount > 0 &&
         SelectedAiProvider is { IsAvailable: true } &&
         !IsGenerating;
 
     public bool CanUseCombinedTradeIr =>
-        HasCurrentPackageValidCombinedTradeIr && !HasLoadedCombinedTradeIr && !IsGenerating;
+        !HasPendingFourLanePrompt &&
+        HasCurrentPackageValidCombinedTradeIr &&
+        !HasLoadedCombinedTradeIr &&
+        !IsGenerating;
 
     public string CombinedTradeIrStatusText => CombinedTradeIrSynthesis switch
     {

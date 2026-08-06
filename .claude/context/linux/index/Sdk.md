@@ -1,6 +1,6 @@
 # macOS index / Sdk
 
-Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
+Generated from source fingerprint `cb463a404ff1`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|

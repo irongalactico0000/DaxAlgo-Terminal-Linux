@@ -57,9 +57,13 @@ bounded in-process synthetic QuoteL1 smoke path. The smoke path is explicitly no
 non-worker-isolated. See the [four-lane workflow](docs/vibe-quant-four-lane-workflow.md) and
 [normative lane contracts](docs/vibe-quant-lane-contracts.md).
 
+Four-lane follow-ups retain the original strategy brief instead of replacing it. Backtest-navigation
+messages open the separate test guidance without starting four new model calls or changing candidate
+hashes.
+
 For the shortest supported trial, open **New strategy**, search for `smoke`, choose
 **QuoteL1 EMA crossover · smoke compatible**, generate the four lanes, then choose
-**Graph · Typed → Use selected in editor → Run synthetic smoke test**. This exercises deterministic
+**Graph · Typed → Use selected in editor → Run exact-hash synthetic smoke**. This exercises deterministic
 synthetic QuoteL1 events for the exact selected hash; it is not a historical Backtest Studio run.
 
 ## Remaining release boundary

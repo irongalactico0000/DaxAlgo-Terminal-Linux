@@ -1,6 +1,6 @@
 # macOS index / Backtest
 
-Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
+Generated from source fingerprint `cb463a404ff1`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
@@ -15,12 +15,12 @@ Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
 | `src/linux/Backtest/TradingTerminal.Backtest.Client/BacktestWorkerOptions.cs` | 37 | linux | TradingTerminal.Backtest.Client | product | Y | Arguments inserted before the client's mandatory |
 | `src/linux/Backtest/TradingTerminal.Backtest.Client/BacktestWorkerServiceCollectionExtensions.cs` | 17 | linux | TradingTerminal.Backtest.Client | product | Y |  |
 | `src/linux/Backtest/TradingTerminal.Backtest.Client/IBacktestJobClient.cs` | 12 | linux | TradingTerminal.Backtest.Client | product | Y | Runs one isolated worker process and returns a fully verified terminal outcome. |
-| `src/linux/Backtest/TradingTerminal.Backtest.Engine/Accounting/Portfolio.cs` | 152 | linux | TradingTerminal.Backtest.Engine | product | Y | Update the latest mark for an instrument and the open lots' favorable/adverse |
-| `src/linux/Backtest/TradingTerminal.Backtest.Engine/BacktestEngine.cs` | 229 | linux | TradingTerminal.Backtest.Engine | product | Y | Drives one backtest end-to-end. Single-threaded by design: there is one logical timeline |
+| `src/linux/Backtest/TradingTerminal.Backtest.Engine/Accounting/Portfolio.cs` | 153 | linux | TradingTerminal.Backtest.Engine | product | Y | Update the latest mark for an instrument and the open lots' favorable/adverse |
+| `src/linux/Backtest/TradingTerminal.Backtest.Engine/BacktestEngine.cs` | 230 | linux | TradingTerminal.Backtest.Engine | product | Y | Drives one backtest end-to-end. Single-threaded by design: there is one logical timeline |
 | `src/linux/Backtest/TradingTerminal.Backtest.Engine/Cost/FeeModels.cs` | 16 | linux | TradingTerminal.Backtest.Engine | product | Y | Maps the serializable |
-| `src/linux/Backtest/TradingTerminal.Backtest.Engine/Execution/EngineOrderRouter.cs` | 64 | linux | TradingTerminal.Backtest.Engine | product | Y | The kernel-facing order seam for the backtester. Resolves each 's |
+| `src/linux/Backtest/TradingTerminal.Backtest.Engine/Execution/EngineOrderRouter.cs` | 69 | linux | TradingTerminal.Backtest.Engine | product | Y | The kernel-facing order seam for the backtester. Resolves each 's |
 | `src/linux/Backtest/TradingTerminal.Backtest.Engine/Execution/IFillModel.cs` | 73 | linux | TradingTerminal.Backtest.Engine | product | Y | Decides whether a working order fills against the current quote and at |
-| `src/linux/Backtest/TradingTerminal.Backtest.Engine/Execution/SimulatedOrderBook.cs` | 94 | linux | TradingTerminal.Backtest.Engine | product | Y | Raised for every order transition: the instrument the order trades, then the |
+| `src/linux/Backtest/TradingTerminal.Backtest.Engine/Execution/SimulatedOrderBook.cs` | 189 | linux | TradingTerminal.Backtest.Engine | product | Y | Evaluate fills for the orders resting on one instrument against its latest |
 | `src/linux/Backtest/TradingTerminal.Backtest.Engine/Execution/WorkingOrder.cs` | 19 | linux | TradingTerminal.Backtest.Engine | product | Y | A live order resting in the simulated book, tagged with the instrument |
 | `src/linux/Backtest/TradingTerminal.Backtest.Engine/Feeds/AsyncMerge.cs` | 49 | linux | TradingTerminal.Backtest.Engine | product | Y | K-way merge of already-ascending streams into one globally |
 | `src/linux/Backtest/TradingTerminal.Backtest.Engine/Feeds/IMarketDataFeed.cs` | 14 | linux | TradingTerminal.Backtest.Engine | product | Y | Produces the time-ordered event stream the engine replays for a run. Implementations |
@@ -42,6 +42,10 @@ Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
 | `src/linux/Backtest/TradingTerminal.Backtest.Engine/Stats/ReportBuilder.cs` | 144 | linux | TradingTerminal.Backtest.Engine | product | Y | Turns a finished run's equity timeline + round-trip ledger into a . |
 | `src/linux/Backtest/TradingTerminal.Backtest.Engine/Stats/VisualRecorder.cs` | 77 | linux | TradingTerminal.Backtest.Engine | product | Y | Captures the visual-replay backdrop while a run streams: aggregates the charted instrument's |
 | `src/linux/Backtest/TradingTerminal.Backtest.Engine/StrategyContext.cs` | 41 | linux | TradingTerminal.Backtest.Engine | product | Y | The engine's |
+| `src/linux/Backtest/TradingTerminal.Backtest.Engine/TradeIr/BacktestTradeIrTargetV1.cs` | 248 | linux | TradingTerminal.Backtest.Engine | product | Y | An immutable content identity for one installed target artifact. |
+| `src/linux/Backtest/TradingTerminal.Backtest.Engine/TradeIr/TradeIrExecutionPlanCompilerV1.cs` | 572 | linux | TradingTerminal.Backtest.Engine | product | Y | Lowers the Engine-owned quote/EMA target into the dependency-free runtime plan. Target, |
+| `src/linux/Backtest/TradingTerminal.Backtest.Engine/TradeIr/TradeIrRiskGatewayV1.cs` | 652 | linux | TradingTerminal.Backtest.Engine | product | Y | Product-owned risk settings for the closed TradeIR backtest lane. Strategy definitions and |
+| `src/linux/Backtest/TradingTerminal.Backtest.Engine/TradeIr/TradeIrSimulatedBacktestRunnerV1.cs` | 703 | linux | TradingTerminal.Backtest.Engine | product | Y | Minimum honest product runner for a package-valid typed graph. It materializes one |
 | `src/linux/Backtest/TradingTerminal.Backtest.Protocol/BacktestJobContracts.cs` | 373 | linux | TradingTerminal.Backtest.Protocol | product | Y | Publisher evidence accepted by the host for one exact installed archive. |
 | `src/linux/Backtest/TradingTerminal.Backtest.Protocol/BacktestProtocolJson.cs` | 133 | linux | TradingTerminal.Backtest.Protocol | product | Y | Canonical JSON settings shared by request files, NDJSON progress, and result artifacts. |
 | `src/linux/Backtest/TradingTerminal.Backtest.Protocol/BacktestProtocolValidator.cs` | 333 | linux | TradingTerminal.Backtest.Protocol | product | Y | Pure request validation shared by the client and worker; filesystem checks stay |
@@ -53,3 +57,7 @@ Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
 | `src/linux/Backtest/TradingTerminal.Backtest.Worker/WorkerApplication.cs` | 489 | linux | TradingTerminal.Backtest.Worker | product | Y |  |
 | `src/linux/Backtest/TradingTerminal.Backtest.Worker/WorkerArtifactPublisher.cs` | 281 | linux | TradingTerminal.Backtest.Worker | product | Y | Writes private staging files, moves artifacts into place, then publishes the manifest |
 | `src/linux/Backtest/TradingTerminal.Backtest.Worker/WorkerProgressEmitter.cs` | 75 | linux | TradingTerminal.Backtest.Worker | product | Y | Serializes a finite number of coarse progress records to stdout as NDJSON. |
+| `src/linux/Backtest/TradingTerminal.TradeIr.Runtime/AssemblyInfo.cs` | 4 | linux | TradingTerminal.TradeIr.Runtime | product | N |  |
+| `src/linux/Backtest/TradingTerminal.TradeIr.Runtime/TradeIrEvaluatorV1.cs` | 537 | linux | TradingTerminal.TradeIr.Runtime | product | Y | Deterministically evaluates one admitted, host-compiled graph. This type owns numeric and |
+| `src/linux/Backtest/TradingTerminal.TradeIr.Runtime/TradeIrRuntimeContractsV1.cs` | 377 | linux | TradingTerminal.TradeIr.Runtime | product | Y | Closed numeric/resource limits shared by plan construction, compilation, and evaluation. |
+| `src/linux/Backtest/TradingTerminal.TradeIr.Runtime/TradeIrRuntimeSemanticsV1.cs` | 29 | linux | TradingTerminal.TradeIr.Runtime | product | Y | Exact semantic contracts implemented by this runtime. Headless compatibility tests hash these |

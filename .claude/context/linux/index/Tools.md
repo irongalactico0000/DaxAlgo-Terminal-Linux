@@ -1,25 +1,34 @@
 # macOS index / Tools
 
-Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
+Generated from source fingerprint `cb463a404ff1`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
-| `src/linux/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs` | 363 | linux | DaxAlgo.Codegen | product | Y | Per-CLI details, isolated so one vendor's output-format drift doesn't touch the others. |
+| `src/linux/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs` | 374 | linux | DaxAlgo.Codegen | product | Y | Per-CLI details, isolated so one vendor's output-format drift doesn't touch the others. |
 | `src/linux/Tools/DaxAlgo.Codegen/AiModelCatalog.cs` | 60 | linux | DaxAlgo.Codegen | product | Y | Anthropic model ids — the same strings Claude Code's |
 | `src/linux/Tools/DaxAlgo.Codegen/AiStrategyBuilder.cs` | 106 | linux | DaxAlgo.Codegen | product | Y | Every provider the app knows how to build, available or not — |
 | `src/linux/Tools/DaxAlgo.Codegen/AnthropicCodegenClient.cs` | 288 | linux | DaxAlgo.Codegen | product | Y | The models this key can actually call. A failure here is not |
 | `src/linux/Tools/DaxAlgo.Codegen/AnthropicStreamParser.cs` | 111 | linux | DaxAlgo.Codegen | product | Y | Everything the model has written so far. |
 | `src/linux/Tools/DaxAlgo.Codegen/CliWorkspaceLauncher.cs` | 371 | linux | DaxAlgo.Codegen | product | Y | What |
 | `src/linux/Tools/DaxAlgo.Codegen/CodegenCodeExtractor.cs` | 148 | linux | DaxAlgo.Codegen | product | Y | A bare file name mentioned in prose/info strings — |
-| `src/linux/Tools/DaxAlgo.Codegen/FakeCodegenClient.cs` | 76 | linux | DaxAlgo.Codegen | product | Y | How many times the loop asked this client to generate — the |
+| `src/linux/Tools/DaxAlgo.Codegen/FakeCodegenClient.cs` | 82 | linux | DaxAlgo.Codegen | product | Y | How many times the loop asked this client to generate — the |
 | `src/linux/Tools/DaxAlgo.Codegen/OpenAiCompatibleCodegenClient.cs` | 275 | linux | DaxAlgo.Codegen | product | Y | Every OpenAI-compatible endpoint (including Ollama) exposes |
+| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyCandidateGeneratorV1.cs` | 510 | linux | DaxAlgo.Codegen | product | Y | One format-specific authoring request and deterministic validation pass. Every lane calls the |
+| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationContractsV1.cs` | 764 | linux | DaxAlgo.Codegen | product | Y | The four authoring representations offered for every strategy brief. |
+| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationPromptV1.cs` | 583 | linux | DaxAlgo.Codegen | product | Y |  |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyBacktestSmoke.cs` | 112 | linux | DaxAlgo.Codegen | product | Y | Ticks fed through |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyBuildSession.cs` | 469 | linux | DaxAlgo.Codegen | product | Y | What one turn of the conversation produced. |
+| `src/linux/Tools/DaxAlgo.Codegen/StrategyCandidateGenerationOrchestratorV1.cs` | 611 | linux | DaxAlgo.Codegen | product | Y | One intake or revision request. CurrentCandidate is null for the original idea; |
+| `src/linux/Tools/DaxAlgo.Codegen/StrategyCandidateGenerationPromptV1.cs` | 164 | linux | DaxAlgo.Codegen | product | Y |  |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyCodegenClientFactory.cs` | 161 | linux | DaxAlgo.Codegen | product | Y | Every provider the app knows how to build — installed agent CLIs, |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyCodegenOrchestrator.cs` | 80 | linux | DaxAlgo.Codegen | product | Y | The result of a one-shot build: whether it produced a compiling strategy, |
-| `src/linux/Tools/DaxAlgo.Codegen/StrategyCodegenServiceCollectionExtensions.cs` | 56 | linux | DaxAlgo.Codegen | product | Y | Wires the AI Strategy Builder into DI. Called once per shell from |
+| `src/linux/Tools/DaxAlgo.Codegen/StrategyCodegenServiceCollectionExtensions.cs` | 74 | linux | DaxAlgo.Codegen | product | Y | Wires the AI Strategy Builder into DI. Called once per shell from |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyContextPack.cs` | 31 | linux | DaxAlgo.Codegen | product | Y | The pack text — the codegen system prompt. |
+| `src/linux/Tools/DaxAlgo.Codegen/StrategyGenerationPackageCatalogV1.cs` | 597 | linux | DaxAlgo.Codegen | product | Y | Compatibility text for consumers that explain the absent runtime boundary. |
+| `src/linux/Tools/DaxAlgo.Codegen/StrategyGenerationSessionV1.cs` | 117 | linux | DaxAlgo.Codegen | product | Y | One user-facing strategy-generation conversation. It persists accepted candidate revisions, not |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategySkillLibrary.cs` | 163 | linux | DaxAlgo.Codegen | product | Y | One on-demand domain pack: what it knows, and the words that mean |
+| `src/linux/Tools/DaxAlgo.Codegen/TradeIrCandidateSynthesisV1.cs` | 568 | linux | DaxAlgo.Codegen | product | Y |  |
+| `src/linux/Tools/DaxAlgo.Codegen/VibeQuantDeclarativeRulesContractV1.cs` | 785 | linux | DaxAlgo.Codegen | product | Y | Deterministic structural enforcement for the closed Vibe Quant Declarative Rules v1 document. |
 | `src/linux/Tools/DaxAlgo.Coordinator.Cli/CliApplication.cs` | 641 | linux | DaxAlgo.Coordinator.Cli | product | Y |  |
 | `src/linux/Tools/DaxAlgo.Coordinator.Cli/CliArguments.cs` | 54 | linux | DaxAlgo.Coordinator.Cli | product | Y |  |
 | `src/linux/Tools/DaxAlgo.Coordinator.Cli/CoordinatorCliConfig.cs` | 134 | linux | DaxAlgo.Coordinator.Cli | product | Y |  |
@@ -38,7 +47,7 @@ Generated from source fingerprint `b2d2bcde9e83`. macOS/Avalonia source only.
 | `src/linux/Tools/DaxAlgo.Daxq.Compiler/Parity/DaxqBacktestParityGate.cs` | 747 | linux | DaxAlgo.Daxq.Compiler | product | Y | Server-only publication gate comparing a reviewed managed build with released DAXQ. |
 | `src/linux/Tools/DaxAlgo.Daxq.Compiler/Parity/DaxqBacktestParityModels.cs` | 148 | linux | DaxAlgo.Daxq.Compiler | product | Y | The publication decision produced by the server-side backtest-parity gate. |
 | `src/linux/Tools/DaxAlgo.Daxq.Compiler/Parity/DaxqBacktestParityOutputJson.cs` | 24 | linux | DaxAlgo.Daxq.Compiler | product | Y |  |
-| `src/linux/Tools/DaxAlgo.Daxq.Compiler/Parity/DaxqBacktestStatisticsJson.cs` | 32 | linux | DaxAlgo.Daxq.Compiler | product | Y |  |
+| `src/linux/Tools/DaxAlgo.Daxq.Compiler/Parity/DaxqBacktestStatisticsJson.cs` | 31 | linux | DaxAlgo.Daxq.Compiler | product | Y |  |
 | `src/linux/Tools/DaxAlgo.Daxq.Compiler/Parity/DaxqListingMetricsAccumulator.cs` | 200 | linux | DaxAlgo.Daxq.Compiler | product | Y | Implements daxq-listing-metrics-v1. The last signal emitted by one callback becomes a fixed |
 | `src/linux/Tools/DaxAlgo.Daxq.Compiler/Parity/DaxqListingMetricsJson.cs` | 36 | linux | DaxAlgo.Daxq.Compiler | product | Y |  |
 | `src/linux/Tools/DaxAlgo.Daxq.Compiler/Program.cs` | 425 | linux | DaxAlgo.Daxq.Compiler | product | Y |  |

@@ -14,8 +14,13 @@ internal static class ParallelStrategyGenerationPromptV1
         _ => throw new ArgumentOutOfRangeException(nameof(lane), lane, "Unknown strategy generation lane."),
     };
 
-    public static string SystemContext(StrategyGenerationLaneV1 lane) =>
-        CommonContract + "\n\n" + StrategyGenerationPackageCatalogV1.PromptContract(lane);
+    public static string SystemContext(StrategyGenerationLaneV1 lane)
+    {
+        var binding = ExecutableStrategyDefinitionCanonicalJson.Serialize(
+            StrategyGenerationPackageCatalogV1.RequireBinding(lane));
+        var common = CommonContract.Replace(ExactPackageBindingMarker, binding, StringComparison.Ordinal);
+        return common + "\n\n" + StrategyGenerationPackageCatalogV1.PromptContract(lane);
+    }
 
     public static string UserMessage(
         StrategyGenerationLaneV1 lane,
@@ -34,6 +39,8 @@ internal static class ParallelStrategyGenerationPromptV1
             request.StrategyId,
             request.UserPrompt));
 
+    private const string ExactPackageBindingMarker = "__HOST_PACKAGE_BINDING_JSON__";
+
     private const string CommonContract = """
         You are one of four parallel strategy-generation agents inside DaxAlgo's Vibe Quant builder.
         Produce only the strategy representation assigned below. The host owns the exact authoring
@@ -42,21 +49,26 @@ internal static class ParallelStrategyGenerationPromptV1
 
         Strategy-generation rules:
         - Translate the user's idea into concrete, editable strategy logic in your assigned format.
+        - If userPrompt contains an ordered original brief and follow-up refinements, a later refinement
+          supersedes only a directly conflicting earlier clause. Preserve every non-conflicting earlier
+          requirement and never implement a superseded clause alongside its replacement.
         - Treat every explicit user clause about direction, thresholds, lookbacks, filters, exits,
-          sizing, and timing as mandatory. Artifact defaults must preserve those clauses exactly;
-          never disable a requested filter, widen a requested direction, replace a requested exit,
-          or otherwise weaken explicit behavior.
+          sizing, and timing that has not been superseded by a later refinement as mandatory.
+          Artifact defaults must preserve those non-superseded clauses exactly;
+          never disable a non-superseded requested filter, widen a non-superseded requested direction,
+          replace a non-superseded requested exit, or otherwise weaken non-superseded explicit behavior.
         - Use only data available at each decision time. Do not use future bars, centered windows, or
           revised values unless the proposal explicitly treats them as unavailable at decision time.
         - Do not fetch data, call brokers, submit orders, contact venues, or generate package/SDK glue.
         - Expose every adjustable value in parameters and make meaningful forks explicit in variationAxes.
           Variation axes may offer alternatives only after the artifact's defaults implement the exact
-          requested behavior; alternatives must not silently become the default.
+          non-superseded requested behavior; alternatives must not silently become the default.
         - Preserve material ambiguity in unresolvedQuestions instead of silently inventing a choice.
         - proposedTests describe tests to run later; never claim a backtest, metric, or package check passed.
         - Generation and structural validation do not make an artifact runnable or tested.
         - Before returning, cross-check the interpretation, parameter defaults, and artifact logic against
-          every explicit clause in userPrompt and repair any omission or contradiction.
+          every explicit clause in userPrompt that has not been superseded by a later refinement, and repair
+          any omission or contradiction.
 
         Return exactly one JSON object with no markdown, code fence, or prose. Every property and array
         shown here is required, including nullable source/document properties:
@@ -65,7 +77,7 @@ internal static class ParallelStrategyGenerationPromptV1
           "candidateId": "<exact candidate id supplied by host>",
           "lane": "<exact lane supplied by host>",
           "requestHashSha256": "<exact request hash supplied by host>",
-          "packageBinding": { "copy": "the exact host-owned object supplied below" },
+          "packageBinding": __HOST_PACKAGE_BINDING_JSON__,
           "title": "...",
           "interpretation": "...",
           "unresolvedQuestions": ["..."],
@@ -93,6 +105,13 @@ internal static class ParallelStrategyGenerationPromptV1
           "explanation": "Explain how to edit and fork this representation.",
           "proposedTests": ["..."]
         }
+
+        The packageBinding value in this JSON shape is the exact host-owned value for this lane. Copy
+        it literally, including every nested property. Never replace it with a placeholder, a `copy`
+        property, an ellipsis, or a package binding inferred from userPrompt. In the outer comparable
+        parameters array, defaultValue may be a JSON string, number, or boolean scalar; the host
+        normalizes it deterministically. This flexibility does not apply inside the lane artifact,
+        whose own package contract controls parameter types.
         """;
 
     private sealed record LaneEnvelopeV1(

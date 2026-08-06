@@ -45,6 +45,12 @@ public sealed record AuthoringSessionSnapshot(
     // Null means the snapshot predates the lane picker. The UX version also distinguishes values
     // written by the old ambiguous toggle from an explicit choice made with the redesigned control.
     bool? GenerateCandidateFirst = null,
+    // The durable four-lane strategy request. It starts with the user's original brief and carries
+    // forward later strategy refinements; navigation requests such as "go to backtest" never replace it.
+    string? FourLaneStrategyBrief = null,
+    // A submitted four-lane prompt that did not commit a replacement batch (stop, provider failure,
+    // or process exit). It is restored into the composer and never treated as part of the old batch.
+    string? PendingFourLanePrompt = null,
     string? ParallelCandidateBatchJson = null,
     string? SelectedParallelCandidateHash = null,
     string? EditorBaseParallelCandidateHash = null,

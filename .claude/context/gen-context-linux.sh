@@ -9,6 +9,8 @@
 #   bash .claude/context/gen-context-linux.sh --check
 set -euo pipefail
 
+DOTNET_CLI=${DOTNET_CLI:-dotnet}
+
 MODE="write"
 case "${1:-}" in
   "") ;;
@@ -16,9 +18,17 @@ case "${1:-}" in
   *) echo "usage: $0 [--check]" >&2; exit 2 ;;
 esac
 
-for cmd in rg dotnet awk sed sort diff mktemp realpath sha256sum; do
+for cmd in rg awk sed sort diff mktemp realpath sha256sum; do
   command -v "$cmd" >/dev/null 2>&1 || { echo "gen-context-linux.sh: missing required command: $cmd" >&2; exit 1; }
 done
+if [[ "$DOTNET_CLI" == */* ]]; then
+  [ -x "$DOTNET_CLI" ] || { echo "gen-context-linux.sh: DOTNET_CLI is not executable: $DOTNET_CLI" >&2; exit 1; }
+else
+  command -v "$DOTNET_CLI" >/dev/null 2>&1 || {
+    echo "gen-context-linux.sh: missing required command: $DOTNET_CLI" >&2
+    exit 1
+  }
+fi
 
 [ -d src/linux ] && [ -d tests/linux ] && [ -f TradingTerminal.Mac.slnx ] || {
   echo "gen-context-linux.sh: run from the repository root" >&2
@@ -40,7 +50,7 @@ awk -F/ 'BEGIN { OFS="\t" }
   $1 == "tests" { group="Tests"; role="test" }
   {
     module=$NF; sub(/[.]csproj$/, "", module)
-    dir=$0; sub(/\/[^/]*$/, "", dir)
+    dir=$0; sub(/\/[^\/]*$/, "", dir)
     print module, $0, dir, group, role
   }
 ' "$WORK/csprojs.txt" > "$WORK/projects.tsv"
@@ -110,7 +120,7 @@ cut -f1 "$WORK/projects.tsv" | sort > "$WORK/modules.txt"
 : > "$WORK/reference-edges.tsv"
 while IFS=$'\t' read -r module project_path project_dir group role; do
   evaluation="$WORK/msbuild-$module.json"
-  if ! dotnet msbuild "$project_path" -nologo -getItem:ProjectReference > "$evaluation"; then
+  if ! "$DOTNET_CLI" msbuild "$project_path" -nologo -getItem:ProjectReference > "$evaluation"; then
     echo "gen-context-linux.sh: failed to evaluate ProjectReference items for $project_path" >&2
     exit 1
   fi
@@ -134,7 +144,7 @@ while IFS=$'\t' read -r module project_path project_dir group role; do
     if [[ "$shell_path" =~ ^[A-Za-z]:/ ]] && command -v cygpath >/dev/null 2>&1; then
       shell_path=$(cygpath -u "$shell_path")
     fi
-    resolved=$(realpath -m "$shell_path")
+    resolved=$(realpath "$shell_path")
     case "$resolved" in
       "$ROOT"/src/linux/*|"$ROOT"/tests/linux/*) ;;
       *) echo "gen-context-linux.sh: evaluated reference escapes macOS scope: $module -> $reference_path" >&2; exit 1 ;;
@@ -210,7 +220,10 @@ gen_symbols() { # directory, output, title, optional root-only flag
     echo "multi-line signatures show their first line. \`[ObservableProperty]\` generated properties are not listed."
   } > "$output"
 
-  mapfile -t symbol_files <<< "$list"
+  local symbol_files=() symbol_file
+  while IFS= read -r symbol_file; do
+    [ -n "$symbol_file" ] && symbol_files+=("$symbol_file")
+  done <<< "$list"
   awk '
       function emit(s, o) {
         o=s; if (length(o) > 168) o=substr(o,1,165) "..."

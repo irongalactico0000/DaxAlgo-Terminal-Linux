@@ -56,6 +56,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private StrategyBuildSession? _session;
     private StrategyGenerationSessionV1? _generationSession;
     private ParallelStrategyGenerationResultV1? _parallelCandidateBatch;
+    private string? _fourLaneStrategyBrief;
+    private string? _pendingFourLanePrompt;
     private string? _editorBaseGeneratedCandidateHash;
     private string? _generationProviderKey;
     private long _generationContextEpoch;
@@ -297,9 +299,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     }
     public bool HasSelectedGeneratedCandidate => SelectedGeneratedCandidateOption?.Candidate is not null;
     public bool HasChosenGeneratedCandidate => ChosenGeneratedCandidateOption is not null;
+    public bool HasPendingFourLanePrompt => !string.IsNullOrWhiteSpace(_pendingFourLanePrompt);
     public bool IsGeneratingCandidates => IsGenerating && GenerateCandidateFirst && !IsSynthesizingTradeIr;
     public bool HasRetainedCandidateBatchDuringGeneration => IsGeneratingCandidates && HasGeneratedCandidates;
     public bool CanChooseGeneratedCandidate =>
+        !HasPendingFourLanePrompt &&
         SelectedGeneratedCandidateOption is { Result.Selectable: true } selected &&
         !string.Equals(
             selected.CandidateHashSha256,
@@ -307,6 +311,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             StringComparison.Ordinal) &&
         !IsGenerating;
     public bool CanRevalidateGeneratedCandidate =>
+        !HasPendingFourLanePrompt &&
         _parallelCandidateBatch is not null &&
         _editorBaseGeneratedCandidateHash is not null &&
         _parallelCandidateBatch.Lanes.Count(lane => lane.Candidate is not null &&
@@ -353,6 +358,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     partial void OnGenerateCandidateFirstChanged(bool value)
     {
         InvalidateGenerationIfActive();
+        if (value &&
+            !string.IsNullOrWhiteSpace(_pendingFourLanePrompt) &&
+            string.IsNullOrWhiteSpace(Composer))
+        {
+            Composer = _pendingFourLanePrompt;
+        }
         OnPropertyChanged(nameof(IsGeneratingCandidates));
         OnPropertyChanged(nameof(GenerationModeLabel));
         OnPropertyChanged(nameof(GenerationModeActionText));
@@ -360,6 +371,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         OnPropertyChanged(nameof(SendButtonText));
         OnPropertyChanged(nameof(AuthoringBoundaryText));
         RegenerateRecoveredCandidatesCommand.NotifyCanExecuteChanged();
+        RegenerateFourCandidatesCommand.NotifyCanExecuteChanged();
         AiStatus = value
             ? "Four AI agents generate editable strategy alternatives in parallel; available package validators are reported separately."
             : "Expert Code lane: chat writes and compiles C# directly.";
@@ -533,6 +545,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Models.Clear();
         OnPropertyChanged(nameof(EffortSupported));
         RegenerateRecoveredCandidatesCommand.NotifyCanExecuteChanged();
+        RegenerateFourCandidatesCommand.NotifyCanExecuteChanged();
         if (value is null)
         {
             SyncModelChoice();
@@ -982,6 +995,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (!value && IsSynthesizingTradeIr) IsSynthesizingTradeIr = false;
         SendCommand.NotifyCanExecuteChanged();
         RegenerateRecoveredCandidatesCommand.NotifyCanExecuteChanged();
+        RegenerateFourCandidatesCommand.NotifyCanExecuteChanged();
+        DiscardPendingFourLanePromptCommand.NotifyCanExecuteChanged();
         StopCommand.NotifyCanExecuteChanged();
         ConfirmCandidateCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsGeneratingCandidates));
@@ -1010,12 +1025,41 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _parallelCandidateGenerator is not null &&
         SelectedAiProvider is { IsAvailable: true };
 
+    private bool CanRegenerateFourCandidatesAction() =>
+        GenerateCandidateFirst &&
+        !HasPendingFourLanePrompt &&
+        !IsGenerating &&
+        !string.IsNullOrWhiteSpace(StrategyId) &&
+        !string.IsNullOrWhiteSpace(_fourLaneStrategyBrief) &&
+        _ai is not null &&
+        _parallelCandidateGenerator is not null &&
+        SelectedAiProvider is { IsAvailable: true };
+
     /// <summary>
     /// Replays the recovered brief only after an explicit user click. Restore itself never starts a
     /// provider request; this command uses the normal four-lane send path and its existing validation.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanRegenerateRecoveredCandidatesAction))]
     private Task RegenerateRecoveredCandidatesAsync() => SendAsync();
+
+    /// <summary>
+    /// Explicitly reruns the four generation agents against the unchanged durable strategy brief.
+    /// This is separate from the composer refinement path and never starts a test or backtest.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanRegenerateFourCandidatesAction))]
+    private Task RegenerateFourCandidatesAsync()
+    {
+        var choice = SelectedAiProvider;
+        return !CanRegenerateFourCandidatesAction() ||
+               choice is null ||
+               string.IsNullOrWhiteSpace(StrategyId) ||
+               string.IsNullOrWhiteSpace(_fourLaneStrategyBrief)
+            ? Task.CompletedTask
+            : SendParallelCandidateTurnAsync(
+                choice,
+                _fourLaneStrategyBrief,
+                "Regenerate four candidates from the preserved strategy brief.");
+    }
 
     /// <summary>
     /// One turn: send what the user typed (plus their hand-edits, if any), let the session generate →
@@ -1026,12 +1070,6 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [RelayCommand(CanExecute = nameof(CanSend))]
     private async Task SendAsync()
     {
-        if (_ai is null || SelectedAiProvider is not { } choice) return;
-        if (!choice.IsAvailable)
-        {
-            AiStatus = $"{choice.DisplayName} isn't set up — install it, or add an API key in Settings → AI providers.";
-            return;
-        }
         if (string.IsNullOrWhiteSpace(StrategyId))
         {
             AiStatus = "Give the strategy an id first.";
@@ -1040,6 +1078,21 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
         var prompt = Composer.Trim();
         if (prompt.Length == 0) return;
+
+        // Backtesting is a separate, explicit action. A short navigation request must never become
+        // the next four-lane strategy prompt and silently replace the user's actual strategy brief.
+        if (GenerateCandidateFirst && IsBacktestNavigationIntent(prompt))
+        {
+            RouteBacktestNavigationIntent(prompt);
+            return;
+        }
+
+        if (_ai is null || SelectedAiProvider is not { } choice) return;
+        if (!choice.IsAvailable)
+        {
+            AiStatus = $"{choice.DisplayName} isn't set up — install it, or add an API key in Settings → AI providers.";
+            return;
+        }
 
         // First brief on an untouched identity: name the strategy after what it does, not "myStrategy".
         if (Messages.Count == 0) DeriveIdentityFrom(prompt);
@@ -1214,14 +1267,24 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// deterministic format checks and any available package validator are reported as separate facts.
     /// Results stop at the package handoff boundary and are never tested or executed here.
     /// </summary>
-    private async Task SendParallelCandidateTurnAsync(AiProviderChoice choice, string prompt)
+    private async Task SendParallelCandidateTurnAsync(
+        AiProviderChoice choice,
+        string prompt,
+        string? displayedPrompt = null)
     {
         var turnStrategyId = StrategyId.Trim();
         var turnEpoch = Interlocked.Increment(ref _generationContextEpoch);
+        var strategyBrief = BuildFourLaneStrategyBrief(prompt);
+        SetPendingFourLanePrompt(string.Equals(
+            prompt,
+            _fourLaneStrategyBrief,
+            StringComparison.Ordinal)
+                ? null
+                : prompt);
         // Keep the last completed, hash-validated batch until the replacement fully validates and
         // commits. A cancelled provider call or app shutdown must not erase expensive prior output.
         Composer = string.Empty;
-        Append(new AuthoringMessage(CodegenRole.User, prompt));
+        Append(new AuthoringMessage(CodegenRole.User, displayedPrompt ?? prompt));
         Activity.Clear();
         Diagnostics.Clear();
         CompiledOk = false;
@@ -1235,12 +1298,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         AiStatus = HasGeneratedCandidates
             ? "Generating a replacement batch. The last completed candidates remain preserved until all replacement results validate."
             : "Asking four AI agents to generate editable strategy alternatives…";
+        Save();
 
         _generateCts?.Cancel();
         _generateCts?.Dispose();
         var turnCts = new CancellationTokenSource();
         _generateCts = turnCts;
         var ticking = TickElapsedAsync(turnCts.Token);
+        var replacementCommitted = false;
 
         try
         {
@@ -1252,7 +1317,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             });
             var result = await _parallelCandidateGenerator!.GenerateAsync(
                 provider,
-                new ParallelStrategyGenerationRequestV1(turnStrategyId, prompt),
+                new ParallelStrategyGenerationRequestV1(turnStrategyId, strategyBrief),
                 turnCts.Token,
                 progress);
             if (!IsGenerationContextCurrent(turnEpoch, turnStrategyId)) return;
@@ -1261,6 +1326,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             CachedTokens += result.Usage.CachedInputTokens;
 
             ApplyParallelCandidateBatch(result);
+            _fourLaneStrategyBrief = strategyBrief;
+            SetPendingFourLanePrompt(null);
+            RegenerateFourCandidatesCommand.NotifyCanExecuteChanged();
+            replacementCommitted = true;
             SetFinalGenerationLaneProgress(result);
             Append(new AuthoringMessage(CodegenRole.Assistant, FormatParallelCandidates(result)));
 
@@ -1304,6 +1373,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             await ticking;
             if (IsGenerationContextCurrent(turnEpoch, turnStrategyId))
             {
+                if (!replacementCommitted && string.IsNullOrWhiteSpace(Composer))
+                    Composer = _pendingFourLanePrompt ?? prompt;
                 IsGenerating = false;
                 Tasks.Clear();
                 WorkingVerb = null;
@@ -1315,6 +1386,115 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             if (ReferenceEquals(_generateCts, turnCts)) _generateCts = null;
             turnCts.Dispose();
         }
+    }
+
+    private string BuildFourLaneStrategyBrief(string prompt)
+    {
+        if (string.IsNullOrWhiteSpace(_fourLaneStrategyBrief))
+            return prompt;
+
+        if (string.Equals(_fourLaneStrategyBrief.Trim(), prompt, StringComparison.Ordinal))
+            return _fourLaneStrategyBrief;
+
+        return CombineFourLaneStrategyBrief(_fourLaneStrategyBrief, prompt);
+    }
+
+    private void SetPendingFourLanePrompt(string? prompt)
+    {
+        var normalized = string.IsNullOrWhiteSpace(prompt) ? null : prompt.Trim();
+        if (string.Equals(_pendingFourLanePrompt, normalized, StringComparison.Ordinal)) return;
+
+        _pendingFourLanePrompt = normalized;
+        OnPropertyChanged(nameof(HasPendingFourLanePrompt));
+        OnPropertyChanged(nameof(CanChooseGeneratedCandidate));
+        OnPropertyChanged(nameof(CanRevalidateGeneratedCandidate));
+        OnPropertyChanged(nameof(CandidateBacktestAvailabilityText));
+        ChooseGeneratedCandidateCommand.NotifyCanExecuteChanged();
+        RevalidateGeneratedCandidateCommand.NotifyCanExecuteChanged();
+        RegenerateFourCandidatesCommand.NotifyCanExecuteChanged();
+        DiscardPendingFourLanePromptCommand.NotifyCanExecuteChanged();
+        NotifyTradeIrSynthesisStateChanged();
+        NotifyTradeIrBacktestStateChanged();
+    }
+
+    private bool CanDiscardPendingFourLanePromptAction() =>
+        HasPendingFourLanePrompt && !IsGenerating;
+
+    [RelayCommand(CanExecute = nameof(CanDiscardPendingFourLanePromptAction))]
+    private void DiscardPendingFourLanePrompt()
+    {
+        if (!CanDiscardPendingFourLanePromptAction()) return;
+
+        var pending = _pendingFourLanePrompt;
+        SetPendingFourLanePrompt(null);
+        if (!string.IsNullOrWhiteSpace(pending) &&
+            string.Equals(Composer.Trim(), pending, StringComparison.Ordinal))
+        {
+            Composer = string.Empty;
+        }
+
+        AiStatus = "Discarded the uncommitted refinement. The last completed candidate batch and its exact hashes remain active.";
+        Status = "Pending request discarded. Review or test only the retained completed batch.";
+        Append(AuthoringMessage.Tool(
+            "Ok",
+            "Pending request discarded",
+            "No generation, selection, synthesis, test, or backtest ran. The committed brief and candidate hashes were preserved."));
+        Save();
+    }
+
+    private const string OrderedFourLaneBriefPreamble =
+        "Ordered strategy request. Later refinements supersede only directly conflicting earlier clauses.\n" +
+        "Preserve every non-conflicting requirement, and do not implement a superseded clause alongside its replacement.";
+
+    private static string CombineFourLaneStrategyBrief(string strategyBrief, string refinement)
+    {
+        var orderedBrief = strategyBrief.TrimStart().StartsWith(
+            OrderedFourLaneBriefPreamble,
+            StringComparison.Ordinal)
+                ? strategyBrief.Trim()
+                : $"{OrderedFourLaneBriefPreamble}\n\nOriginal strategy brief:\n{strategyBrief.Trim()}";
+        return $"{orderedBrief}\n\nFollow-up refinement:\n{refinement.Trim()}";
+    }
+
+    private static bool IsBacktestNavigationIntent(string prompt)
+    {
+        var words = new string(prompt.Trim().ToLowerInvariant()
+                .Select(static character => char.IsLetterOrDigit(character) ? character : ' ')
+                .ToArray())
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (!words.Any(static word => word is "backtest" or "backtesting") || words.Length > 14)
+            return false;
+
+        // Keep this deliberately narrow: mixed instructions such as "run backtest with 20-period ATR"
+        // carry strategy information and must flow through the refinement-preserving generation path.
+        return words.All(static word => word is
+            "backtest" or "go" or "gow" or "goto" or "open" or "run" or "start" or "switch" or
+            "move" or "proceed" or "to" or "the" or "please" or "can" or "could" or "we" or "you" or "i" or
+            "want" or "let" or "lets" or "s" or "now" or "next" or "tab" or "screen" or "page" or "view" or
+            "it" or "this" or "backtesting" or "said" or "do" or "after" or "make" or "made" or "and" or
+            "ok" or "okay" or "be" or
+            "those" or "them" or "once" or "then" or "how" or "test" or "testing" or "candidate" or
+            "candidates" or "strategy" or "strategies" or "generated");
+    }
+
+    private void RouteBacktestNavigationIntent(string prompt)
+    {
+        // A navigation turn must not hide an interrupted strategy refinement that is still waiting
+        // to be applied to the retained candidate batch.
+        Composer = _pendingFourLanePrompt ?? string.Empty;
+        Append(new AuthoringMessage(CodegenRole.User, prompt));
+        WorkbenchTab = 3;
+
+        var guidance = CanPrepareGeneratedCandidateForBacktest
+            ? "The active package-valid Graph is ready. Choose Run synthetic smoke test below; this is separate from generation and is not a historical backtest."
+            : CandidateBacktestAvailabilityText;
+        AiStatus = "No replacement candidates were generated. The strategy brief and current candidate batch were preserved. " + guidance;
+        Status = guidance;
+        Append(AuthoringMessage.Tool(
+            "Ok",
+            "Backtest kept separate from generation",
+            guidance));
+        Save();
     }
 
     private void ResetGenerationLaneProgress()
@@ -1900,8 +2080,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private void Stop()
     {
         if (!IsGenerating) return;
+        var pendingFourLanePrompt = GenerateCandidateFirst ? _pendingFourLanePrompt : null;
         InvalidateGenerationContext();
+        if (!string.IsNullOrWhiteSpace(pendingFourLanePrompt) && string.IsNullOrWhiteSpace(Composer))
+            Composer = pendingFourLanePrompt;
         AiStatus = "Stopped. Late provider output will be ignored.";
+        Save();
     }
 
     /// <summary>Start over with a fresh identity, model thread, starter catalog, and editor template.
@@ -2053,6 +2237,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 restoreWarning = "The chat was restored, but historical registration was cleared because no live, file-hash-bound registration proof exists.";
             GenerateCandidateFirst = session.FourLaneGenerationEnabled;
             ClearCandidate();
+            _fourLaneStrategyBrief = !string.IsNullOrWhiteSpace(session.FourLaneStrategyBrief) ||
+                                     !string.IsNullOrWhiteSpace(session.ParallelCandidateBatchJson)
+                ? RecoverFourLaneStrategyBrief(session)
+                : null;
+            SetPendingFourLanePrompt(session.PendingFourLanePrompt);
+            RegenerateFourCandidatesCommand.NotifyCanExecuteChanged();
             if (!string.IsNullOrWhiteSpace(session.CandidateJson))
             {
                 try
@@ -2075,7 +2265,20 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 {
                     var restoredBatch = StrategyGenerationCandidateCanonicalJsonV1.DeserializeBatch(
                         session.ParallelCandidateBatchJson);
-                    if (!string.IsNullOrWhiteSpace(restoredBatch.UserPrompt))
+                    if (IsBacktestNavigationIntent(restoredBatch.UserPrompt))
+                        throw new InvalidOperationException(
+                            "The saved candidate batch was generated from a backtest navigation request instead of a strategy brief.");
+                    if (!string.IsNullOrWhiteSpace(_fourLaneStrategyBrief) &&
+                        !string.Equals(
+                            restoredBatch.UserPrompt,
+                            _fourLaneStrategyBrief,
+                            StringComparison.Ordinal))
+                    {
+                        throw new InvalidOperationException(
+                            "The saved candidate batch is bound to an older strategy brief than the durable session brief.");
+                    }
+                    if (string.IsNullOrWhiteSpace(recoveryPrompt) &&
+                        !string.IsNullOrWhiteSpace(restoredBatch.UserPrompt))
                         recoveryPrompt = restoredBatch.UserPrompt;
                     ApplyParallelCandidateBatch(restoredBatch);
 
@@ -2153,6 +2356,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     _logger.LogWarning(exception, "Could not restore parallel strategy candidates for {Id}", session.StrategyId);
                 }
             }
+            if (GenerateCandidateFirst && !string.IsNullOrWhiteSpace(_pendingFourLanePrompt))
+                Composer = _pendingFourLanePrompt;
             CloseReview();
             _registeredBaseline.Clear();   // the diff baseline is per-process; a restored review starts from "all new"
             _filesEditedByUser = false;
@@ -2168,20 +2373,30 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         }
     }
 
-    private static string? RecoverParallelCandidatePrompt(AuthoringSessionSnapshot session)
+    private static string? RecoverParallelCandidatePrompt(AuthoringSessionSnapshot session) =>
+        RecoverFourLaneStrategyBrief(session);
+
+    private static string? RecoverFourLaneStrategyBrief(AuthoringSessionSnapshot session)
     {
+        if (!string.IsNullOrWhiteSpace(session.FourLaneStrategyBrief))
+            return session.FourLaneStrategyBrief.Trim();
+
         // Read the prompt independently of the typed contract first. This keeps recovery useful when
         // the batch fails specifically because its schema version can no longer be deserialized.
+        string? batchPrompt = null;
         try
         {
-            using var document = JsonDocument.Parse(session.ParallelCandidateBatchJson!);
-            if (document.RootElement.ValueKind == JsonValueKind.Object &&
-                document.RootElement.TryGetProperty("userPrompt", out var promptElement) &&
-                promptElement.ValueKind == JsonValueKind.String &&
-                promptElement.GetString() is { } persistedPrompt &&
-                !string.IsNullOrWhiteSpace(persistedPrompt))
+            if (!string.IsNullOrWhiteSpace(session.ParallelCandidateBatchJson))
             {
-                return persistedPrompt;
+                using var document = JsonDocument.Parse(session.ParallelCandidateBatchJson);
+                if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                    document.RootElement.TryGetProperty("userPrompt", out var promptElement) &&
+                    promptElement.ValueKind == JsonValueKind.String &&
+                    promptElement.GetString() is { } persistedPrompt &&
+                    !string.IsNullOrWhiteSpace(persistedPrompt))
+                {
+                    batchPrompt = persistedPrompt.Trim();
+                }
             }
         }
         catch (JsonException)
@@ -2189,10 +2404,70 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             // Fall through to the visible transcript. The invalid batch is intentionally discarded.
         }
 
-        return session.Chat.LastOrDefault(entry =>
-                string.Equals(entry.Role, AuthoringChatEntry.User, StringComparison.Ordinal) &&
-                !string.IsNullOrWhiteSpace(entry.Text))
-            ?.Text;
+        var confirmedParallelPrompts = RecoverConfirmedParallelChatPrompts(session.Chat);
+        var fallbackUserPrompts = session.Chat
+            .Where(entry => string.Equals(entry.Role, AuthoringChatEntry.User, StringComparison.Ordinal) &&
+                            !string.IsNullOrWhiteSpace(entry.Text) &&
+                            !IsBacktestNavigationIntent(entry.Text))
+            .Select(static entry => entry.Text.Trim())
+            .ToArray();
+
+        if (!string.IsNullOrWhiteSpace(batchPrompt) && !IsBacktestNavigationIntent(batchPrompt))
+        {
+            // Before the explicit brief field existed, the batch prompt was overwritten by each
+            // refinement. When it is visibly the last user turn, rebuild the durable request from the
+            // whole strategy-only transcript. Otherwise the batch may itself contain a combined brief.
+            if (confirmedParallelPrompts.Length > 1 && string.Equals(
+                    batchPrompt,
+                    confirmedParallelPrompts[^1],
+                    StringComparison.Ordinal))
+            {
+                return confirmedParallelPrompts.Skip(1).Aggregate(
+                    confirmedParallelPrompts[0],
+                    CombineFourLaneStrategyBrief);
+            }
+
+            return batchPrompt;
+        }
+
+        if (!string.IsNullOrWhiteSpace(batchPrompt))
+        {
+            if (confirmedParallelPrompts.Length > 0)
+                return confirmedParallelPrompts.Skip(1).Aggregate(
+                    confirmedParallelPrompts[0],
+                    CombineFourLaneStrategyBrief);
+
+            // A legacy navigation-corrupted batch has no trustworthy lane provenance. Recover only
+            // the nearest prior strategy-like user turn rather than contaminating it with old Expert chat.
+            return fallbackUserPrompts.LastOrDefault();
+        }
+
+        return null;
+    }
+
+    private static string[] RecoverConfirmedParallelChatPrompts(IReadOnlyList<AuthoringChatEntry> chat)
+    {
+        var confirmed = new List<string>();
+        var pendingUsers = new List<string>();
+        foreach (var entry in chat)
+        {
+            if (string.Equals(entry.Role, AuthoringChatEntry.User, StringComparison.Ordinal))
+            {
+                if (!string.IsNullOrWhiteSpace(entry.Text)) pendingUsers.Add(entry.Text.Trim());
+                continue;
+            }
+
+            if (!string.Equals(entry.Role, AuthoringChatEntry.Assistant, StringComparison.Ordinal))
+                continue;
+
+            if (entry.Text.StartsWith("I asked four strategy-generation agents", StringComparison.Ordinal))
+            {
+                confirmed.AddRange(pendingUsers.Where(static prompt =>
+                    !IsBacktestNavigationIntent(prompt)));
+            }
+            pendingUsers.Clear();
+        }
+        return [.. confirmed];
     }
 
     /// <summary>Writes the current session out. Called after anything worth not losing: a turn, a compile,
@@ -2219,6 +2494,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             Registered: IsRegistered,
             CandidateJson: CurrentCandidate is null ? null : StrategyCandidateCanonicalJsonV1.Serialize(CurrentCandidate),
             GenerateCandidateFirst: GenerateCandidateFirst,
+            FourLaneStrategyBrief: _fourLaneStrategyBrief,
+            PendingFourLanePrompt: _pendingFourLanePrompt,
             ParallelCandidateBatchJson: _parallelCandidateBatch is null
                 ? null
                 : StrategyGenerationCandidateCanonicalJsonV1.SerializeBatch(
@@ -2492,6 +2769,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private void ClearCandidate()
     {
+        _fourLaneStrategyBrief = null;
+        SetPendingFourLanePrompt(null);
+        RegenerateFourCandidatesCommand.NotifyCanExecuteChanged();
         CandidateRestoreWarning = null;
         ClearSemanticCandidate();
         ClearParallelCandidates();

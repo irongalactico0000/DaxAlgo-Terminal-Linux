@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Definition;
 
@@ -127,9 +128,41 @@ public enum StrategyVariationAxisKindV1
 public sealed record StrategyGenerationParameterV1(
     string Name,
     string ValueType,
+    [property: JsonConverter(typeof(StrategyGenerationParameterDefaultValueJsonConverter))]
     string DefaultValue,
     string? Unit,
     string Description);
+
+/// <summary>
+/// Model providers commonly preserve a parameter's native JSON scalar type even though the shared
+/// comparison envelope stores proposed defaults as strings. Accept only scalar tokens and normalize
+/// them to their invariant JSON spelling; serialization remains a string so hashes and saved batches
+/// retain the existing candidate-v2 representation.
+/// </summary>
+internal sealed class StrategyGenerationParameterDefaultValueJsonConverter : JsonConverter<string>
+{
+    public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+            return reader.GetString();
+        if (reader.TokenType == JsonTokenType.True)
+            return bool.TrueString.ToLowerInvariant();
+        if (reader.TokenType == JsonTokenType.False)
+            return bool.FalseString.ToLowerInvariant();
+        if (reader.TokenType == JsonTokenType.Number)
+        {
+            using var value = JsonDocument.ParseValue(ref reader);
+            return ExecutableStrategyDefinitionCanonicalJson.Canonicalize(
+                value.RootElement.GetRawText());
+        }
+
+        throw new JsonException(
+            "A strategy parameter defaultValue must be a JSON string, number, or boolean scalar.");
+    }
+
+    public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value);
+}
 
 /// <summary>A named way to fork the generated strategy without rewriting the whole prompt.</summary>
 public sealed record StrategyVariationAxisV1(
