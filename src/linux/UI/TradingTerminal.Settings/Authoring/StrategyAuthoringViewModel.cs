@@ -3325,6 +3325,8 @@ public sealed partial class StrategyGenerationCandidateOption : ObservableObject
     {
         StrategyGenerationLoweringModeV1.ReviewedAiSynthesis => "reviewed AI synthesis → TradeIR",
         StrategyGenerationLoweringModeV1.Identity => "already canonical TradeIR",
+        StrategyGenerationLoweringModeV1.DeterministicLowererRequired =>
+            "deterministic lowerer required for canonical backtest",
         _ => "no lowering route declared",
     };
     public string CompatibilityBoundary => Candidate?.PackageBinding.Authority.ExternalCompatibility switch

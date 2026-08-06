@@ -1,6 +1,6 @@
 # macOS index / Core
 
-Generated from source fingerprint `3b8482429c18`. macOS/Avalonia source only.
+Generated from source fingerprint `8af92ffea5ea`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using FluentAssertions;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies.Authoring;
@@ -222,7 +223,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         graphPrompt.Should().Contain("OperatorGraphModuleV1");
         graphPrompt.Should().Contain("daxalgo.strategy-operators");
         graphPrompt.Should().Contain("TradeIrModuleValidatorV1");
-        graphPrompt.Should().Contain("packageImplementationHashSha256");
+        graphPrompt.Should().NotContain("packageImplementationHashSha256");
         graphPrompt.Should().Contain("requiredSnapshotHashSha256");
         graphPrompt.Should().Contain(TradeIrSimulatedBacktestContractV1.SchemaHashSha256);
         graphPrompt.Should().NotContain("<exact 64-character lowercase schema digest>");
@@ -254,11 +255,13 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             var prompt = PromptFor(provider, lane);
             var binding = ExecutableStrategyDefinitionCanonicalJson.Serialize(
                 StrategyGenerationPackageCatalogV1.RequireBinding(lane));
-            prompt.Should().Contain("requestHashSha256");
-            prompt.Should().Contain($"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}");
-            prompt.Should().Contain($"\"packageBinding\": {binding}");
-            prompt.Should().NotContain("\"packageBinding\": { \"copy\"");
-            prompt.Should().NotContain("__HOST_PACKAGE_BINDING_JSON__");
+            prompt.Should().NotContain("\"candidateId\"");
+            prompt.Should().NotContain("\"requestHashSha256\"");
+            prompt.Should().NotContain("\"packageBinding\"");
+            prompt.Should().NotContain(binding);
+            prompt.Should().Contain("The host derives and binds all of those values after parsing this draft");
+            prompt.Should().Contain("direct Python source string OR the direct lane JSON document object");
+            prompt.Should().Contain($"\"strategyId\":\"{Request.StrategyId}\"");
             prompt.Should().Contain("never claim a backtest, metric, or package check passed");
             prompt.Should().Contain("every explicit user clause about direction, thresholds, lookbacks, filters, exits");
             prompt.Should().Contain("that has not been superseded by a later refinement as mandatory");
@@ -266,7 +269,8 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             prompt.Should().Contain("Variation axes may offer alternatives only after");
             prompt.Should().Contain("cross-check the interpretation, parameter defaults, and artifact logic");
             prompt.Should().Contain("every explicit clause in userPrompt that has not been superseded");
-            prompt.Should().Contain("defaultValue may be a JSON string, number, or boolean scalar");
+            prompt.Should().Contain("defaultValue may be a JSON string, number,");
+            prompt.Should().Contain("or boolean scalar");
         }
 
         result.Lanes.Should().ContainSingle(lane => lane.PackageValid && lane.Lane == StrategyGenerationLaneV1.TypedGraph);
@@ -303,6 +307,17 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
                 StrategyGenerationCandidateCanonicalJsonV1.Hash(candidate));
             result.AgentRun.AgentId.Should().Be(ParallelStrategyGenerationPromptV1.AgentId(result.Lane));
             result.Selectable.Should().BeTrue(Describe(result.Issues));
+
+            using var draft = JsonDocument.Parse(result.AgentRun.RawResponse!);
+            draft.RootElement.TryGetProperty("schemaVersion", out _).Should().BeFalse();
+            draft.RootElement.TryGetProperty("candidateId", out _).Should().BeFalse();
+            draft.RootElement.TryGetProperty("lane", out _).Should().BeFalse();
+            draft.RootElement.TryGetProperty("requestHashSha256", out _).Should().BeFalse();
+            draft.RootElement.TryGetProperty("packageBinding", out _).Should().BeFalse();
+            draft.RootElement.GetProperty("artifact").ValueKind.Should().Be(
+                result.Lane is StrategyGenerationLaneV1.VibePython or StrategyGenerationLaneV1.CspPython
+                    ? JsonValueKind.String
+                    : JsonValueKind.Object);
         }
 
         batch.Lanes.Single(lane => lane.Lane == StrategyGenerationLaneV1.VibePython)
@@ -313,6 +328,95 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             .Candidate!.Artifact.FileName.Should().Be("strategy.tradeir.json");
         batch.Lanes.Single(lane => lane.Lane == StrategyGenerationLaneV1.CspPython)
             .Candidate!.Artifact.FileName.Should().Be("strategy.csp.py");
+    }
+
+    [Theory]
+    [InlineData(StrategyGenerationLaneV1.VibePython)]
+    [InlineData(StrategyGenerationLaneV1.DeclarativeSpec)]
+    [InlineData(StrategyGenerationLaneV1.TypedGraph)]
+    [InlineData(StrategyGenerationLaneV1.CspPython)]
+    public async Task Legacy_envelope_cannot_override_any_host_owned_candidate_or_artifact_field(
+        StrategyGenerationLaneV1 lane)
+    {
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var expected = CandidateForLane(lane, candidateId, Request);
+        var otherLane = lane == StrategyGenerationLaneV1.VibePython
+            ? StrategyGenerationLaneV1.CspPython
+            : StrategyGenerationLaneV1.VibePython;
+        var hostile = expected with
+        {
+            SchemaVersion = "model/owned-this-now",
+            CandidateId = "attacker/rebound-id",
+            Lane = otherLane,
+            RequestHashSha256 = new string('0', 64),
+            PackageBinding = StrategyGenerationPackageCatalogV1.RequireBinding(otherLane),
+            Artifact = expected.Artifact with
+            {
+                Kind = StrategyGenerationLaneCatalogV1.ArtifactKind(otherLane),
+                FileName = "../../wrong.extension",
+                Language = "hostile-language",
+            },
+        };
+        var provider = new SequenceResponseProvider(
+            StrategyCodegenResponse.Reply(StrategyGenerationCandidateCanonicalJsonV1.Serialize(hostile)));
+
+        var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            provider,
+            Request,
+            candidateId);
+
+        result.Readiness.Should().Be(
+            lane == StrategyGenerationLaneV1.TypedGraph
+                ? StrategyGenerationReadinessV1.PackageValid
+                : StrategyGenerationReadinessV1.Generated,
+            Describe(result.Issues));
+        result.Selectable.Should().BeTrue(Describe(result.Issues));
+        StrategyGenerationCandidateCanonicalJsonV1.Serialize(result.Candidate!).Should().Be(
+            StrategyGenerationCandidateCanonicalJsonV1.Serialize(expected));
+        result.CandidateHashSha256.Should().Be(StrategyGenerationCandidateCanonicalJsonV1.Hash(expected));
+        provider.CallCount.Should().Be(1, "ignored host-field echoes must not spend a repair request");
+    }
+
+    [Theory]
+    [InlineData(StrategyGenerationLaneV1.DeclarativeSpec)]
+    [InlineData(StrategyGenerationLaneV1.TypedGraph)]
+    public async Task Slim_draft_cannot_override_host_owned_identity_or_TradeIr_catalog(
+        StrategyGenerationLaneV1 lane)
+    {
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var expected = CandidateForLane(lane, candidateId, Request);
+        var root = JsonNode.Parse(expected.Artifact.Document!.Value.GetRawText())!.AsObject();
+        if (lane == StrategyGenerationLaneV1.DeclarativeSpec)
+        {
+            root["strategy"]!["id"] = "attacker/strategy";
+        }
+        else
+        {
+            root["definition"]!["strategyId"] = "attacker/strategy";
+            root["definition"]!["operatorCatalog"]!["catalogHashSha256"] = new string('0', 64);
+        }
+
+        var hostile = expected with
+        {
+            Artifact = expected.Artifact with { Document = Json(root.ToJsonString()) },
+        };
+        var provider = new SequenceResponseProvider(
+            StrategyCodegenResponse.Reply(SerializeSlimDraft(hostile)));
+
+        var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            provider,
+            Request,
+            candidateId);
+
+        result.Readiness.Should().Be(
+            lane == StrategyGenerationLaneV1.TypedGraph
+                ? StrategyGenerationReadinessV1.PackageValid
+                : StrategyGenerationReadinessV1.Generated,
+            Describe(result.Issues));
+        StrategyGenerationCandidateCanonicalJsonV1.Serialize(result.Candidate!).Should().Be(
+            StrategyGenerationCandidateCanonicalJsonV1.Serialize(expected));
+        result.CandidateHashSha256.Should().Be(StrategyGenerationCandidateCanonicalJsonV1.Hash(expected));
+        provider.CallCount.Should().Be(1);
     }
 
     [Fact]
@@ -371,7 +475,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
                 new StrategyGenerationParameterV1("enabled", "boolean", "true", null, "Enable the filter."),
             ],
         };
-        var raw = StrategyGenerationCandidateCanonicalJsonV1.Serialize(candidate)
+        var raw = SerializeSlimDraft(candidate)
             .Replace("\"defaultValue\":\"20\"", "\"defaultValue\":20", StringComparison.Ordinal)
             .Replace("\"defaultValue\":\"20.0\"", "\"defaultValue\":20.0", StringComparison.Ordinal)
             .Replace("\"defaultValue\":\"2e1\"", "\"defaultValue\":2e1", StringComparison.Ordinal)
@@ -404,7 +508,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
         var candidate = CandidateForLane(lane, candidateId, Request);
         var raw = "Here is the requested candidate.\n```json\n" +
-                  StrategyGenerationCandidateCanonicalJsonV1.Serialize(candidate) +
+                  SerializeSlimDraft(candidate) +
                   "\n```\nI kept it inert and editable.";
         var provider = new SequenceResponseProvider(
             StrategyCodegenResponse.Reply(raw, new CodegenUsage(10, 5)));
@@ -428,13 +532,13 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         var lane = StrategyGenerationLaneV1.VibePython;
         var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
         var valid = CandidateForLane(lane, candidateId, Request);
-        var invalid = valid with { CandidateId = "model/changed-host-id" };
+        var invalid = Malform(valid);
         var provider = new SequenceResponseProvider(
             StrategyCodegenResponse.Reply(
-                StrategyGenerationCandidateCanonicalJsonV1.Serialize(invalid),
+                SerializeSlimDraft(invalid),
                 new CodegenUsage(10, 5)),
             StrategyCodegenResponse.Reply(
-                StrategyGenerationCandidateCanonicalJsonV1.Serialize(valid),
+                SerializeSlimDraft(valid),
                 new CodegenUsage(7, 3)));
 
         var progress = new SynchronousProgressRecorder();
@@ -456,11 +560,12 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         repair.Messages.Should().HaveCount(3);
         repair.Messages[1].Role.Should().Be(CodegenRole.Assistant);
         repair.Messages[1].Content.Should().Be(
-            StrategyGenerationCandidateCanonicalJsonV1.Serialize(invalid));
-        repair.Messages[2].Content.Should().Contain("LANE_CANDIDATE_ID_CHANGED");
-        repair.Messages[2].Content.Should().Contain("candidateId");
-        repair.Messages[2].Content.Should().Contain(candidateId);
-        repair.Messages[2].Content.Should().Contain(valid.RequestHashSha256);
+            SerializeSlimDraft(invalid));
+        repair.Messages[2].Content.Should().Contain("LANE_VIBE_CONTRACT_MARKER_REQUIRED");
+        repair.Messages[2].Content.Should().Contain("artifact.source");
+        repair.Messages[2].Content.Should().Contain("Do not add candidate identity");
+        repair.Messages[2].Content.Should().NotContain(candidateId);
+        repair.Messages[2].Content.Should().NotContain(valid.RequestHashSha256);
         progress.StatesFor(lane).Should().Equal(
             StrategyGenerationLaneProgressStateV1.WaitingForModel,
             StrategyGenerationLaneProgressStateV1.ParsingResponse,
@@ -468,6 +573,176 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             StrategyGenerationLaneProgressStateV1.RepairingResponse,
             StrategyGenerationLaneProgressStateV1.ParsingResponse,
             StrategyGenerationLaneProgressStateV1.ValidatingArtifact);
+    }
+
+    [Fact]
+    public async Task Missing_shared_TradeIr_data_facts_stop_without_a_blind_model_repair()
+    {
+        var lane = StrategyGenerationLaneV1.TypedGraph;
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var valid = CandidateForLane(lane, candidateId, Request);
+        var graph = ReadGraph(valid);
+        var missingFacts = ReplaceGraph(valid, graph with
+        {
+            Definition = graph.Definition with { DataRequirements = [] },
+        });
+        var provider = new SequenceResponseProvider(
+            StrategyCodegenResponse.Reply(SerializeSlimDraft(missingFacts)),
+            StrategyCodegenResponse.Reply(SerializeSlimDraft(valid)));
+        var progress = new SynchronousProgressRecorder();
+
+        var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            provider,
+            Request,
+            candidateId,
+            progress: progress);
+
+        result.Readiness.Should().Be(StrategyGenerationReadinessV1.Invalid);
+        result.AutomaticRepairDisposition.Should().Be(
+            StrategyGenerationAutomaticRepairDispositionV1.NeedsSharedFacts);
+        result.Issues.Should().Contain(issue =>
+            issue.Code == "LANE_TRADEIR_NEEDS_SHARED_FACTS" &&
+            issue.Message.Contains("data_requirements_empty", StringComparison.Ordinal));
+        provider.CallCount.Should().Be(1, "a model must not invent host-confirmed data facts");
+        progress.StatesFor(lane).Should().NotContain(
+            StrategyGenerationLaneProgressStateV1.RepairingResponse);
+    }
+
+    [Fact]
+    public async Task Unknown_TradeIr_operator_stops_without_asking_the_model_to_rewrite_semantics()
+    {
+        var lane = StrategyGenerationLaneV1.TypedGraph;
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var valid = CandidateForLane(lane, candidateId, Request);
+        var graph = ReadGraph(valid);
+        var unsupported = ReplaceGraph(valid, graph with
+        {
+            Definition = graph.Definition with
+            {
+                Nodes = graph.Definition.Nodes.Select(node => node.NodeId == "fast"
+                    ? node with { OperatorId = "feature.not-installed" }
+                    : node).ToArray(),
+            },
+        });
+        var provider = new SequenceResponseProvider(
+            StrategyCodegenResponse.Reply(SerializeSlimDraft(unsupported)),
+            StrategyCodegenResponse.Reply(SerializeSlimDraft(valid)));
+
+        var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            provider,
+            Request,
+            candidateId);
+
+        result.Readiness.Should().Be(StrategyGenerationReadinessV1.Invalid);
+        result.AutomaticRepairDisposition.Should().Be(
+            StrategyGenerationAutomaticRepairDispositionV1.UnsupportedSemantic);
+        result.Issues.Should().Contain(issue =>
+            issue.Code == "LANE_TRADEIR_UNSUPPORTED_SEMANTIC" &&
+            issue.Message.Contains("operator_unknown", StringComparison.Ordinal));
+        provider.CallCount.Should().Be(1, "the installed operator catalog is host-owned and authoritative");
+    }
+
+    [Fact]
+    public async Task Valid_generation_only_source_is_not_sent_to_the_model_again_for_runtime_readiness()
+    {
+        var lane = StrategyGenerationLaneV1.VibePython;
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var candidate = CandidateForLane(lane, candidateId, Request);
+        var provider = new SequenceResponseProvider(
+            StrategyCodegenResponse.Reply(SerializeSlimDraft(candidate)));
+
+        var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            provider,
+            Request,
+            candidateId);
+
+        result.Readiness.Should().Be(StrategyGenerationReadinessV1.Generated);
+        result.PackageValidationAvailable.Should().BeFalse();
+        result.AutomaticRepairDisposition.Should().Be(
+            StrategyGenerationAutomaticRepairDispositionV1.NotApplicable);
+        provider.CallCount.Should().Be(1,
+            "an absent importer/runtime requires a deterministic lowerer, not another generation call");
+    }
+
+    [Theory]
+    [InlineData("clock-timezone")]
+    [InlineData("normalization-policy")]
+    public async Task Missing_declarative_host_facts_stop_without_model_invention(string missingFact)
+    {
+        var lane = StrategyGenerationLaneV1.DeclarativeSpec;
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var valid = CandidateForLane(lane, candidateId, Request);
+        var document = JsonNode.Parse(valid.Artifact.Document!.Value.GetRawText())!.AsObject();
+        if (missingFact == "clock-timezone")
+            document["clock"]!["timezone"] = "";
+        else
+            document["dataRequirements"]![0]!["normalizationPolicy"] = "not-confirmed";
+        var invalid = valid with
+        {
+            Artifact = valid.Artifact with { Document = Json(document.ToJsonString()) },
+        };
+        var provider = new SequenceResponseProvider(
+            StrategyCodegenResponse.Reply(SerializeSlimDraft(invalid)),
+            StrategyCodegenResponse.Reply(SerializeSlimDraft(valid)));
+
+        var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            provider,
+            Request,
+            candidateId);
+
+        result.Readiness.Should().Be(StrategyGenerationReadinessV1.Invalid);
+        result.AutomaticRepairDisposition.Should().Be(
+            StrategyGenerationAutomaticRepairDispositionV1.NeedsSharedFacts);
+        provider.CallCount.Should().Be(1, "the Rules draft cannot invent host-owned facts");
+    }
+
+    [Fact]
+    public async Task Unknown_declarative_property_is_shape_repairable_even_below_a_fact_object()
+    {
+        var lane = StrategyGenerationLaneV1.DeclarativeSpec;
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var valid = CandidateForLane(lane, candidateId, Request);
+        var document = JsonNode.Parse(valid.Artifact.Document!.Value.GetRawText())!.AsObject();
+        document["dataRequirements"]![0]!["eventSchema"]!["unexpected"] = "remove-me";
+        var invalid = valid with
+        {
+            Artifact = valid.Artifact with { Document = Json(document.ToJsonString()) },
+        };
+        var provider = new SequenceResponseProvider(
+            StrategyCodegenResponse.Reply(SerializeSlimDraft(invalid)),
+            StrategyCodegenResponse.Reply(SerializeSlimDraft(valid)));
+
+        var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            provider,
+            Request,
+            candidateId);
+
+        result.Readiness.Should().Be(StrategyGenerationReadinessV1.Generated, Describe(result.Issues));
+        provider.CallCount.Should().Be(2, "removing an unknown closed-schema property needs no semantic choice");
+    }
+
+    [Theory]
+    [InlineData("blank-title")]
+    [InlineData("blank-source")]
+    public async Task Obvious_lane_draft_shape_errors_receive_the_bounded_repair(string defect)
+    {
+        var lane = StrategyGenerationLaneV1.VibePython;
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var valid = CandidateForLane(lane, candidateId, Request);
+        var invalid = defect == "blank-title"
+            ? valid with { Title = "" }
+            : valid with { Artifact = valid.Artifact with { Source = "" } };
+        var provider = new SequenceResponseProvider(
+            StrategyCodegenResponse.Reply(SerializeSlimDraft(invalid)),
+            StrategyCodegenResponse.Reply(SerializeSlimDraft(valid)));
+
+        var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            provider,
+            Request,
+            candidateId);
+
+        result.Readiness.Should().Be(StrategyGenerationReadinessV1.Generated, Describe(result.Issues));
+        provider.CallCount.Should().Be(2);
     }
 
     [Fact]
@@ -499,9 +774,9 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
     {
         var lane = StrategyGenerationLaneV1.VibePython;
         var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
-        var invalid = CandidateForLane(lane, candidateId, Request) with { CandidateId = "changed" };
+        var invalid = Malform(CandidateForLane(lane, candidateId, Request));
         var provider = new CancellableRepairProvider(
-            StrategyGenerationCandidateCanonicalJsonV1.Serialize(invalid));
+            SerializeSlimDraft(invalid));
         using var cts = new CancellationTokenSource();
 
         var generation = new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
@@ -523,7 +798,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         var lane = StrategyGenerationLaneV1.VibePython;
         var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
         var candidate = CandidateForLane(lane, candidateId, Request);
-        var raw = StrategyGenerationCandidateCanonicalJsonV1.Serialize(candidate)
+        var raw = SerializeSlimDraft(candidate)
             .Replace("\"defaultValue\":\"4\"", "\"defaultValue\":{\"unexpected\":4}", StringComparison.Ordinal);
 
         var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
@@ -943,13 +1218,13 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
 
     [Theory]
     [InlineData(StrategyGenerationLaneV1.VibePython, StrategyGenerationSemanticRoleV1.SourceReview,
-        StrategyGenerationLoweringModeV1.ReviewedAiSynthesis)]
+        StrategyGenerationLoweringModeV1.DeterministicLowererRequired)]
     [InlineData(StrategyGenerationLaneV1.DeclarativeSpec, StrategyGenerationSemanticRoleV1.SourceReview,
-        StrategyGenerationLoweringModeV1.ReviewedAiSynthesis)]
+        StrategyGenerationLoweringModeV1.DeterministicLowererRequired)]
     [InlineData(StrategyGenerationLaneV1.TypedGraph, StrategyGenerationSemanticRoleV1.CanonicalExecutableIr,
         StrategyGenerationLoweringModeV1.Identity)]
     [InlineData(StrategyGenerationLaneV1.CspPython, StrategyGenerationSemanticRoleV1.SourceReview,
-        StrategyGenerationLoweringModeV1.ReviewedAiSynthesis)]
+        StrategyGenerationLoweringModeV1.DeterministicLowererRequired)]
     public async Task Every_lane_exposes_its_normative_authority_role_and_canonical_target(
         StrategyGenerationLaneV1 lane,
         StrategyGenerationSemanticRoleV1 role,
@@ -1070,12 +1345,18 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         result.Receipt!.Sources.Select(static source => source.Lane)
             .Should().Equal(StrategyGenerationLaneCatalogV1.Ordered);
         result.Receipt.TargetCandidateHashSha256.Should().Be(result.Output.CandidateHashSha256);
+        result.Output.Candidate!.RequestHashSha256.Should().Be(result.Receipt.RequestHashSha256);
         result.ReceiptHashSha256.Should().Be(TradeIrCandidateSynthesisCanonicalJsonV1.ReceiptHash(result.Receipt));
         result.Receipt.ProviderId.Should().Be(provider.ProviderId);
         result.Receipt.Model.Should().Be(provider.Model);
         var prompt = AgentCliCodegenClient.FlattenPrompt(provider.LastRequest);
         foreach (var hash in sourceHashes) prompt.Should().Contain(hash);
         prompt.Should().Contain("AI synthesis, not deterministic semantic compilation");
+        var userMessage = provider.LastRequest.Messages.Last().Content;
+        using var synthesisInput = JsonDocument.Parse(userMessage[userMessage.IndexOf('{')..]);
+        synthesisInput.RootElement.TryGetProperty("expectedCandidateId", out _).Should().BeFalse();
+        synthesisInput.RootElement.TryGetProperty("expectedRequestHashSha256", out _).Should().BeFalse();
+        synthesisInput.RootElement.TryGetProperty("expectedTargetBinding", out _).Should().BeFalse();
     }
 
     [Theory]
@@ -1581,10 +1862,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
                 {
                     Definition = ReadGraph(candidate).Definition with
                     {
-                        OperatorCatalog = ReadGraph(candidate).Definition.OperatorCatalog with
-                        {
-                            CatalogHashSha256 = new string('0', 64),
-                        },
+                        DataRequirements = [],
                     },
                 }),
             StrategyGenerationLaneV1.CspPython => candidate with
@@ -1674,11 +1952,34 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
     private static string PromptFor(
         FourLaneArtifactProvider provider,
         StrategyGenerationLaneV1 lane)
-    {
-        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
-        return provider.Requests
+        => provider.Requests
             .Select(AgentCliCodegenClient.FlattenPrompt)
-            .Single(prompt => prompt.Contains(candidateId, StringComparison.Ordinal));
+            .Single(prompt => prompt.Contains(PromptMarker(lane), StringComparison.Ordinal));
+
+    private static string PromptMarker(StrategyGenerationLaneV1 lane) => lane switch
+    {
+        StrategyGenerationLaneV1.VibePython => "You are VibeAgent.",
+        StrategyGenerationLaneV1.DeclarativeSpec => "You are SpecAgent.",
+        StrategyGenerationLaneV1.TypedGraph => "You are GraphAgent.",
+        StrategyGenerationLaneV1.CspPython => "You are CspAgent.",
+        _ => throw new ArgumentOutOfRangeException(nameof(lane), lane, "Unknown lane."),
+    };
+
+    private static string SerializeSlimDraft(StrategyGenerationCandidateV1 candidate)
+    {
+        using var full = JsonDocument.Parse(StrategyGenerationCandidateCanonicalJsonV1.Serialize(candidate));
+        var root = full.RootElement;
+        var draft = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var propertyName in new[]
+                 {
+                     "title", "interpretation", "unresolvedQuestions", "assumptions", "parameters",
+                     "variationAxes", "explanation", "proposedTests",
+                 })
+            draft[propertyName] = root.GetProperty(propertyName).Clone();
+        draft["artifact"] = candidate.Artifact.Source is { } source
+            ? JsonSerializer.SerializeToElement(source)
+            : candidate.Artifact.Document!.Value.Clone();
+        return ExecutableStrategyDefinitionCanonicalJson.Canonicalize(JsonSerializer.Serialize(draft));
     }
 
     private static string SerializeGraph(OperatorGraphModuleV1 graph) =>
@@ -1884,9 +2185,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             var prompt = AgentCliCodegenClient.FlattenPrompt(request);
             var strategyId = _generationRequest.StrategyId.Trim();
             var lane = StrategyGenerationLaneCatalogV1.Ordered.Single(candidateLane =>
-                prompt.Contains(
-                    $"{strategyId}/{StrategyGenerationLaneCatalogV1.WireName(candidateLane)}",
-                    StringComparison.Ordinal));
+                prompt.Contains(PromptMarker(candidateLane), StringComparison.Ordinal));
             if (_failedLane == lane)
                 return Task.FromResult(StrategyCodegenResponse.Fail($"Simulated {lane} provider failure."));
 
@@ -1894,7 +2193,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             var candidate = CandidateForLane(lane, candidateId, _generationRequest);
             candidate = _change?.Invoke(lane, candidate) ?? candidate;
             return Task.FromResult(StrategyCodegenResponse.Reply(
-                StrategyGenerationCandidateCanonicalJsonV1.Serialize(candidate),
+                SerializeSlimDraft(candidate),
                 new CodegenUsage(50, 25)));
         }
     }
@@ -1918,20 +2217,13 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             ct.ThrowIfCancellationRequested();
             Interlocked.Increment(ref _callCount);
             LastRequest = request;
-            var userMessage = request.Messages.Last().Content;
-            var jsonStart = userMessage.IndexOf('{');
-            using var envelope = JsonDocument.Parse(userMessage[jsonStart..]);
-            var root = envelope.RootElement;
-            var candidateId = root.GetProperty("expectedCandidateId").GetString()!;
-            var requestHash = root.GetProperty("expectedRequestHashSha256").GetString()!;
-            var candidate = GraphCandidate(candidateId, generationRequest) with
+            var candidate = GraphCandidate($"{generationRequest.StrategyId}/typed-graph", generationRequest) with
             {
-                RequestHashSha256 = requestHash,
                 Title = "Synthesized EMA cross",
                 Explanation = "Review this new TradeIR synthesis against every source hash.",
             };
             return Task.FromResult(StrategyCodegenResponse.Reply(
-                StrategyGenerationCandidateCanonicalJsonV1.Serialize(candidate),
+                SerializeSlimDraft(candidate),
                 new CodegenUsage(80, 40)));
         }
     }

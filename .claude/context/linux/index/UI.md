@@ -1,6 +1,6 @@
 # macOS index / UI
 
-Generated from source fingerprint `3b8482429c18`. macOS/Avalonia source only.
+Generated from source fingerprint `8af92ffea5ea`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
@@ -14,7 +14,7 @@ Generated from source fingerprint `3b8482429c18`. macOS/Avalonia source only.
 | `src/linux/UI/TradingTerminal.Settings/Authoring/LineDiff.cs` | 94 | linux | TradingTerminal.Settings | product | Y | One line of a rendered diff: |
 | `src/linux/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.TradeIrBacktest.cs` | 472 | linux | TradingTerminal.Settings | product | Y | Exact-hash bridge from an active, package-valid TradeIR candidate to the deliberately narrow |
 | `src/linux/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.TradeIrSynthesis.cs` | 265 | linux | TradingTerminal.Settings | product | Y | Review-bound bridge from the four independently generated authoring drafts to one new |
-| `src/linux/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.cs` | 3633 | linux | TradingTerminal.Settings | product | Y | Keeps the activity strip and the chat from growing without bound over |
+| `src/linux/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.cs` | 3635 | linux | TradingTerminal.Settings | product | Y | Keeps the activity strip and the chat from growing without bound over |
 | `src/linux/UI/TradingTerminal.Settings/Authoring/StrategyStarterCatalog.cs` | 1058 | linux | TradingTerminal.Settings | product | Y | Overlapping navigation lenses derived from the normalized specification. |
 | `src/linux/UI/TradingTerminal.Settings/Notifications/NotificationsSettingsViewModel.cs` | 226 | linux | TradingTerminal.Settings | product | Y | Per-provider default text/vision model ids, pre-filled when the user picks a provider |
 | `src/linux/UI/TradingTerminal.Settings/Notifications/NotificationsUserFile.cs` | 84 | linux | TradingTerminal.Settings | product | Y | Writes the notifications section, preserving any other keys that may exist. |

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Definition;
@@ -6,8 +7,116 @@ using TradingTerminal.Core.Strategies.Definition;
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
 /// <summary>
-/// One format-specific authoring request and deterministic validation pass. Every lane calls the
-/// selected model once; this layer never compiles, runs, imports, packages, or tests an artifact.
+/// Conservative host-owned gate for the single optional repair call. It prefers stopping with an
+/// actionable issue over asking a model to invent facts or approximate unsupported semantics.
+/// </summary>
+internal static class StrategyGenerationAutomaticRepairClassifierV1
+{
+    private const string TradeIrNeedsFactsCode = "LANE_TRADEIR_NEEDS_SHARED_FACTS";
+    private const string TradeIrUnsupportedSemanticCode = "LANE_TRADEIR_UNSUPPORTED_SEMANTIC";
+
+    public static StrategyGenerationAutomaticRepairDispositionV1 Classify(
+        StrategyGenerationLaneResultV1? result)
+    {
+        if (result?.Readiness != StrategyGenerationReadinessV1.Invalid)
+            return StrategyGenerationAutomaticRepairDispositionV1.NotApplicable;
+
+        var errors = result.Issues?
+            .Where(static issue => issue is not null &&
+                issue.Severity == StrategyCandidateGenerationIssueSeverityV1.Error)
+            .ToArray() ?? [];
+        if (errors.Length == 0)
+            return StrategyGenerationAutomaticRepairDispositionV1.NonRepairable;
+
+        if (errors.Any(IsMissingSharedFact))
+            return StrategyGenerationAutomaticRepairDispositionV1.NeedsSharedFacts;
+        if (errors.Any(static issue =>
+                string.Equals(issue.Code, TradeIrUnsupportedSemanticCode, StringComparison.Ordinal)))
+            return StrategyGenerationAutomaticRepairDispositionV1.UnsupportedSemantic;
+
+        return errors.All(IsRepairableModelOutput)
+            ? StrategyGenerationAutomaticRepairDispositionV1.RepairableModelOutput
+            : StrategyGenerationAutomaticRepairDispositionV1.NonRepairable;
+    }
+
+    private static bool IsMissingSharedFact(StrategyCandidateGenerationIssueV1 issue)
+    {
+        if (string.Equals(issue.Code, TradeIrNeedsFactsCode, StringComparison.Ordinal))
+            return true;
+
+        // Declarative Rules v1 has no resolved host catalog/facts artifact yet. Only exact paths
+        // whose values must come from AuthoringFacts are classified here. Closed-schema noise such
+        // as an unknown property remains a shape error even when nested under one of these objects.
+        if (!issue.Code.StartsWith("LANE_SPEC_", StringComparison.Ordinal) &&
+            !string.Equals(issue.Code, "LANE_ARTIFACT_SECTION_REQUIRED", StringComparison.Ordinal))
+            return false;
+        if (string.Equals(issue.Code, "LANE_SPEC_PROPERTY_UNKNOWN", StringComparison.Ordinal))
+            return false;
+
+        var path = issue.Path ?? string.Empty;
+        if (path is "artifact.document.clock.timezone" or
+            "artifact.document.clock.sessionCalendar" or
+            "artifact.document.clock.decisionTiming" or
+            "artifact.document.clock.interval")
+            return true;
+        if (string.Equals(path, "artifact.document.dataRequirements", StringComparison.Ordinal))
+            return true;
+        if (!path.StartsWith("artifact.document.dataRequirements[", StringComparison.Ordinal))
+            return false;
+
+        var itemPathEnd = path.IndexOf(']');
+        if (itemPathEnd < 0 || itemPathEnd + 1 >= path.Length)
+            return false;
+        var factPath = path[(itemPathEnd + 1)..];
+        return factPath is ".dataKind" or
+               ".normalizationPolicy" or
+               ".missingDataPolicy" or
+               ".revisionPolicy" ||
+               factPath.StartsWith(".instrumentSelector", StringComparison.Ordinal) ||
+               factPath.StartsWith(".eventSchema", StringComparison.Ordinal) ||
+               factPath.StartsWith(".temporalSemantics", StringComparison.Ordinal);
+    }
+
+    private static bool IsRepairableModelOutput(StrategyCandidateGenerationIssueV1 issue)
+    {
+        var code = issue.Code ?? string.Empty;
+        if (code is "LANE_JSON_INVALID" or
+            "LANE_CANDIDATE_REQUIRED" or
+            "LANE_TRADEIR_JSON_INVALID" or
+            "LANE_TRADEIR_MODULE_KIND_INVALID" or
+            "LANE_TRADEIR_PACKAGE_INVALID")
+            return true;
+
+        if (code.StartsWith("LANE_SPEC_", StringComparison.Ordinal) ||
+            code.StartsWith("LANE_VIBE_", StringComparison.Ordinal) ||
+            code.StartsWith("LANE_CSP_", StringComparison.Ordinal) ||
+            code.StartsWith("LANE_PYTHON_", StringComparison.Ordinal))
+            return true;
+
+        return code is "LANE_PARAMETERS_REQUIRED" or
+            "LANE_TEXT_REQUIRED" or
+            "LANE_ARRAY_REQUIRED" or
+            "LANE_ARRAY_EMPTY" or
+            "LANE_PARAMETER_NULL" or
+            "LANE_PARAMETER_DUPLICATE" or
+            "LANE_VARIATION_AXES_REQUIRED" or
+            "LANE_VARIATION_AXIS_NULL" or
+            "LANE_VARIATION_AXIS_KIND_INVALID" or
+            "LANE_VARIATION_AXIS_DUPLICATE" or
+            "LANE_ARTIFACT_REQUIRED" or
+            "LANE_ARTIFACT_SECTION_REQUIRED" or
+            "LANE_ARTIFACT_SECTION_TYPE_INVALID" or
+            "LANE_ARTIFACT_DOCUMENT_REQUIRED" or
+            "LANE_ARTIFACT_SOURCE_REQUIRED" or
+            "LANE_ARTIFACT_TOO_LARGE";
+    }
+}
+
+/// <summary>
+/// One format-specific authoring request and deterministic validation pass. Every lane makes one
+/// initial model call and at most one bounded repair call for proven response-shape errors. Missing
+/// shared facts, unsupported semantics, and runtime-readiness gaps never trigger blind model repair;
+/// this layer never compiles, runs, imports, packages, or tests an artifact.
 /// </summary>
 public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane) : IStrategyGenerationLaneAgentV1
 {
@@ -25,10 +134,7 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
         ArgumentException.ThrowIfNullOrWhiteSpace(expectedCandidateId);
 
         var systemContext = ParallelStrategyGenerationPromptV1.SystemContext(Lane);
-        var originalUserMessage = ParallelStrategyGenerationPromptV1.UserMessage(
-            Lane,
-            request,
-            expectedCandidateId);
+        var originalUserMessage = ParallelStrategyGenerationPromptV1.UserMessage(request);
         var codegenRequest = new StrategyCodegenRequest(
             systemContext,
             [new CodegenMessage(CodegenRole.User, originalUserMessage)])
@@ -79,7 +185,8 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
             usage,
             progress,
             "LANE_JSON_INVALID");
-        if (firstResult.Readiness != StrategyGenerationReadinessV1.Invalid)
+        if (firstResult.AutomaticRepairDisposition !=
+            StrategyGenerationAutomaticRepairDispositionV1.RepairableModelOutput)
             return firstResult;
 
         progress?.Report(new StrategyGenerationLaneProgressV1(
@@ -100,11 +207,6 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
                             CodegenRole.User,
                             ParallelStrategyGenerationPromptV1.RepairMessage(
                                 Lane,
-                                expectedCandidateId,
-                                StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
-                                    request.StrategyId,
-                                    request.UserPrompt,
-                                    Lane),
                                 firstResult.Issues)),
                     ])
                 {
@@ -163,7 +265,12 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
             Lane,
             StrategyGenerationLaneProgressStateV1.ParsingResponse));
 
-        if (!TryDeserializeCandidate(raw, out var candidate, out var parseError))
+        if (!TryDeserializeCandidate(
+                raw,
+                request,
+                expectedCandidateId,
+                out var candidate,
+                out var parseError))
             return Invalid(provider, parseIssueCode, parseError, raw, usage);
 
         if (candidate is null)
@@ -233,28 +340,197 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
             run);
     }
 
-    private static bool TryDeserializeCandidate(
+    private bool TryDeserializeCandidate(
         string? raw,
+        ParallelStrategyGenerationRequestV1 request,
+        string expectedCandidateId,
         out StrategyGenerationCandidateV1? candidate,
+        out string error)
+    {
+        if (TryDeserializeDraftRoot(raw, out var root, out error))
+            return TryBindHostCandidate(
+                Lane,
+                root,
+                expectedCandidateId,
+                StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
+                    request.StrategyId,
+                    request.UserPrompt,
+                    Lane),
+                request.StrategyId,
+                out candidate,
+                out error);
+
+        candidate = null;
+        return false;
+    }
+
+    private static bool TryDeserializeDraftRoot(
+        string? raw,
+        out JsonElement root,
         out string error)
     {
         if (StrategyModelJsonV1.TryDeserialize(
                 raw,
                 StrategyCandidateGenerationOrchestratorV1.MaxModelResponseCharacters,
-                out candidate,
+                out root,
                 out error))
             return true;
 
         if (string.IsNullOrWhiteSpace(raw) ||
             raw.Length > StrategyCandidateGenerationOrchestratorV1.MaxModelResponseCharacters ||
             !TryExtractSingleJsonObject(raw, out var extracted))
+        {
+            root = default;
             return false;
+        }
 
         return StrategyModelJsonV1.TryDeserialize(
             extracted,
             StrategyCandidateGenerationOrchestratorV1.MaxModelResponseCharacters,
-            out candidate,
+            out root,
             out error);
+    }
+
+    /// <summary>
+    /// Converts untrusted model-owned draft content into the canonical host-owned candidate. Legacy
+    /// full envelopes are accepted during migration, but their identity, provenance, package binding,
+    /// and artifact metadata are deliberately never read.
+    /// </summary>
+    internal static bool TryBindHostCandidate(
+        StrategyGenerationLaneV1 lane,
+        JsonElement root,
+        string expectedCandidateId,
+        string expectedRequestHashSha256,
+        string expectedStrategyId,
+        out StrategyGenerationCandidateV1? candidate,
+        out string error)
+    {
+        candidate = null;
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            error = "The model response must be one lane-draft JSON object.";
+            return false;
+        }
+
+        try
+        {
+            var artifactPayload = RequireProperty(root, "artifact");
+            candidate = new StrategyGenerationCandidateV1(
+                StrategyGenerationCandidateV1.CurrentSchemaVersion,
+                expectedCandidateId,
+                lane,
+                expectedRequestHashSha256,
+                StrategyGenerationPackageCatalogV1.RequireBinding(lane),
+                DeserializeProperty<string>(root, "title"),
+                DeserializeProperty<string>(root, "interpretation"),
+                DeserializeProperty<IReadOnlyList<string>>(root, "unresolvedQuestions"),
+                DeserializeProperty<IReadOnlyList<string>>(root, "assumptions"),
+                DeserializeProperty<IReadOnlyList<StrategyGenerationParameterV1>>(root, "parameters"),
+                DeserializeProperty<IReadOnlyList<StrategyVariationAxisV1>>(root, "variationAxes"),
+                BindArtifact(lane, artifactPayload, expectedStrategyId),
+                DeserializeProperty<string>(root, "explanation"),
+                DeserializeProperty<IReadOnlyList<string>>(root, "proposedTests"));
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception exception) when (exception is JsonException or ArgumentException or
+            FormatException or InvalidOperationException or NotSupportedException or OverflowException)
+        {
+            error = $"The model JSON does not match the lane-draft contract: {exception.Message}";
+            return false;
+        }
+    }
+
+    private static StrategyGenerationArtifactV1 BindArtifact(
+        StrategyGenerationLaneV1 lane,
+        JsonElement artifactPayload,
+        string expectedStrategyId)
+    {
+        string? source = null;
+        JsonElement? document = null;
+
+        if (lane is StrategyGenerationLaneV1.VibePython or StrategyGenerationLaneV1.CspPython)
+        {
+            var sourceElement = artifactPayload;
+            if (artifactPayload.ValueKind == JsonValueKind.Object &&
+                artifactPayload.TryGetProperty("source", out var wrappedSource))
+                sourceElement = wrappedSource;
+            if (sourceElement.ValueKind != JsonValueKind.String)
+                throw new JsonException(
+                    "The artifact must be a direct Python source string or a legacy object containing string property 'source'.");
+            source = sourceElement.GetString();
+        }
+        else
+        {
+            var documentElement = artifactPayload;
+            if (artifactPayload.ValueKind == JsonValueKind.Object &&
+                artifactPayload.TryGetProperty("document", out var wrappedDocument))
+                documentElement = wrappedDocument;
+            if (documentElement.ValueKind != JsonValueKind.Object)
+                throw new JsonException(
+                    "The artifact must be a direct JSON document object or a legacy object containing object property 'document'.");
+            document = lane switch
+            {
+                StrategyGenerationLaneV1.TypedGraph =>
+                    BindHostOwnedTradeIrMetadata(documentElement, expectedStrategyId),
+                StrategyGenerationLaneV1.DeclarativeSpec =>
+                    BindHostOwnedDeclarativeIdentity(documentElement, expectedStrategyId),
+                _ => documentElement.Clone(),
+            };
+        }
+
+        return new StrategyGenerationArtifactV1(
+            StrategyGenerationLaneCatalogV1.ArtifactKind(lane),
+            StrategyGenerationPackageCatalogV1.ArtifactFileName(lane),
+            StrategyGenerationPackageCatalogV1.ArtifactLanguage(lane),
+            source,
+            document);
+    }
+
+    private static JsonElement BindHostOwnedTradeIrMetadata(
+        JsonElement document,
+        string expectedStrategyId)
+    {
+        var root = JsonNode.Parse(document.GetRawText()) as JsonObject;
+        if (root?["definition"] is not JsonObject definition)
+            return document.Clone();
+
+        var catalog = StrategyGenerationPackageCatalogV1
+            .RequireBinding(StrategyGenerationLaneV1.TypedGraph)
+            .OperatorCatalog
+            ?? throw new InvalidOperationException("The installed TradeIR binding has no operator catalog.");
+        definition["operatorCatalog"] = JsonNode.Parse(
+            ExecutableStrategyDefinitionCanonicalJson.Serialize(catalog));
+        definition["strategyId"] = expectedStrategyId.Trim();
+
+        using var rebound = JsonDocument.Parse(root.ToJsonString());
+        return rebound.RootElement.Clone();
+    }
+
+    private static JsonElement BindHostOwnedDeclarativeIdentity(
+        JsonElement document,
+        string expectedStrategyId)
+    {
+        var root = JsonNode.Parse(document.GetRawText()) as JsonObject;
+        if (root?["strategy"] is not JsonObject strategy)
+            return document.Clone();
+
+        strategy["id"] = expectedStrategyId.Trim();
+        using var rebound = JsonDocument.Parse(root.ToJsonString());
+        return rebound.RootElement.Clone();
+    }
+
+    private static T DeserializeProperty<T>(JsonElement root, string propertyName)
+    {
+        var property = RequireProperty(root, propertyName);
+        return ExecutableStrategyDefinitionCanonicalJson.Deserialize<T>(property.GetRawText());
+    }
+
+    private static JsonElement RequireProperty(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var property))
+            throw new JsonException($"Required model-owned property '{propertyName}' is missing.");
+        return property;
     }
 
     /// <summary>

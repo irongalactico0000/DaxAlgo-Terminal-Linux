@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Definition;
 
@@ -48,7 +49,7 @@ public interface ITradeIrCandidateSynthesizerV1
 
 public static class TradeIrCandidateSynthesisCanonicalJsonV1
 {
-    public const string AgentId = "strategy.tradeir_synthesis@1";
+    public const string AgentId = "strategy.tradeir_synthesis@2";
 
     public static string ReceiptHash(TradeIrSynthesisReceiptV1 receipt) =>
         ExecutableStrategyDefinitionCanonicalJson.Hash(receipt);
@@ -327,10 +328,7 @@ public sealed class TradeIrCandidateSynthesizerV1 : ITradeIrCandidateSynthesizer
             [new CodegenMessage(CodegenRole.User, TradeIrCandidateSynthesisPromptV1.UserMessage(
                 batch,
                 sources,
-                candidates,
-                expectedCandidateId,
-                synthesisRequestHash,
-                targetBinding))])
+                candidates))])
         {
             OutputContract = StrategyCodegenOutputContract.RawJsonObject,
         };
@@ -353,11 +351,20 @@ public sealed class TradeIrCandidateSynthesizerV1 : ITradeIrCandidateSynthesizer
         var raw = response.RawText ?? response.Code;
         if (!response.Success)
             return Failure(provider, "SYNTHESIS_PROVIDER_FAILED", response.Error ?? "The provider returned no result.", raw, usage);
-        if (!StrategyModelJsonV1.TryDeserialize<StrategyGenerationCandidateV1>(
+        if (!StrategyModelJsonV1.TryDeserialize<JsonElement>(
                 raw,
                 StrategyCandidateGenerationOrchestratorV1.MaxModelResponseCharacters,
+                out var draft,
+                out var parseError) ||
+            !StrategyGenerationLaneAgentV1.TryBindHostCandidate(
+                StrategyGenerationLaneV1.TypedGraph,
+                draft,
+                expectedCandidateId,
+                synthesisRequestHash,
+                strategyId,
                 out var candidate,
-                out var parseError) || candidate is null)
+                out parseError) ||
+            candidate is null)
             return Invalid(provider, "SYNTHESIS_JSON_INVALID", parseError, raw, usage);
 
         IReadOnlyList<StrategyCandidateGenerationIssueV1> issues;
@@ -530,39 +537,30 @@ internal static class TradeIrCandidateSynthesisPromptV1
         review evidence; this operation is AI synthesis, not deterministic semantic compilation.
 
         The result is a new candidate with a new request hash and content hash. Package validation is
-        not data binding, target admission, a backtest, or execution evidence.
+        not data binding, target admission, a backtest, or execution evidence. Return the same slim
+        lane-draft response required by the Graph contract below; the host constructs all candidate
+        identity, provenance, package, catalog, filename, language, and hash fields.
         """ + "\n\n" + StrategyGenerationPackageCatalogV1.PromptContract(StrategyGenerationLaneV1.TypedGraph);
 
     public static string UserMessage(
         ParallelStrategyGenerationResultV1 batch,
         IReadOnlyList<StrategySynthesisSourceV1> sources,
-        IReadOnlyList<StrategyGenerationCandidateV1> candidates,
-        string expectedCandidateId,
-        string expectedRequestHashSha256,
-        StrategyGenerationPackageBindingV1 targetBinding) =>
-        "Synthesize one Typed Graph candidate from this host-owned envelope. Return exactly the " +
-        "StrategyGenerationCandidateV1 JSON object and no prose.\n" +
+        IReadOnlyList<StrategyGenerationCandidateV1> candidates) =>
+        "Synthesize one Typed Graph proposal from these host-owned source references. Return exactly " +
+        "one slim Graph lane-draft JSON object and no prose. Never echo or invent candidate identity, " +
+        "request hash, package binding, artifact metadata, strategy id, or operator catalog; the host " +
+        "binds them after parsing.\n" +
         ExecutableStrategyDefinitionCanonicalJson.Serialize(new SynthesisEnvelopeV1(
-            StrategyGenerationCandidateV1.CurrentSchemaVersion,
-            expectedCandidateId,
-            StrategyGenerationLaneV1.TypedGraph,
-            expectedRequestHashSha256,
             batch.StrategyId.Trim(),
             batch.UserPrompt,
             batch.PromptHashSha256,
             sources,
-            candidates,
-            targetBinding));
+            candidates));
 
     private sealed record SynthesisEnvelopeV1(
-        string ExpectedSchemaVersion,
-        string ExpectedCandidateId,
-        StrategyGenerationLaneV1 ExpectedLane,
-        string ExpectedRequestHashSha256,
         string StrategyId,
         string UserPrompt,
         string BatchPromptHashSha256,
         IReadOnlyList<StrategySynthesisSourceV1> Sources,
-        IReadOnlyList<StrategyGenerationCandidateV1> SourceCandidates,
-        StrategyGenerationPackageBindingV1 ExpectedTargetBinding);
+        IReadOnlyList<StrategyGenerationCandidateV1> SourceCandidates);
 }

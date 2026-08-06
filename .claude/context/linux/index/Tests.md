@@ -1,6 +1,6 @@
 # macOS index / Tests
 
-Generated from source fingerprint `3b8482429c18`. macOS/Avalonia source only.
+Generated from source fingerprint `8af92ffea5ea`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
@@ -131,7 +131,7 @@ Generated from source fingerprint `3b8482429c18`. macOS/Avalonia source only.
 | `tests/linux/TradingTerminal.Tests.Headless/Risk/RiskManagerTests.cs` | 110 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/AuthoredStrategyComposerTests.cs` | 261 | linux | TradingTerminal.Tests.Headless | test | Y | Kernel + descriptor + live view-model, no view — the shape the |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/IndexRegimeAggregatorTests.cs` | 103 | linux | TradingTerminal.Tests.Headless | test | Y | Snapshot whose every timeframe column carries the trend score returned by |
-| `tests/linux/TradingTerminal.Tests.Headless/Strategies/ParallelStrategyCandidateGeneratorV1Tests.cs` | 1938 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Strategies/ParallelStrategyCandidateGeneratorV1Tests.cs` | 2230 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/RoslynStrategyCompilerTests.cs` | 100 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/StrategyCandidateGenerationOrchestratorV1Tests.cs` | 464 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/StrategyCandidateV1Tests.cs` | 522 | linux | TradingTerminal.Tests.Headless | test | Y |  |

@@ -8,6 +8,20 @@ The exact format rules and their owners are defined in the
 [Vibe Quant lane contracts v1](vibe-quant-lane-contracts.md). The machine-readable Declarative
 Rules contract is [JSON Schema Draft 2020-12](schemas/vibe-quant-declarative-rules-v1.schema.json).
 
+## Current implementation versus intended product
+
+The current implementation starts four real model requests, reconstructs the trusted candidate
+envelope in the host, keeps invalid native output inspectable, validates Typed Graph against the
+installed TradeIR package, and can run one narrow exact-hash synthetic Graph smoke. It does **not**
+yet implement the shared-facts preflight, Rules resolution/lowering, Python or CSP runtimes,
+historical TradeIR worker source, historical data admission, parameter sweeps, or historical result
+view described later in this document.
+
+Those future stages are normative design, not hidden functionality. Until each gate exists, the UI
+must say **not available** with the missing gate; restarting the app, choosing Expert C#, loading a
+different smoke example, or asking an AI to rewrite the artifact does not make the selected
+candidate historically backtestable.
+
 ## Quick start
 
 1. Open **Strategy Studio → Vibe Code → Vibe Quant** and choose **New strategy**.
@@ -40,11 +54,20 @@ One submission starts four concurrent initial provider calls, one for each lane:
 Results are always presented in Vibe, Spec, Graph, CSP order even if the provider calls finish in a
 different order. A failure in one lane does not erase usable results from the other lanes.
 
-If an initial response is not one valid candidate envelope, that lane may make at most one separate
-repair request. The repair prompt contains the original host envelope plus the exact deterministic
-issue codes, paths, and messages. Therefore a generation turn makes four initial requests and zero
-to four bounded repair requests; a first-pass-valid turn still makes exactly four. Repair never
-silently changes a valid sibling lane and never bypasses deterministic validation.
+Each model returns only review metadata and its lane-native source or JSON. The trusted host creates
+the candidate ID, lane, request hash, canonical filename/language, and exact package binding before
+validation and hashing. A model does not have to reproduce DaxAlgo's internal candidate record and
+cannot acquire authority by echoing or changing one of those host fields.
+
+The current transport may make at most one separate repair request after an invalid initial
+response. It already stops without retry for known missing TradeIR data facts, operators absent
+from the installed TradeIR catalog, and the currently enumerated Declarative Rules clock/data-fact
+paths. Its conservative classifier is not yet the complete cross-lane taxonomy: the intended
+product permits the extra call only for malformed transport or mechanically repairable draft shape,
+using exact deterministic issue codes, paths, and messages. Missing facts,
+unsupported semantics, capability/data/environment blockers, contradictions, provider failures,
+and cancellation require their own user or host action and MUST NOT enter an AI repair loop. A
+first-pass-valid turn still makes exactly four model calls.
 
 "Contract authority" identifies who defines the format. It does not identify an installed runtime.
 Vibe Quant owns the Vibe, Rules, and inert CSP authoring profiles. DaxAlgo's installed TradeIR
@@ -107,62 +130,88 @@ Candidate test guidance, and makes no provider request. A mixed request containi
 facts, such as `backtest with a 20-period ATR and 1 bp fees`, remains a refinement so those facts are
 not silently discarded. Generation and testing remain separate explicit actions.
 
-The shared candidate envelope also normalizes model-authored scalar parameter defaults. A provider
+The host candidate builder also normalizes model-authored scalar parameter defaults. A provider
 may return `defaultValue` as a JSON string, number, or boolean; the host stores its invariant scalar
 spelling as a string for comparison and canonical hashing. Objects and arrays remain invalid. This
 does not coerce the lane artifact itself: each artifact contract still owns its native parameter
-types. Every prompt now embeds the exact host-owned `packageBinding` object, so a model cannot satisfy
-the contract with a `copy` placeholder.
+types. The prompt describes the expected native format; the host obtains the real `packageBinding`
+from its installed catalog rather than asking the model to copy or invent it.
 
 ## Response recovery boundary
 
-The provider is still required to return one root JSON object. Claude CLI requests add its
-root-object structured-output flag; other adapters retain the same host-side parser and validator.
-For resilience, the host first tries strict JSON parsing, then accepts exactly one unambiguous JSON
-object embedded in incidental prose or a Markdown fence. It does not guess when two objects are
-present.
+The provider is still required to return one compact root JSON object containing review metadata and
+one lane-native `artifact`. Claude CLI requests add its root-object structured-output flag; other
+adapters retain the same host-side parser and validator. For resilience, the host first tries strict
+JSON parsing, then accepts exactly one unambiguous JSON object embedded in incidental prose or a
+Markdown fence. It does not guess when two objects are present. During migration, the parser may
+read the older full candidate wrapper, but it discards and reconstructs every host-owned identity and
+binding field.
 
-If that recovered object still fails the shared envelope or lane contract, the host may make one
-validation-aware repair request for that lane. Cancellation propagates through the repair call,
-provider failures are not retried, and an invalid repaired response ends as
-`LANE_JSON_INVALID_AFTER_REPAIR`. Usage from both calls is reported together. This is bounded output
-recovery, not an execution retry and not a semantic-correctness proof.
+If that recovered object is malformed JSON or has a mechanically repairable compact-response/native
+shape error, the target issue router may make one validation-aware repair request for that lane.
+Cancellation propagates through the repair call, provider failures are not retried, and an invalid
+repaired response ends as `LANE_JSON_INVALID_AFTER_REPAIR`. Usage from both calls is reported
+together. This is bounded output recovery, not an execution retry and not a semantic-correctness
+proof. The current conservative router recognizes the two TradeIR cases above, but the remaining
+cross-lane categories stay a visible gap until the complete issue router below is implemented.
 
-## From four drafts to one canonical artifact
+## Issue routing and the next honest action
 
-The four cards are alternatives, not four executable pieces that can be concatenated. Combining
-reviewed candidates is a separate AI synthesis operation:
+Every blocking diagnostic needs a category because “invalid” does not imply “ask the model again.”
+The intended routing is:
+
+| Category | Example | Automatic AI repair? | Next action |
+|---|---|---:|---|
+| `TransportSyntax` | Truncated JSON, fence/prose ambiguity | Once | Reformat the same response, then parse again |
+| `DraftShape` | Required native property omitted or wrong primitive type | Once, only when no semantic choice is needed | Repair the exact path, then rerun the same validator |
+| `NeedsFacts` | Instrument, interval, timezone, or session is missing | No | Return to shared facts and confirm it |
+| `FactsMismatch` | Artifact contradicts a confirmed instrument/schema/time fact | No | Review facts or regenerate from the confirmed hash |
+| `SemanticContradiction` | Entry, exit, sizing, or risk clauses conflict | No | User reviews/refines the brief |
+| `UnsupportedSemantic` | Requested ATR trail has no supported operator/lowering rule | No | Show the unsupported construct and supported alternatives |
+| `CapabilityBlocked` | Runtime, lowerer, importer, or target profile is absent | No | Install/implement the capability or choose a supported lane |
+| `DataOrEnvironment` | Dataset, schema, credentials, worker, or package is unavailable | No | Resolve the named data/environment dependency |
+| `IntegrityOrProvenance` | Hash, signature, request lineage, or stale-editor mismatch | No | Fail closed and restore/re-admit the exact artifact |
+| `ProviderFailure` | Provider timeout/authentication/process failure | No schema repair | User explicitly retries the generation request |
+| `Canceled` | User pressed Stop | No | Keep the last committed batch and await a new action |
+
+The issue category, stable code, native JSON/source path, message, candidate/request hash, validator
+identity, and suggested next action are preserved together. Only `TransportSyntax` and the
+non-semantic subset of `DraftShape` are repairable by the bounded model call. No repair may invent a
+shared fact, swap an unsupported operator, loosen a risk rule, or reinterpret a contradiction.
+
+## Four alternatives and the canonical execution boundary
+
+The four cards are alternative interpretations, not executable pieces that can be concatenated.
+Typed Graph is already expressed in canonical TradeIR. A package-valid Graph can therefore proceed
+directly to data and target admission without being rewritten through Expert C# or combined with
+the other three lanes.
+
+Rules has two required states. `RulesDraftV1` is the model-authored semantic AST for review; any
+instrument, event-schema, or operator-catalog identities it contains are non-authoritative.
+`RulesResolvedV1` is a new host materialization that replaces/resolves those references from the
+confirmed `AuthoringFactsV1` and installed catalogs, receives a new hash, and carries a
+Draft-to-Resolved receipt. The current implementation stops at a structural draft check and does
+not create `RulesResolvedV1`.
+
+A deterministic, fail-closed Rules-to-TradeIR lowerer must consume only `RulesResolvedV1` and emit
+either one canonical graph plus a complete source-path-to-node receipt, or stable unsupported issues
+and no graph. Vibe Python and CSP first require isolated native preview runtimes; any later canonical
+conversion must have an explicit, provenance-bound deterministic importer/lowerer. Only Graph
+identity or a deterministic conversion receipt can support an equivalence claim.
+
+The existing optional **Synthesize valid drafts → TradeIR** operation is a separate AI proposal:
 
 ```text
-reviewed selectable source candidates
-  + exact source contract ids and SHA-256 hashes
-  + original brief hash and target TradeIR binding
-  -> one new AI synthesis request
-  -> one new strategy.tradeir.json with a new SHA-256
-  -> installed TradeIR package/catalog validation
-  -> immutable synthesis receipt
+reviewed source candidates and hashes
+  -> one additional model request
+  -> one new proposed TradeIR artifact and hash
+  -> installed TradeIR validation
+  -> synthesis provenance receipt
 ```
 
-The synthesis receipt binds the ordered source lane ids, candidate ids, contract ids and versions,
-source hashes, batch-prompt hash, synthesis-request hash, target package/catalog binding, synthesized
-candidate hash, and provider/model identity. Editing a source, changing the target binding, or
-changing the synthesized bytes makes that receipt stale.
-
-This operation is reviewed **AI synthesis**, not a deterministic compiler. In particular, the
-terminal does not claim that ordinary Python or CSP Python can be mechanically lowered to an
-economically equivalent graph. The combined TradeIR artifact is a fifth candidate with its own
-review boundary. It never overwrites or borrows the hash of a source candidate.
-
-The intended Candidate-tab flow is:
-
-1. Review the selectable Vibe, Rules, Graph, and CSP results and resolve material questions.
-2. Choose **Synthesize valid drafts → TradeIR**. This makes one additional provider request.
-3. Inspect the included source hashes, new target hash, package-validation result, and synthesis
-   receipt hash.
-4. Choose **Use combined TradeIR in editor** only after that review.
-
-After loading that canonical artifact, the same narrow synthetic smoke test described below is
-available. Synthesis itself still runs no test.
+It never overwrites its sources and does not prove that it preserves their trading semantics. Its
+result must be reviewed as a fifth candidate. It is not a prerequisite for running an already valid
+Graph candidate and must not be presented as the deterministic bridge for Python, Rules, or CSP.
 
 ## Does it understand the strategy?
 
@@ -196,6 +245,39 @@ Facts that must remain unresolved rather than guessed:
 The system deliberately permits unresolved facts instead of encouraging an agent to fabricate a
 schema, snapshot, instrument identity, or timing rule.
 
+### Three immutable contracts, at different times
+
+The target workflow separates authoring meaning from run economics:
+
+| Contract | When it is created | What it controls | What it must not contain or imply |
+|---|---|---|---|
+| `AuthoringFactsV1` | Before any of the four artifact requests | Canonical instrument/universe identity, venue, asset class, currency, data kind and interval, event schema, session calendar, timezone, prior-period boundary, decision timing, and the confirmed semantic clauses shared by all lanes | No historical date range, data-file choice, starting capital, fill model, fee/slippage model, benchmark, or claim that a backtest is admitted |
+| `ComparisonScenarioV1` | During run setup, independent of any one strategy | Historical data manifest/range, initial capital, sizing constraints, fill/spread/slippage/fee assumptions, risk overrides, warmup/end-of-run policy, benchmark, seed, and required target/engine profile | No source/module hash and no change to strategy meaning |
+| `BacktestRunConfigV1` | After one exact canonical TradeIR hash exists | That exact module, conversion/parameter lineage, one comparison-scenario hash, and resolved compiler/runtime/host identities | No silent rewrite of either the strategy or shared scenario |
+
+Every `AuthoringFactsV1` value is visibly `Proposed`, `Confirmed`, or `Missing`. Its provenance binds
+the source (`user`, `starter`, `current-chart suggestion`, or installed catalog), canonical resolver
+and catalog versions, who/what confirmed it, and a canonical facts hash. A chart or starter may
+propose a value, but only explicit confirmation makes it authoritative. **Build 4 candidates** stays
+disabled until the required common values are confirmed; then all four prompts receive the same
+facts hash and all four outputs are checked against it.
+
+The current release has no `AuthoringFactsV1` gate and instead surfaces unresolved questions after
+generation. That is why an underspecified Graph can currently fail with an empty data requirement.
+The target behavior is to classify that state as `NeedsFacts` before the four calls, not to ask an AI
+to guess or repair it. Facts that become necessary only for a particular lane or for execution are
+resolved later without rewriting the already-confirmed common facts.
+
+Accordingly, a post-generation Build panel must show **Shared authoring facts: PASS** separately
+from **Lane/run facts: needs setup**. It must not show the same instrument/interval/session fact as
+both confirmed before generation and missing afterward. Later blockers should name genuinely
+run-specific values such as the historical snapshot, date range, commission model, or benchmark.
+
+Changing a date, fee, seed, fill assumption, or other economic input creates a new
+`ComparisonScenarioV1` hash. Each strategy gets a distinct `BacktestRunConfigV1` that binds its exact
+module/parameter lineage to that scenario. Comparison requires equal scenario and admitted data/
+target/engine identities, not equal strategy-bound config hashes.
+
 ## Why a Graph candidate can be invalid
 
 GraphAgent targets a closed, typed TradeIR contract. TradeIR rejects unknown properties, wrong JSON
@@ -216,14 +298,31 @@ Even a `PACKAGE VALID · NOT TESTED` Graph result proves only that the exact JSO
 installed TradeIR authoring/package contract. It does not prove that market data can be bound, that a
 runtime target admits it, or that the strategy can be backtested.
 
+## Four proof levels
+
+Vibe Quant must keep these evidence levels separate in cards, buttons, stored results, and
+comparisons:
+
+| Proof level | What passed | May display P&L? | Canonically comparable across lanes? |
+|---|---|---:|---:|
+| Format validation | Exact native bytes passed the lane's closed shape/structural validator | No | No |
+| Synthetic compatibility smoke | A pinned narrow input passed one exact bridge/runtime/target | Not as historical evidence | No |
+| Lane-native historical simulation | A native Python/CSP/Rules evaluator used an immutable historical snapshot and explicit assumptions | Yes, labeled **native simulation** | No; evaluator semantics may differ |
+| Canonical historical backtest | Graph identity or a deterministic conversion receipt produced exact TradeIR, then one admitted DaxAlgo data/execution contract ran it | Yes | Yes, only when comparison scenario, data, target, and engine identities match |
+
+A result never moves upward merely because it has a chart or P&L. In particular, future Python and
+CSP native simulations remain useful lane evidence but cannot receive a canonical-comparable badge,
+enter a same-engine leaderboard, or borrow the result of a Graph candidate until their supported
+source is deterministically lowered to TradeIR with complete trace coverage.
+
 ## What is and is not proved
 
 The workflow can prove:
 
 - four distinct initial provider requests were started for one brief, plus no more than one repair
   request for each invalid lane;
-- each preserved response belongs to its expected lane and request;
-- deterministic envelope and lane-specific shape checks passed or failed;
+- each host-wrapped response belongs to its expected lane and request;
+- deterministic compact-response and lane-specific shape checks passed or failed;
 - the exact candidate/edit content hash;
 - for Graph only, whether the installed TradeIR package validator accepted that hash.
 
@@ -344,25 +443,82 @@ The in-screen synthetic smoke is intentionally not presented as the full Backtes
 historical, worker-isolated generated-candidate run still needs this chain for the exact hash:
 
 ```text
-reviewed source hashes
-  -> synthesis receipt + package-valid synthesized TradeIR hash
-  -> authoritative point-in-time data binding
+reviewed package-valid TradeIR hash + AuthoringFactsV1 hash
+  -> optional CanonicalParameterBindingV1 application + child TradeIR hash
+  -> authoritative point-in-time HistoricalDataBindingManifestV1
+  -> immutable strategy-neutral ComparisonScenarioV1
+  -> strategy-specific BacktestRunConfigV1
   -> target/operator capability admission
-  -> installed worker-isolated TradeIR runtime admission
+  -> installed worker protocol and TradeIR runtime admission
   -> historical backtest admission receipt bound to all of the above
-  -> Backtest Studio request bound to the same synthesized hash and receipt
+  -> Backtest Studio request bound to the same module/config/admission hashes
+  -> unique run receipt + deterministic EconomicResultDigestV1
 ```
 
-The future historical user path is therefore:
+The first historical user path should therefore be:
 
 1. Generate and review the four source candidates.
-2. Synthesize them into a new TradeIR candidate and review its receipt.
-3. Bind the required instruments, schemas, snapshots, calendars, and event-time rules.
-4. Let the terminal verify target/operator capabilities and the installed importer/runtime.
-5. Review the resulting backtest admission receipt.
-6. Click **Open historical backtest**; Backtest Studio must receive that same target hash and
+2. Select a package-valid Graph candidate; no synthesis or Expert C# rewrite is required.
+3. Verify the host-owned authoring facts, then bind the required immutable data snapshot and its
+   ingestion provenance; a Parquet file hash or column schema alone does not prove instrument
+   identity.
+4. Choose explicit capital, fill, fee, slippage, risk, end-of-run, benchmark, seed, and target
+   settings to create `ComparisonScenarioV1`; bind the selected module to it in a separate
+   `BacktestRunConfigV1`.
+5. Let the terminal verify target/operator capabilities and the installed worker/runtime.
+6. Review the resulting backtest admission receipt.
+7. Click **Run historical backtest**; the worker and result view must receive that same hash and
    receipt without regenerating or rewriting the artifact.
 
 Binding every stage prevents the terminal from validating one artifact and backtesting different
 bytes. Until the historical data, worker protocol, and admission-receipt handoff exist, Vibe Quant
 labels its available action as a synthetic smoke test and does not call it a historical backtest.
+Rules, Vibe Python, and CSP reach this path only after their own deterministic lowerer/importer gates
+are implemented; an AI-generated substitute cannot establish identity.
+
+### Parameters are executable only through a binding receipt
+
+The candidate's proposed parameter list is comparison metadata, not proof that changing a value
+changes the strategy. A parameter is sweepable only after `CanonicalParameterBindingV1` binds:
+
+- source candidate and base TradeIR hashes;
+- parameter id, native type, unit, allowed domain, and constraints;
+- the exact canonical target, such as `definition.nodes[nodeId].parameters[name]` or a declared
+  runtime parameter port;
+- binder implementation hash and canonical value encoding; and
+- the resulting child TradeIR hash plus validation result for each applied value/vector.
+
+Applying a vector creates a child module and binding receipt; it never edits the admitted base bytes
+in place. A parameter with no exact canonical target cannot enter optimization. For Rules, the
+lowering receipt may establish this mapping. Python/CSP-native parameter experiments remain native
+evidence until a deterministic lowerer establishes the same canonical mapping.
+
+### Historical data and run provenance
+
+`HistoricalDataBindingManifestV1` binds the dataset id, canonical instrument/venue/currency, data
+kind and schema hash, interval, timezone/session, start/end bounds, revision policy, materialized
+file hash and length, and source/ingestion artifact identity. The worker verifies the manifest hash,
+file bytes, Parquet schema/metadata, and range before replay. Instrument meaning ultimately depends
+on this trusted ingestion lineage; it must not be inferred from a filename or bare OHLCV columns.
+
+The admission and run provenance also binds the source candidate, canonical module and definition,
+AuthoringFacts, conversion/identity and parameter-binding receipts, data manifest,
+`ComparisonScenarioV1`, `BacktestRunConfigV1`, target profile/revision, compiler, runtime, execution host, worker/bridge,
+request/input, and seed hashes. Any mismatch fails before execution; restored results reverify these
+links before display.
+
+### Repeatability uses an economic digest, not one universal receipt hash
+
+Every attempt has a unique immutable `BacktestRunReceiptV1` containing its job identity, lifecycle
+timestamps, machine/worker telemetry, publication facts, and the `EconomicResultDigestV1`. Two
+valid repeated runs therefore need not have identical receipt or report bytes.
+
+`EconomicResultDigestV1` hashes only deterministic economic outputs: ordered simulated-time equity
+and cash samples; orders, fills, trades, positions, fees, slippage, and round trips; stable metrics;
+and warnings/assumptions that affect economics. It excludes job id, wall-clock creation/publication
+timestamps, engine milliseconds, progress messages, machine identity, and filesystem paths.
+Repeatability means identical admitted module/data/scenario/run inputs produce the same economic digest.
+Different job receipts remain separately auditable even when that digest matches.
+
+The primary-source design rationale and phased runtime plan are recorded in the
+[Vibe Quant runtime and backtest benchmark](research/vibe-quant-four-lane-runtime-benchmark.md).

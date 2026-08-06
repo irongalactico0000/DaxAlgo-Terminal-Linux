@@ -60,6 +60,30 @@ public enum StrategyGenerationReadinessV1
     Invalid = 6,
 }
 
+/// <summary>
+/// Host-owned decision about whether an invalid lane result is safe to send back to the model for
+/// one bounded formatting/shape repair. This is intentionally separate from readiness: missing facts
+/// and unsupported semantics remain inspectable invalid drafts, but another model call cannot make
+/// either condition true.
+/// </summary>
+public enum StrategyGenerationAutomaticRepairDispositionV1
+{
+    /// <summary>The lane is not invalid, so automatic model repair does not apply.</summary>
+    NotApplicable = 1,
+
+    /// <summary>The model response is malformed or violates a deterministically repairable draft shape.</summary>
+    RepairableModelOutput = 2,
+
+    /// <summary>Host-confirmed strategy/data facts are required before generation can continue.</summary>
+    NeedsSharedFacts = 3,
+
+    /// <summary>The requested semantics are not represented by the installed authoritative catalog.</summary>
+    UnsupportedSemantic = 4,
+
+    /// <summary>The failure is not proven safe for one bounded model shape-regeneration request.</summary>
+    NonRepairable = 5,
+}
+
 /// <summary>The meaning assigned to an artifact by its normative contract.</summary>
 public enum StrategyGenerationSemanticRoleV1
 {
@@ -70,11 +94,20 @@ public enum StrategyGenerationSemanticRoleV1
 /// <summary>How an artifact can reach the canonical TradeIR target.</summary>
 public enum StrategyGenerationLoweringModeV1
 {
-    /// <summary>A new model-authored artifact with explicit source-hash lineage and human review.</summary>
+    /// <summary>
+    /// Legacy proposal mode. A model-authored replacement is a separate review artifact and is not a
+    /// semantic lowerer or equivalence proof.
+    /// </summary>
     ReviewedAiSynthesis = 1,
 
     /// <summary>The artifact is already the canonical target representation.</summary>
     Identity = 2,
+
+    /// <summary>
+    /// Canonical execution requires a deterministic, versioned, fail-closed lowerer. Until one is
+    /// registered, this artifact remains a source-review representation only.
+    /// </summary>
+    DeterministicLowererRequired = 3,
 }
 
 /// <summary>Evidence state for compatibility with a separately governed external format or runtime.</summary>
@@ -186,8 +219,8 @@ public sealed record StrategyGenerationArtifactV1(
     JsonElement? Document);
 
 /// <summary>
-/// Common proposal envelope shared by all four agents. Only <see cref="Artifact"/> changes shape by
-/// lane; the surrounding fields make the alternatives directly comparable in the terminal.
+/// Canonical host-owned proposal envelope assembled after a lane agent returns review metadata and
+/// artifact content. Agents never own or bind its identity, provenance, package, or artifact metadata.
 /// </summary>
 public sealed record StrategyGenerationCandidateV1(
     string SchemaVersion,
@@ -220,6 +253,9 @@ public sealed record StrategyGenerationLaneResultV1(
     IReadOnlyList<StrategyCandidateGenerationIssueV1> Issues,
     StrategyGenerationAgentRunV1 AgentRun)
 {
+    public StrategyGenerationAutomaticRepairDispositionV1 AutomaticRepairDisposition =>
+        StrategyGenerationAutomaticRepairClassifierV1.Classify(this);
+
     public bool Generated => Candidate is not null && CandidateHashSha256 is not null &&
         AgentRun is { Success: true };
 
@@ -395,12 +431,11 @@ public static class StrategyGenerationCandidateCanonicalJsonV1
         var request = new ParallelStrategyGenerationRequestV1(trimmedId, userPrompt);
         var lanes = StrategyGenerationLaneCatalogV1.Ordered.Select(lane =>
         {
-            var candidateId = $"{trimmedId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
             return new StrategyLanePromptIdentityV1(
                 lane,
                 ParallelStrategyGenerationPromptV1.AgentId(lane),
                 ParallelStrategyGenerationPromptV1.SystemContext(lane),
-                ParallelStrategyGenerationPromptV1.UserMessage(lane, request, candidateId));
+                ParallelStrategyGenerationPromptV1.UserMessage(request));
         }).ToArray();
         return new StrategyPromptIdentityV1(trimmedId, userPrompt, lanes);
     }

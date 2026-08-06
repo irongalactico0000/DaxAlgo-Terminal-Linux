@@ -1,6 +1,6 @@
 # TradingTerminal.Settings — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `3b8482429c18`. Declaration lines only;
+Generated from source fingerprint `8af92ffea5ea`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/UI/TradingTerminal.Settings/Archive/ArchiveActivityViewModel.cs
@@ -268,58 +268,58 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
  3317: public string ContractAuthority => Candidate?.PackageBinding.Authority.AuthorityId ?? "no authority";
  3318: public string ContractRole => Candidate?.PackageBinding.Authority.SemanticRole switch
  3324: public string LoweringBoundary => Candidate?.PackageBinding.Authority.LoweringMode switch
- 3330: public string CompatibilityBoundary => Candidate?.PackageBinding.Authority.ExternalCompatibility switch
- 3336: public string SpecificationReference =>
- 3338: public string StatusText => Result.Readiness switch
- 3347: public string FailureHeading => Result.Readiness switch
- 3354: public string ArtifactName => Candidate?.Artifact.FileName ?? "no artifact";
- 3355: public string Summary => Candidate?.Interpretation ?? ErrorText;
- 3356: public StrategyCandidateGenerationIssueV1? FirstIssue =>
- 3360: public string FirstIssueCode => FirstIssue?.Code ?? "No issue code reported";
- 3361: public string FirstIssuePath => FirstIssue?.Path ?? "No issue path reported";
- 3362: public string FirstIssueMessage => FirstIssue?.Message
- 3365: public string ErrorText => string.Join(Environment.NewLine, Result.Issues.Select(issue =>
- 3367: public string RecoveryText => FirstIssueCode switch
- 3379: public string ArtifactPreview => Candidate?.Artifact.Source
- 3383: public string InspectablePreview => !string.IsNullOrWhiteSpace(ArtifactPreview)
- 3388: public string PreviewHeading => !string.IsNullOrWhiteSpace(ArtifactPreview) && Candidate?.Artifact is { } artifact
- 3393: public string PreviewStateText => IsChosen
- 3396: public string FlexibilityText => Candidate is null
- 3402: public sealed partial class StrategyGenerationLaneProgressRow : ObservableObject
- 3404: public StrategyGenerationLaneProgressRow(StrategyGenerationLaneV1 lane) => Lane = lane;
- 3406: public StrategyGenerationLaneV1 Lane { get; }
- 3407: public string LaneName => StrategyGenerationLaneCatalogV1.DisplayName(Lane);
- 3408: public string AgentName => Lane switch
- 3416: public string ArtifactName => Lane switch
- 3424: public string PurposeText => Lane switch
- 3432: public string ValidationPlanText => Lane switch
- 3459: public bool HasResult => ResultOption is not null;
- 3460: public string InspectablePreview => ResultOption?.InspectablePreview ?? string.Empty;
- 3461: public string PreviewHeading => ResultOption?.PreviewHeading ?? $"{ArtifactName} · waiting for result";
- 3463: public void Apply(StrategyGenerationLaneProgressV1 progress)
- 3494: public string StateLabel => State switch
- 3507: public string StateDetail => State switch
- 3523: public string PipelineText => State switch
- 3564: public sealed record CandidateReadinessStageRow(
- 3571: public sealed record FileChangeSummary(string Name, int Added, int Removed)
- 3573: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
- 3576: public static string Pack(IReadOnlyList<FileChangeSummary> changes) =>
- 3579: public static IReadOnlyList<FileChangeSummary>? Unpack(string? packed)
- 3597: public sealed class ReviewFileEntry(string name, IReadOnlyList<DiffLine> lines)
- 3599: public string Name { get; } = name;
- 3600: public IReadOnlyList<DiffLine> Lines { get; } = lines;
- 3601: public int Added { get; } = lines.Count(l => l.Kind == "add");
- 3602: public int Removed { get; } = lines.Count(l => l.Kind == "del");
- 3603: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
- 3608: public sealed class AiProviderChoice(IStrategyCodegenClient client)
- 3610: public IStrategyCodegenClient Client { get; } = client;
- 3611: public string ProviderId => Client.ProviderId;
- 3612: public string DisplayName => Client.DisplayName;
- 3613: public bool IsAvailable => Client.IsAvailable;
- 3614: public string Label => IsAvailable ? DisplayName : $"{DisplayName} — not set up";
- 3618: public enum BuildTaskState
- 3628: public sealed partial class BuildTask(string title) : ObservableObject
- 3630: public string Title { get; } = title;
+ 3332: public string CompatibilityBoundary => Candidate?.PackageBinding.Authority.ExternalCompatibility switch
+ 3338: public string SpecificationReference =>
+ 3340: public string StatusText => Result.Readiness switch
+ 3349: public string FailureHeading => Result.Readiness switch
+ 3356: public string ArtifactName => Candidate?.Artifact.FileName ?? "no artifact";
+ 3357: public string Summary => Candidate?.Interpretation ?? ErrorText;
+ 3358: public StrategyCandidateGenerationIssueV1? FirstIssue =>
+ 3362: public string FirstIssueCode => FirstIssue?.Code ?? "No issue code reported";
+ 3363: public string FirstIssuePath => FirstIssue?.Path ?? "No issue path reported";
+ 3364: public string FirstIssueMessage => FirstIssue?.Message
+ 3367: public string ErrorText => string.Join(Environment.NewLine, Result.Issues.Select(issue =>
+ 3369: public string RecoveryText => FirstIssueCode switch
+ 3381: public string ArtifactPreview => Candidate?.Artifact.Source
+ 3385: public string InspectablePreview => !string.IsNullOrWhiteSpace(ArtifactPreview)
+ 3390: public string PreviewHeading => !string.IsNullOrWhiteSpace(ArtifactPreview) && Candidate?.Artifact is { } artifact
+ 3395: public string PreviewStateText => IsChosen
+ 3398: public string FlexibilityText => Candidate is null
+ 3404: public sealed partial class StrategyGenerationLaneProgressRow : ObservableObject
+ 3406: public StrategyGenerationLaneProgressRow(StrategyGenerationLaneV1 lane) => Lane = lane;
+ 3408: public StrategyGenerationLaneV1 Lane { get; }
+ 3409: public string LaneName => StrategyGenerationLaneCatalogV1.DisplayName(Lane);
+ 3410: public string AgentName => Lane switch
+ 3418: public string ArtifactName => Lane switch
+ 3426: public string PurposeText => Lane switch
+ 3434: public string ValidationPlanText => Lane switch
+ 3461: public bool HasResult => ResultOption is not null;
+ 3462: public string InspectablePreview => ResultOption?.InspectablePreview ?? string.Empty;
+ 3463: public string PreviewHeading => ResultOption?.PreviewHeading ?? $"{ArtifactName} · waiting for result";
+ 3465: public void Apply(StrategyGenerationLaneProgressV1 progress)
+ 3496: public string StateLabel => State switch
+ 3509: public string StateDetail => State switch
+ 3525: public string PipelineText => State switch
+ 3566: public sealed record CandidateReadinessStageRow(
+ 3573: public sealed record FileChangeSummary(string Name, int Added, int Removed)
+ 3575: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
+ 3578: public static string Pack(IReadOnlyList<FileChangeSummary> changes) =>
+ 3581: public static IReadOnlyList<FileChangeSummary>? Unpack(string? packed)
+ 3599: public sealed class ReviewFileEntry(string name, IReadOnlyList<DiffLine> lines)
+ 3601: public string Name { get; } = name;
+ 3602: public IReadOnlyList<DiffLine> Lines { get; } = lines;
+ 3603: public int Added { get; } = lines.Count(l => l.Kind == "add");
+ 3604: public int Removed { get; } = lines.Count(l => l.Kind == "del");
+ 3605: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
+ 3610: public sealed class AiProviderChoice(IStrategyCodegenClient client)
+ 3612: public IStrategyCodegenClient Client { get; } = client;
+ 3613: public string ProviderId => Client.ProviderId;
+ 3614: public string DisplayName => Client.DisplayName;
+ 3615: public bool IsAvailable => Client.IsAvailable;
+ 3616: public string Label => IsAvailable ? DisplayName : $"{DisplayName} — not set up";
+ 3620: public enum BuildTaskState
+ 3630: public sealed partial class BuildTask(string title) : ObservableObject
+ 3632: public string Title { get; } = title;
 ```
 
 ## src/linux/UI/TradingTerminal.Settings/Authoring/StrategyStarterCatalog.cs

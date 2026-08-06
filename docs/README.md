@@ -7,6 +7,10 @@
   bounded invalid-response repair, immediate per-lane artifact inspection, durable strategy
   refinements, candidate states, TradeIR validation, Stop, and the separate exact-hash
   synthetic-test gate work.
+- [Vibe Quant runtime and backtest benchmark](research/vibe-quant-four-lane-runtime-benchmark.md) —
+  primary-source comparison of vectorbt, backtesting.py, Freqtrade/FreqUI, Composer, Capitalise,
+  NautilusTrader, LEAN, and Point72 CSP, plus the decision-complete native-preview and canonical
+  historical-backtest architecture for all four lanes.
 
 Linux source paths are authoritative. Windows documentation belongs to the separate Windows
 repository and is not a requirement for work here.

@@ -1,12 +1,12 @@
 {
   "_meta": {
     "tree": "linux",
-    "sourceFingerprint": "3b8482429c185da29b049418ecab3f8da1ba44b999c1a14e52fdcd09dbe8c59f",
+    "sourceFingerprint": "8af92ffea5ea5906f9d45c7b20bcd7d3d4a032394de66d6e10ddce5bc0850aa9",
     "solution": "TradingTerminal.Mac.slnx",
     "source": "MSBuild-evaluated ProjectReference items from src/linux and tests/linux",
     "projectCount": 56,
     "indexedFileCount": 1099,
-    "indexedLoc": 173786
+    "indexedLoc": 174375
   },
   "modules": [
     {
@@ -15,7 +15,7 @@
       "path": "src/linux/Tools/DaxAlgo.Codegen/DaxAlgo.Codegen.csproj",
       "group": "Tools",
       "role": "product",
-      "loc": 7850,
+      "loc": 8145,
       "files": 25,
       "dependsOn": ["TradingTerminal.Core"],
       "dependedBy": ["DaxAlgo.StrategyTool", "TradingTerminal.Infrastructure"],
@@ -591,7 +591,7 @@
       "path": "src/linux/UI/TradingTerminal.Settings/TradingTerminal.Settings.csproj",
       "group": "UI",
       "role": "product",
-      "loc": 7281,
+      "loc": 7283,
       "files": 18,
       "dependsOn": ["TradingTerminal.Core", "TradingTerminal.Infrastructure", "TradingTerminal.UI.Core"],
       "dependedBy": ["TradingTerminal.App.Avalonia", "TradingTerminal.Recording"],
@@ -627,7 +627,7 @@
       "path": "tests/linux/TradingTerminal.Tests.Headless/TradingTerminal.Tests.Headless.csproj",
       "group": "Tests",
       "role": "test",
-      "loc": 19373,
+      "loc": 19665,
       "files": 111,
       "dependsOn": ["DaxAlgo.SamplePlugin", "DaxAlgo.Strategy.Bundle", "TradingTerminal.Accounts", "TradingTerminal.Ai.Coordinator", "TradingTerminal.Ai.Coordinator.Contracts", "TradingTerminal.Backtest.Client", "TradingTerminal.Backtest.Engine", "TradingTerminal.Backtest.Protocol", "TradingTerminal.Backtest.Worker", "TradingTerminal.Core", "TradingTerminal.Infrastructure", "TradingTerminal.MarketData", "TradingTerminal.Recording", "TradingTerminal.TradeIr.Runtime", "TradingTerminal.UI.Core"],
       "dependedBy": [],
