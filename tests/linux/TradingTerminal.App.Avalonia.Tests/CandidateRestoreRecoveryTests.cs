@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Json;
 using TradingTerminal.App.Authoring;
 using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
@@ -13,6 +14,59 @@ namespace TradingTerminal.App.Avalonia.Tests;
 
 public sealed class CandidateRestoreRecoveryTests
 {
+    [Fact]
+    public async Task Replacement_generation_keeps_last_completed_batch_through_stop_and_restart()
+    {
+        const string strategyId = "saved-strategy";
+        const string oldPrompt = "Compare two causal moving averages.";
+        var batch = ValidBatchWithDeclarativeCandidate(strategyId, oldPrompt);
+        var saved = new AuthoringSessionSnapshot(
+            StrategyId: strategyId,
+            DisplayName: "Saved strategy",
+            Chat: [new AuthoringChatEntry(AuthoringChatEntry.User, oldPrompt, DateTime.Now)],
+            Thread: [],
+            Files: [new StrategyFile("Strategy.cs", "// unchanged editor")],
+            GenerateCandidateFirst: true,
+            ParallelCandidateBatchJson: StrategyGenerationCandidateCanonicalJsonV1.SerializeBatch(batch),
+            AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion,
+            UpdatedUtc: DateTime.UtcNow);
+        var sessions = new MemoryAuthoringSessionRepository(saved);
+        var provider = new StubCodegenClient();
+        var generator = new CancelableParallelGenerator();
+
+        using (var viewModel = new StrategyAuthoringViewModel(
+                   new StubCompiler(),
+                   new StubRegistry(),
+                   NullLogger<StrategyAuthoringViewModel>.Instance,
+                   ai: new StubAiStrategyBuilder(provider),
+                   parallelCandidateGenerator: generator,
+                   sessionRepository: sessions))
+        {
+            viewModel.GeneratedCandidateOptions.Should().HaveCount(4);
+            viewModel.Composer = "Replace the slow EMA with a 20-period EMA.";
+
+            var send = viewModel.SendCommand.ExecuteAsync(null);
+            await generator.Started.WaitAsync(TimeSpan.FromSeconds(5));
+
+            viewModel.HasRetainedCandidateBatchDuringGeneration.Should().BeTrue();
+            viewModel.GeneratedCandidateOptions.Should().HaveCount(4,
+                "an in-flight replacement must not erase the last committed batch");
+
+            viewModel.StopCommand.Execute(null);
+            await send.WaitAsync(TimeSpan.FromSeconds(5));
+            viewModel.GeneratedCandidateOptions.Should().HaveCount(4);
+        }
+
+        using var restored = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            sessionRepository: sessions);
+        restored.GeneratedCandidateOptions.Should().HaveCount(4,
+            "the preserved completed batch must survive process restart");
+        restored.HasCandidateRestoreWarning.Should().BeFalse();
+    }
+
     [Fact]
     public void Valid_saved_batch_survives_a_malformed_editor_proof_without_rebinding_it()
     {
@@ -50,10 +104,12 @@ public sealed class CandidateRestoreRecoveryTests
     private static readonly XNamespace Avalonia = "https://github.com/avaloniaui";
 
     [Fact]
-    public void Stale_saved_candidate_batch_keeps_chat_and_code_but_requires_fresh_generation()
+    public async Task Stale_saved_candidate_batch_keeps_chat_and_code_but_requires_explicit_fresh_generation()
     {
         const string strategyId = "saved-strategy";
         const string prompt = "Fade a liquidity sweep at the prior-day low.";
+        var provider = new StubCodegenClient();
+        var generator = new RecordingParallelGenerator();
         var staleBatch = new ParallelStrategyGenerationResultV1(
             strategyId,
             prompt,
@@ -78,11 +134,14 @@ public sealed class CandidateRestoreRecoveryTests
             new StubCompiler(),
             new StubRegistry(),
             NullLogger<StrategyAuthoringViewModel>.Instance,
+            ai: new StubAiStrategyBuilder(provider),
+            parallelCandidateGenerator: generator,
             sessionRepository: new MemoryAuthoringSessionRepository(saved));
 
+        generator.CallCount.Should().Be(0, "restoring a stale batch must never send an AI request");
         viewModel.HasCandidateRestoreWarning.Should().BeTrue();
         viewModel.CandidateRestoreWarning.Should().Contain("chat and code were kept");
-        viewModel.CandidateRestoreWarning.Should().Contain("Check & generate");
+        viewModel.CandidateRestoreWarning.Should().Contain("Regenerate 4 candidates");
         viewModel.CandidateRestoreWarning.Should().Contain("original brief is loaded");
         viewModel.Composer.Should().Be(prompt, "recovery should not require copying from the transcript");
         viewModel.WorkbenchTab.Should().Be(3, "the recovery instruction belongs in the Candidate tab");
@@ -92,11 +151,55 @@ public sealed class CandidateRestoreRecoveryTests
         viewModel.Messages.Should().ContainSingle(message => message.Text == prompt);
         viewModel.Files.Should().ContainSingle(file =>
             file.Name == "SavedStrategy.cs" && file.Content == "// saved code");
+        viewModel.RegenerateRecoveredCandidatesCommand.CanExecute(null).Should().BeTrue();
+
+        await viewModel.RegenerateRecoveredCandidatesCommand.ExecuteAsync(null);
+
+        generator.CallCount.Should().Be(1, "only the explicit recovery action may replay the brief");
+        generator.LastRequest.Should().Be(new ParallelStrategyGenerationRequestV1(strategyId, prompt));
+        viewModel.HasCandidateRestoreWarning.Should().BeFalse();
+        viewModel.GeneratedCandidateOptions.Should().HaveCount(4);
 
         viewModel.NewChatCommand.Execute(null);
 
         viewModel.HasCandidateRestoreWarning.Should().BeFalse();
         viewModel.CandidateRestoreWarning.Should().BeNull();
+    }
+
+    [Fact]
+    public void Retired_batch_shape_recovers_its_raw_prompt_before_typed_deserialization_fails()
+    {
+        const string strategyId = "saved-strategy";
+        const string prompt = "Trade a causal opening-range rejection.";
+        var saved = new AuthoringSessionSnapshot(
+            StrategyId: strategyId,
+            DisplayName: "Saved strategy",
+            Chat: [new AuthoringChatEntry(AuthoringChatEntry.User, "Later follow-up", DateTime.Now)],
+            Thread: [],
+            Files: [new StrategyFile("SavedStrategy.cs", "// saved code")],
+            GenerateCandidateFirst: true,
+            ParallelCandidateBatchJson: $$"""
+                {
+                  "strategyId": {{JsonSerializer.Serialize(strategyId)}},
+                  "userPrompt": {{JsonSerializer.Serialize(prompt)}},
+                  "promptHashSha256": "retired",
+                  "lanes": "retired-contract-shape",
+                  "usage": {}
+                }
+                """,
+            AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion,
+            UpdatedUtc: DateTime.UtcNow);
+
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            sessionRepository: new MemoryAuthoringSessionRepository(saved));
+
+        viewModel.Composer.Should().Be(prompt,
+            "prompt recovery must not depend on successfully deserializing the retired batch type");
+        viewModel.HasCandidateRestoreWarning.Should().BeTrue();
+        viewModel.GeneratedCandidateOptions.Should().BeEmpty();
     }
 
     private static ParallelStrategyGenerationResultV1 ValidBatchWithDeclarativeCandidate(
@@ -107,25 +210,96 @@ public sealed class CandidateRestoreRecoveryTests
         var candidateId = $"{strategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
         using var document = JsonDocument.Parse($$"""
             {
-              "schemaVersion": "declarative-strategy/v1",
+              "schemaVersion": "vibe-quant/declarative-rules/v1",
               "strategy": {
                 "id": {{JsonSerializer.Serialize(strategyId)}},
-                "summary": "Causal EMA cross",
-                "universe": ["equity/xnas/ALPHA"],
-                "clock": "quote"
+                "version": "1.0.0",
+                "displayName": "Causal EMA cross",
+                "summary": "Causal EMA cross"
               },
-              "parameters": [
-                {"name":"fast_period","type":"integer","default":4},
-                {"name":"slow_period","type":"integer","default":12}
+              "clock": {
+                "basis": "eventTime",
+                "timezone": "UTC",
+                "sessionCalendar": "24x7",
+                "decisionTiming": "onEvent",
+                "interval": null
+              },
+              "operatorCatalog": {
+                "catalogId": "review-required",
+                "catalogVersion": "1",
+                "catalogHashSha256": "0000000000000000000000000000000000000000000000000000000000000000"
+              },
+              "parameters": [],
+              "dataRequirements": [
+                {
+                  "id": "quotes",
+                  "dataKind": "quoteL1",
+                  "instrumentSelector": {
+                    "mode": "references",
+                    "references": [{
+                      "instrumentKey": "review-required",
+                      "assetClass": "future",
+                      "symbol": "ES",
+                      "venue": "CME",
+                      "currency": "USD"
+                    }],
+                    "universeId": null
+                  },
+                  "eventSchema": {
+                    "schemaId": "quote-l1",
+                    "schemaVersion": 1,
+                    "schemaHashSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "payloadFields": ["bid", "ask"]
+                  },
+                  "temporalSemantics": {
+                    "eventTimeBasis": "occurredAtUtc",
+                    "interval": null,
+                    "requireAuthoritativeEventTime": true,
+                    "requirePointInTimeAvailability": true
+                  },
+                  "normalizationPolicy": "rawUnadjusted",
+                  "missingDataPolicy": "reject",
+                  "revisionPolicy": "firstPublishedOnly",
+                  "requiredSnapshotHashSha256": null
+                }
               ],
-              "dataRequirements": [],
-              "indicators": [
-                {"id":"fast","kind":"ema","input":"mid","period":"fast_period"},
-                {"id":"slow","kind":"ema","input":"mid","period":"slow_period"}
+              "indicators": [],
+              "entryRules": [
+                {
+                  "id": "enter",
+                  "direction": "long",
+                  "condition": {"kind": "literal", "value": true},
+                  "quantity": {"kind": "literal", "value": 1},
+                  "order": {"type": "market", "timeInForce": "day", "limitPrice": null, "stopPrice": null},
+                  "tags": []
+                }
               ],
-              "entryRules": [{"when":"fast > slow","target":1}],
-              "exitRules": [{"when":"fast <= slow","target":0}],
-              "risk": {"sizingRule":"fixed_quantity","maximumAbsoluteTarget":1}
+              "exitRules": [
+                {
+                  "id": "exit",
+                  "appliesTo": "long",
+                  "condition": {"kind": "literal", "value": true},
+                  "action": "closePosition",
+                  "quantity": null,
+                  "order": {"type": "market", "timeInForce": "day", "limitPrice": null, "stopPrice": null},
+                  "tags": []
+                }
+              ],
+              "risk": {
+                "maxConcurrentPositions": 1,
+                "maxOrdersPerSession": null,
+                "maxGrossExposure": null,
+                "stopLoss": null,
+                "takeProfit": null,
+                "flattenAtSessionEnd": true
+              },
+              "outputs": [
+                {
+                  "id": "orders",
+                  "kind": "orderIntent",
+                  "source": {"kind": "entryRule", "id": "enter"}
+                }
+              ]
             }
             """);
         var candidate = new StrategyGenerationCandidateV1(
@@ -207,7 +381,12 @@ public sealed class CandidateRestoreRecoveryTests
             (string?)element.Attribute("Text") == "{Binding CandidateRestoreWarning}");
         recovery.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
             (string?)element.Attribute("Text") ==
-                "Next: review the recovered brief in the composer, then press Check & generate.");
+                "Nothing was sent automatically. Review the recovered brief, then regenerate when ready.");
+        var regenerate = recovery.Descendants(Avalonia + "Button").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") ==
+                "Regenerate four candidates from recovered brief");
+        regenerate.Attribute("Content")!.Value.Should().Be("Regenerate 4 candidates");
+        regenerate.Attribute("Command")!.Value.Should().Be("{Binding RegenerateRecoveredCandidatesCommand}");
     }
 
     private static string Fixture(string name) =>
@@ -235,6 +414,82 @@ public sealed class CandidateRestoreRecoveryTests
     private sealed class StubCompiler : IStrategyCompiler
     {
         public StrategyCompileResult Compile(StrategyScript script) => StrategyCompileResult.Failed([]);
+    }
+
+    private sealed class RecordingParallelGenerator : IParallelStrategyCandidateGeneratorV1
+    {
+        public int CallCount { get; private set; }
+        public ParallelStrategyGenerationRequestV1? LastRequest { get; private set; }
+
+        public Task<ParallelStrategyGenerationResultV1> GenerateAsync(
+            IStrategyCodegenClient provider,
+            ParallelStrategyGenerationRequestV1 request,
+            CancellationToken ct = default,
+            IProgress<StrategyGenerationLaneProgressV1>? progress = null)
+        {
+            CallCount++;
+            LastRequest = request;
+            return Task.FromResult(ValidBatchWithDeclarativeCandidate(request.StrategyId, request.UserPrompt));
+        }
+    }
+
+    private sealed class CancelableParallelGenerator : IParallelStrategyCandidateGeneratorV1
+    {
+        private readonly TaskCompletionSource _started =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Started => _started.Task;
+
+        public async Task<ParallelStrategyGenerationResultV1> GenerateAsync(
+            IStrategyCodegenClient provider,
+            ParallelStrategyGenerationRequestV1 request,
+            CancellationToken ct = default,
+            IProgress<StrategyGenerationLaneProgressV1>? progress = null)
+        {
+            _started.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            throw new InvalidOperationException("The canceled fixture must never complete.");
+        }
+    }
+
+    private sealed class StubAiStrategyBuilder(IStrategyCodegenClient provider) : IAiStrategyBuilder
+    {
+        public IReadOnlyList<IStrategyCodegenClient> Providers => [provider];
+        public IStrategyCodegenClient? DefaultProvider => provider;
+        public IStrategyCodegenClient? WithSettings(string providerId, string? model, CodegenEffort effort) => provider;
+        public IReadOnlyList<string> ModelsFor(string providerId) => [];
+        public IReadOnlyList<AiModelChoice> AllModels() => [];
+
+        public StrategyBuildSession StartSession(
+            IStrategyCodegenClient selectedProvider,
+            string strategyId,
+            string displayName,
+            IReadOnlyList<CodegenMessage>? history = null,
+            CodegenUsage? priorUsage = null,
+            StrategyBuildProfile? profile = null) =>
+            throw new NotSupportedException("Recovery generation uses the parallel generator.");
+
+        public Task<StrategyBuildLoopResult> BuildAsync(
+            IStrategyCodegenClient selectedProvider,
+            string instruction,
+            string strategyId,
+            string displayName,
+            CancellationToken ct = default) =>
+            Task.FromException<StrategyBuildLoopResult>(
+                new NotSupportedException("Recovery generation uses the parallel generator."));
+    }
+
+    private sealed class StubCodegenClient : IStrategyCodegenClient
+    {
+        public string ProviderId => "stub";
+        public string DisplayName => "Stub provider";
+        public bool IsAvailable => true;
+
+        public Task<StrategyCodegenResponse> GenerateAsync(
+            StrategyCodegenRequest request,
+            CancellationToken ct = default) =>
+            Task.FromException<StrategyCodegenResponse>(
+                new NotSupportedException("Recovery generation uses the parallel generator."));
     }
 
     private sealed class StubRegistry : IBacktestStrategyRegistry

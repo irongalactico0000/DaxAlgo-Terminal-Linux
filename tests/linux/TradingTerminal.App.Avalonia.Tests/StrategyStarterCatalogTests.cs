@@ -11,7 +11,7 @@ public sealed class StrategyStarterCatalogTests
     [Fact]
     public void Catalog_is_structurally_valid_unique_and_searchable()
     {
-        StrategyStarterCatalog.All.Should().HaveCount(22);
+        StrategyStarterCatalog.All.Should().HaveCount(23);
         StrategyStarterCatalog.ValidateAll().Should().BeEmpty();
 
         StrategyStarterCatalog.All.Select(static brief => brief.Id)
@@ -29,6 +29,35 @@ public sealed class StrategyStarterCatalogTests
         StrategyStarterCatalog.All
             .SelectMany(static brief => StrategySpecValidator.Validate(brief.Classification))
             .Should().BeEmpty();
+    }
+
+    [Fact]
+    public void QuoteL1_ema_starter_names_the_installed_synthetic_smoke_boundary()
+    {
+        var starter = Find("starter.quote-l1-ema-smoke");
+
+        starter.Title.Should().Contain("smoke compatible");
+        starter.Summary.Should().Contain("in-process synthetic TradeIR smoke target");
+        starter.Prompt.Should().Be(StrategyStarterCatalog.QuoteL1EmaSmokePrompt);
+        starter.Prompt.Should().ContainAll(
+            "ALPHA on XNAS in USD",
+            "QuoteL1",
+            "fast EMA 4",
+            "slow EMA 12",
+            "fixed target +5/-5 shares",
+            "market day orders",
+            "flatten on end",
+            "host-owned canonical QuoteL1 schema",
+            "do not add bars, tape, trailing risk, or unknown operators");
+        starter.Classification.Context.Information.Should().Equal(StrategyInformationKind.Quote);
+        starter.Classification.Signal.Triggers.Should().Equal(StrategyTriggerKind.Quote);
+        starter.Classification.Signal.Models.Should().Equal(SignalModelKind.DeterministicRule);
+        starter.Classification.Portfolio.Construction.Should().Be(PortfolioConstructionKind.FixedQuantity);
+        starter.Classification.Execution.Policies.Should().Equal(StrategyExecutionPolicyKind.Market);
+        starter.Classification.State.Adaptation.Should().Be(StrategyAdaptationKind.Fixed);
+
+        StrategyStarterCatalog.Filter("smoke QuoteL1 EMA")
+            .Should().ContainSingle(candidate => candidate.Id == starter.Id);
     }
 
     [Fact]

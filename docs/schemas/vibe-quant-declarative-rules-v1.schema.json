@@ -1,0 +1,614 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daxalgo.local/schemas/vibe-quant-declarative-rules-v1.schema.json",
+  "title": "Vibe Quant Declarative Rules v1",
+  "description": "Closed Vibe Quant source/review contract. Validation does not imply TradeIR lowering, import, backtest, or execution readiness.",
+  "$comment": "A semantic validator must additionally enforce unique ids, reference integrity, expression and port types, acyclic dependencies, parameter bounds, catalog membership, and causal point-in-time data access.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "strategy",
+    "clock",
+    "operatorCatalog",
+    "parameters",
+    "dataRequirements",
+    "indicators",
+    "entryRules",
+    "exitRules",
+    "risk",
+    "outputs"
+  ],
+  "properties": {
+    "$schema": { "type": "string", "format": "uri-reference" },
+    "schemaVersion": { "const": "vibe-quant/declarative-rules/v1" },
+    "strategy": { "$ref": "#/$defs/strategy" },
+    "clock": { "$ref": "#/$defs/clock" },
+    "operatorCatalog": { "$ref": "#/$defs/operatorCatalog" },
+    "parameters": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/parameter" }
+    },
+    "dataRequirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/dataRequirement" }
+    },
+    "indicators": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/indicator" }
+    },
+    "entryRules": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/entryRule" }
+    },
+    "exitRules": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/exitRule" }
+    },
+    "risk": { "$ref": "#/$defs/risk" },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/output" }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$"
+    },
+    "nonEmptyText": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nullableNonEmptyText": {
+      "oneOf": [
+        { "$ref": "#/$defs/nonEmptyText" },
+        { "type": "null" }
+      ]
+    },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "displayName", "summary"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "version": { "$ref": "#/$defs/nonEmptyText" },
+        "displayName": { "$ref": "#/$defs/nonEmptyText" },
+        "summary": { "$ref": "#/$defs/nonEmptyText" }
+      }
+    },
+    "clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basis", "timezone", "sessionCalendar", "decisionTiming", "interval"],
+      "properties": {
+        "basis": { "const": "eventTime" },
+        "timezone": {
+          "$ref": "#/$defs/nonEmptyText",
+          "$comment": "A semantic validator must require a recognized IANA timezone id."
+        },
+        "sessionCalendar": { "$ref": "#/$defs/nonEmptyText" },
+        "decisionTiming": { "enum": ["onEvent", "intervalClose"] },
+        "interval": { "$ref": "#/$defs/nullableNonEmptyText" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "decisionTiming": { "const": "onEvent" } },
+            "required": ["decisionTiming"]
+          },
+          "then": { "properties": { "interval": { "type": "null" } } }
+        },
+        {
+          "if": {
+            "properties": { "decisionTiming": { "const": "intervalClose" } },
+            "required": ["decisionTiming"]
+          },
+          "then": { "properties": { "interval": { "$ref": "#/$defs/nonEmptyText" } } }
+        }
+      ]
+    },
+    "operatorCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["catalogId", "catalogVersion", "catalogHashSha256"],
+      "properties": {
+        "catalogId": { "$ref": "#/$defs/nonEmptyText" },
+        "catalogVersion": { "$ref": "#/$defs/nonEmptyText" },
+        "catalogHashSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "description",
+        "default",
+        "minimum",
+        "maximum",
+        "step",
+        "choices"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "type": { "enum": ["boolean", "integer", "number", "text", "choice"] },
+        "description": { "$ref": "#/$defs/nonEmptyText" },
+        "default": { "type": ["boolean", "integer", "number", "string"] },
+        "minimum": { "type": ["integer", "number", "null"] },
+        "maximum": { "type": ["integer", "number", "null"] },
+        "step": { "type": ["integer", "number", "null"], "exclusiveMinimum": 0 },
+        "choices": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonEmptyText" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "boolean" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "default": { "type": "boolean" },
+              "minimum": { "type": "null" },
+              "maximum": { "type": "null" },
+              "step": { "type": "null" },
+              "choices": { "maxItems": 0 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "integer" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "default": { "type": "integer" },
+              "minimum": { "type": ["integer", "null"] },
+              "maximum": { "type": ["integer", "null"] },
+              "step": { "type": ["integer", "null"], "minimum": 1 },
+              "choices": { "maxItems": 0 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "number" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "default": { "type": "number" },
+              "minimum": { "type": ["number", "null"] },
+              "maximum": { "type": ["number", "null"] },
+              "step": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+              "choices": { "maxItems": 0 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "text" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "default": { "type": "string" },
+              "minimum": { "type": "null" },
+              "maximum": { "type": "null" },
+              "step": { "type": "null" },
+              "choices": { "maxItems": 0 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "choice" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "default": { "type": "string" },
+              "minimum": { "type": "null" },
+              "maximum": { "type": "null" },
+              "step": { "type": "null" },
+              "choices": { "minItems": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "instrumentReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["instrumentKey", "assetClass", "symbol", "venue", "currency"],
+      "properties": {
+        "instrumentKey": { "$ref": "#/$defs/nonEmptyText" },
+        "assetClass": { "enum": ["equity", "future", "forex", "crypto", "option", "index"] },
+        "symbol": { "$ref": "#/$defs/nonEmptyText" },
+        "venue": { "$ref": "#/$defs/nonEmptyText" },
+        "currency": { "$ref": "#/$defs/nonEmptyText" }
+      }
+    },
+    "instrumentSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "references", "universeId"],
+      "properties": {
+        "mode": { "enum": ["references", "universe"] },
+        "references": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/instrumentReference" }
+        },
+        "universeId": { "$ref": "#/$defs/nullableNonEmptyText" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mode": { "const": "references" } }, "required": ["mode"] },
+          "then": {
+            "properties": {
+              "references": { "minItems": 1 },
+              "universeId": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "mode": { "const": "universe" } }, "required": ["mode"] },
+          "then": {
+            "properties": {
+              "references": { "maxItems": 0 },
+              "universeId": { "$ref": "#/$defs/nonEmptyText" }
+            }
+          }
+        }
+      ]
+    },
+    "eventSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaId", "schemaVersion", "schemaHashSha256", "payloadFields"],
+      "properties": {
+        "schemaId": { "$ref": "#/$defs/nonEmptyText" },
+        "schemaVersion": { "type": "integer", "minimum": 1 },
+        "schemaHashSha256": { "$ref": "#/$defs/sha256" },
+        "payloadFields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        }
+      }
+    },
+    "temporalSemantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventTimeBasis",
+        "interval",
+        "requireAuthoritativeEventTime",
+        "requirePointInTimeAvailability"
+      ],
+      "properties": {
+        "eventTimeBasis": {
+          "enum": [
+            "occurredAtUtc",
+            "intervalOpenUtc",
+            "intervalCloseUtc",
+            "effectiveAtUtc",
+            "publishedAtUtc"
+          ]
+        },
+        "interval": { "$ref": "#/$defs/nullableNonEmptyText" },
+        "requireAuthoritativeEventTime": { "const": true },
+        "requirePointInTimeAvailability": { "const": true }
+      }
+    },
+    "dataRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "dataKind",
+        "instrumentSelector",
+        "eventSchema",
+        "temporalSemantics",
+        "normalizationPolicy",
+        "missingDataPolicy",
+        "revisionPolicy",
+        "requiredSnapshotHashSha256"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "dataKind": {
+          "enum": [
+            "quoteL1",
+            "trade",
+            "bar",
+            "depth",
+            "scheduledEvent",
+            "fundamental",
+            "corporateEvent",
+            "news",
+            "alternative"
+          ]
+        },
+        "instrumentSelector": { "$ref": "#/$defs/instrumentSelector" },
+        "eventSchema": { "$ref": "#/$defs/eventSchema" },
+        "temporalSemantics": { "$ref": "#/$defs/temporalSemantics" },
+        "normalizationPolicy": {
+          "enum": ["rawUnadjusted", "splitAdjusted", "totalReturnAdjusted", "sourceCanonical"]
+        },
+        "missingDataPolicy": { "enum": ["reject", "preserveMissing", "forwardFill"] },
+        "revisionPolicy": {
+          "enum": ["firstPublishedOnly", "latestAvailableAtDecisionTime", "allRevisions"]
+        },
+        "requiredSnapshotHashSha256": {
+          "oneOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "literalValue": {
+      "type": ["boolean", "integer", "number", "string"]
+    },
+    "expression": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": { "const": "literal" },
+            "value": { "$ref": "#/$defs/literalValue" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "source", "id", "field"],
+          "properties": {
+            "kind": { "const": "reference" },
+            "source": { "enum": ["parameter", "data", "indicator", "position", "clock"] },
+            "id": { "$ref": "#/$defs/identifier" },
+            "field": { "$ref": "#/$defs/nullableNonEmptyText" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "operator", "operand"],
+          "properties": {
+            "kind": { "const": "unary" },
+            "operator": { "enum": ["not", "negate", "absolute"] },
+            "operand": { "$ref": "#/$defs/expression" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "operator", "left", "right"],
+          "properties": {
+            "kind": { "const": "binary" },
+            "operator": {
+              "enum": [
+                "equal",
+                "notEqual",
+                "greaterThan",
+                "greaterThanOrEqual",
+                "lessThan",
+                "lessThanOrEqual",
+                "add",
+                "subtract",
+                "multiply",
+                "divide",
+                "crossesAbove",
+                "crossesBelow"
+              ]
+            },
+            "left": { "$ref": "#/$defs/expression" },
+            "right": { "$ref": "#/$defs/expression" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "operator", "operands"],
+          "properties": {
+            "kind": { "const": "logical" },
+            "operator": { "enum": ["all", "any"] },
+            "operands": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/expression" }
+            }
+          }
+        }
+      ]
+    },
+    "namedExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "value"],
+      "properties": {
+        "name": { "$ref": "#/$defs/identifier" },
+        "value": { "$ref": "#/$defs/expression" }
+      }
+    },
+    "indicator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "operatorId", "operatorVersion", "inputs", "arguments", "outputType"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "operatorId": { "$ref": "#/$defs/nonEmptyText" },
+        "operatorVersion": { "$ref": "#/$defs/nonEmptyText" },
+        "inputs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/namedExpression" }
+        },
+        "arguments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/namedExpression" }
+        },
+        "outputType": { "enum": ["boolean", "integer", "number", "text"] }
+      }
+    },
+    "nullableExpression": {
+      "oneOf": [
+        { "$ref": "#/$defs/expression" },
+        { "type": "null" }
+      ]
+    },
+    "orderTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "timeInForce", "limitPrice", "stopPrice"],
+      "properties": {
+        "type": { "enum": ["market", "limit", "stop", "stopLimit"] },
+        "timeInForce": { "enum": ["day", "goodTilCanceled", "immediateOrCancel", "fillOrKill"] },
+        "limitPrice": { "$ref": "#/$defs/nullableExpression" },
+        "stopPrice": { "$ref": "#/$defs/nullableExpression" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "market" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "limitPrice": { "type": "null" },
+              "stopPrice": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "limit" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "limitPrice": { "$ref": "#/$defs/expression" },
+              "stopPrice": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "stop" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "limitPrice": { "type": "null" },
+              "stopPrice": { "$ref": "#/$defs/expression" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "stopLimit" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "limitPrice": { "$ref": "#/$defs/expression" },
+              "stopPrice": { "$ref": "#/$defs/expression" }
+            }
+          }
+        }
+      ]
+    },
+    "entryRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "direction", "condition", "quantity", "order", "tags"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "direction": { "enum": ["long", "short"] },
+        "condition": { "$ref": "#/$defs/expression" },
+        "quantity": { "$ref": "#/$defs/expression" },
+        "order": { "$ref": "#/$defs/orderTemplate" },
+        "tags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonEmptyText" }
+        }
+      }
+    },
+    "exitRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "appliesTo", "condition", "action", "quantity", "order", "tags"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "appliesTo": { "enum": ["long", "short", "both"] },
+        "condition": { "$ref": "#/$defs/expression" },
+        "action": { "enum": ["closePosition", "reducePosition"] },
+        "quantity": { "$ref": "#/$defs/nullableExpression" },
+        "order": { "$ref": "#/$defs/orderTemplate" },
+        "tags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonEmptyText" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "action": { "const": "closePosition" } }, "required": ["action"] },
+          "then": { "properties": { "quantity": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "action": { "const": "reducePosition" } }, "required": ["action"] },
+          "then": { "properties": { "quantity": { "$ref": "#/$defs/expression" } } }
+        }
+      ]
+    },
+    "protectiveExit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "enum": ["price", "percent", "atrMultiple"] },
+        "value": { "$ref": "#/$defs/expression" }
+      }
+    },
+    "nullableProtectiveExit": {
+      "oneOf": [
+        { "$ref": "#/$defs/protectiveExit" },
+        { "type": "null" }
+      ]
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maxConcurrentPositions",
+        "maxOrdersPerSession",
+        "maxGrossExposure",
+        "stopLoss",
+        "takeProfit",
+        "flattenAtSessionEnd"
+      ],
+      "properties": {
+        "maxConcurrentPositions": { "type": "integer", "minimum": 1 },
+        "maxOrdersPerSession": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "maxGrossExposure": { "$ref": "#/$defs/nullableExpression" },
+        "stopLoss": { "$ref": "#/$defs/nullableProtectiveExit" },
+        "takeProfit": { "$ref": "#/$defs/nullableProtectiveExit" },
+        "flattenAtSessionEnd": { "type": "boolean" }
+      }
+    },
+    "outputSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["indicator", "entryRule", "exitRule"] },
+        "id": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "source"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "kind": { "enum": ["indicator", "signal", "orderIntent", "diagnostic"] },
+        "source": { "$ref": "#/$defs/outputSource" }
+      }
+    }
+  }
+}

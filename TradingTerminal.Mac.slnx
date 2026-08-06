@@ -17,6 +17,7 @@
   <Project Path="src/linux/Backtest/TradingTerminal.Backtest.Engine/TradingTerminal.Backtest.Engine.csproj" />
   <Project Path="src/linux/Backtest/TradingTerminal.Backtest.Protocol/TradingTerminal.Backtest.Protocol.csproj" />
   <Project Path="src/linux/Backtest/TradingTerminal.Backtest.Worker/TradingTerminal.Backtest.Worker.csproj" />
+  <Project Path="src/linux/Backtest/TradingTerminal.TradeIr.Runtime/TradingTerminal.TradeIr.Runtime.csproj" />
   <Project Path="src/linux/Charts/TradingTerminal.Heatmap/TradingTerminal.Heatmap.csproj" />
   <Project Path="src/linux/Charts/TradingTerminal.Charts/TradingTerminal.Charts.csproj" />
   <Project Path="src/linux/Charts/TradingTerminal.BubbleChart/TradingTerminal.BubbleChart.csproj" />

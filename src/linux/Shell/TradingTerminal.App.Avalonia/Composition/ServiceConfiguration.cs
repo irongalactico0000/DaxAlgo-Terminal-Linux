@@ -34,6 +34,7 @@ using TradingTerminal.Infrastructure.Regime;
 using TradingTerminal.Infrastructure.Sidecar;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.BacktestStudio;
+using TradingTerminal.Backtest.Engine.TradeIr;
 using TradingTerminal.LseBacktest;
 using TradingTerminal.QuantConnect;
 using TradingTerminal.Recording;
@@ -174,6 +175,8 @@ public static class ServiceConfiguration
         services.TryAddSingleton<TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler,
             RoslynStrategyCompiler>();
         services.AddStrategyCodegen(configuration);
+        services.AddSingleton<TradingTerminal.Core.Strategies.Authoring.ITradeIrSimulatedBacktestRunnerV1,
+            TradeIrSimulatedBacktestRunnerV1>();
 
         var pluginsRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

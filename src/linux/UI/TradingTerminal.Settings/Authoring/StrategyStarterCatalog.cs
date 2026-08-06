@@ -377,6 +377,9 @@ public sealed record StrategyStarterCatalogIssue(
 /// <summary>Curated, normalized discovery corpus for the New Strategy empty state.</summary>
 public static class StrategyStarterCatalog
 {
+    public const string QuoteL1EmaSmokePrompt =
+        "Build a deterministic single-instrument equity QuoteL1 EMA crossover for ALPHA on XNAS in USD. Use quote mid, fast EMA 4, slow EMA 12, a greater-than decision, fixed target +5/-5 shares, market day orders, and flatten on end. For Typed Graph, use only the installed QuoteL1 smoke-supported operators and the host-owned canonical QuoteL1 schema; do not add bars, tape, trailing risk, or unknown operators.";
+
     public const string LiquiditySweepFadePrompt =
         "Fade liquidity sweeps at the prior day's low: enter when a stop-run through the level reverses within 3 bars on tape absorption, exit at VWAP with a stop below the sweep extreme.";
 
@@ -388,6 +391,24 @@ public static class StrategyStarterCatalog
 
     public static IReadOnlyList<StrategyStarterBrief> All { get; } =
     [
+        Create(
+            "starter.quote-l1-ema-smoke",
+            "QuoteL1 EMA crossover · smoke compatible",
+            "Known-supported starter for the installed in-process synthetic TradeIR smoke target.",
+            QuoteL1EmaSmokePrompt,
+            ["synthetic smoke", "QuoteL1", "EMA crossover", "ALPHA XNAS"],
+            assetClasses: [AssetClass.Equity],
+            information: [StrategyInformationKind.Quote],
+            hypotheses: [ReturnHypothesisKind.Momentum],
+            triggers: [StrategyTriggerKind.Quote],
+            models: [SignalModelKind.DeterministicRule],
+            construction: PortfolioConstructionKind.FixedQuantity,
+            risks: [StrategyRiskExitKind.SignalReversal],
+            execution: [StrategyExecutionPolicyKind.Market],
+            state: [StrategyStateKind.PositionAware],
+            adaptation: StrategyAdaptationKind.Fixed,
+            holdingPeriod: TimeSpan.FromHours(1)),
+
         Create(
             "starter.liquidity-sweep-fade",
             "Liquidity sweep fade",

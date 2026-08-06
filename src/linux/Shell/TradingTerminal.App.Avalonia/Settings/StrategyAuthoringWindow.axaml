@@ -766,42 +766,63 @@
                   <StackPanel Spacing="7">
                     <Grid ColumnDefinitions="*,Auto">
                       <StackPanel Grid.Column="0" Spacing="1">
-                        <TextBlock Text="Generating four candidates" FontWeight="SemiBold"
+                        <TextBlock Text="Building four candidates" FontWeight="SemiBold"
                                    Foreground="{StaticResource Ai.Text.Brush}" />
-                        <TextBlock Text="Each lane is a separate AI request and produces a different editable representation."
+                        <TextBlock Text="Four independent AI requests; each response is parsed and checked separately."
                                    Classes="caption" TextWrapping="Wrap" />
                       </StackPanel>
-                      <TextBlock Grid.Column="1" Text="{Binding GenerationProgressSummary}"
-                                 Classes="caption" FontFamily="{StaticResource Font.Data}"
-                                 VerticalAlignment="Center" />
+                      <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding GenerationProgressSummary}"
+                                   Classes="caption" FontFamily="{StaticResource Font.Data}"
+                                   HorizontalAlignment="Right" />
+                        <TextBlock Text="{Binding ElapsedCompact}" Classes="caption"
+                                   FontFamily="{StaticResource Font.Data}"
+                                   HorizontalAlignment="Right" />
+                      </StackPanel>
                     </Grid>
-                    <ProgressBar Height="3" IsIndeterminate="True" />
                     <ItemsControl ItemsSource="{Binding GenerationLaneProgressRows}">
-                      <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                          <UniformGrid Columns="2" Rows="2" />
-                        </ItemsPanelTemplate>
-                      </ItemsControl.ItemsPanel>
                       <ItemsControl.ItemTemplate>
                         <DataTemplate>
                           <Border Background="{StaticResource Background.Elevated}"
                                   BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
-                                  CornerRadius="4" Padding="7,5" Margin="2">
-                            <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto">
-                              <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding AgentName}"
-                                         FontWeight="SemiBold" FontSize="10.5" />
+                                  CornerRadius="4" Padding="8,6" Margin="0,2">
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+                              <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="5">
+                                <TextBlock Text="{Binding AgentName}"
+                                           FontWeight="SemiBold" FontSize="10.5" />
+                                <TextBlock Text="{Binding LaneName}" Classes="caption" />
+                              </StackPanel>
                               <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding StateLabel}"
                                          Foreground="{StaticResource Ai.Text.Brush}"
                                          FontFamily="{StaticResource Font.Data}" FontSize="9" />
-                              <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding LaneName}"
-                                         Classes="caption" />
-                              <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding StateDetail}"
+                              <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="4"
+                                          Margin="0,2,0,0">
+                                <TextBlock Text="{Binding ArtifactName}" Classes="caption"
+                                           FontFamily="{StaticResource Font.Data}" />
+                                <TextBlock Text="·" Classes="caption" />
+                                <TextBlock Text="{Binding PurposeText}" Classes="caption" />
+                              </StackPanel>
+                              <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding PipelineText}"
+                                         Foreground="{StaticResource Ai.Text.Brush}"
+                                         FontFamily="{StaticResource Font.Data}" FontSize="8.5"
+                                         Margin="0,3,0,0" />
+                              <TextBlock Grid.Row="3" Grid.ColumnSpan="2" Text="{Binding StateDetail}"
                                          Classes="caption" TextWrapping="Wrap" Margin="0,2,0,0" />
                             </Grid>
                           </Border>
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <StackPanel Spacing="1" Margin="1,2,1,0">
+                      <TextBlock IsVisible="{Binding HasRetainedCandidateBatchDuringGeneration}"
+                                 Text="Your last completed candidate batch remains below and will only be replaced after the new batch validates."
+                                 Foreground="{StaticResource Bullish.Brush}"
+                                 Classes="caption" TextWrapping="Wrap" />
+                      <TextBlock Text="After all four: compare drafts → synthesize reviewed TradeIR."
+                                 Classes="caption" TextWrapping="Wrap" />
+                      <TextBlock Text="Nothing is compiled, tested, run, or backtested here."
+                                 Classes="caption" TextWrapping="Wrap" />
+                    </StackPanel>
                   </StackPanel>
                 </Border>
 
@@ -826,8 +847,13 @@
                                    Foreground="{StaticResource Warning.Brush}" />
                         <TextBlock Text="{Binding CandidateRestoreWarning}"
                                    TextWrapping="Wrap" />
-                        <TextBlock Text="Next: review the recovered brief in the composer, then press Check &amp; generate."
+                        <TextBlock Text="Nothing was sent automatically. Review the recovered brief, then regenerate when ready."
                                    Classes="caption" TextWrapping="Wrap" />
+                        <Button Classes="aiAction"
+                                Content="Regenerate 4 candidates"
+                                Command="{Binding RegenerateRecoveredCandidatesCommand}"
+                                HorizontalAlignment="Left"
+                                AutomationProperties.Name="Regenerate four candidates from recovered brief" />
                       </StackPanel>
                     </Border>
                   </StackPanel>
@@ -885,7 +911,7 @@
                       <TextBlock Text="{Binding CandidateBacktestAvailabilityText}"
                                  Foreground="{StaticResource Warning.Brush}"
                                  FontSize="10" FontWeight="SemiBold" TextWrapping="Wrap" />
-                      <TextBlock Text="Draft flow · Preview → Use selected → edit → Revalidate. Runnable path · switch mode, ask for a C# reimplementation, then Compile &amp; Register."
+                      <TextBlock Text="Test flow · Preview Graph · Typed → Use selected in editor → Run synthetic smoke test. Other lanes still require a lowerer/runtime."
                                  Classes="caption" TextWrapping="Wrap" />
 
                       <StackPanel Spacing="1" IsVisible="{Binding HasChosenGeneratedCandidate}">
@@ -901,7 +927,7 @@
                       </StackPanel>
 
                       <WrapPanel HorizontalAlignment="Right">
-                        <Button Classes="ghost" Content="Switch to Expert C#"
+                        <Button Classes="ghost" Content="Expert C# (separate path)"
                                 Command="{Binding ToggleGenerationModeCommand}"
                                 Margin="0,2,6,0"
                                 ToolTip.Tip="Switches authoring mode only. Ask the agent to reimplement the brief as C# before Compile &amp; Register." />
@@ -982,11 +1008,81 @@
                     </ListBox.ItemTemplate>
                   </ListBox>
 
-                  <Border IsVisible="{Binding HasChosenGeneratedCandidate}"
+                  <Border Background="{StaticResource Background.Elevated}"
+                          BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="1"
+                          CornerRadius="5" Padding="9,8" Margin="3,7,3,8"
+                          AutomationProperties.Name="TradeIR synthesis bridge">
+                    <StackPanel Spacing="6">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Spacing="1">
+                          <TextBlock Text="COMBINED TRADEIR · FIFTH ARTIFACT" Classes="eyebrow" />
+                          <TextBlock Text="Reconcile every selectable draft into one canonical target"
+                                     FontWeight="SemiBold" FontSize="11" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Text="{Binding CombinedTradeIrStatusText}"
+                                   Classes="caption" FontFamily="{StaticResource Font.Data}"
+                                   Foreground="{StaticResource Ai.Text.Brush}"
+                                   TextWrapping="Wrap" TextAlignment="Right" MaxWidth="145"
+                                   VerticalAlignment="Center" Margin="8,0,0,0" />
+                      </Grid>
+
+                      <TextBlock Text="{Binding CombinedTradeIrSourceSummary}"
+                                 Classes="caption" TextWrapping="Wrap" />
+                      <TextBlock Text="This is one additional AI call and one new hash-bound artifact. It never overwrites the four source drafts and is not deterministic compilation."
+                                 Classes="caption" TextWrapping="Wrap" />
+
+                      <StackPanel IsVisible="{Binding IsSynthesizingTradeIr}" Spacing="4">
+                        <TextBlock Text="Synthesizing agreements, conflicts, assumptions, and missing facts…"
+                                   FontSize="10" Foreground="{StaticResource Ai.Text.Brush}"
+                                   TextWrapping="Wrap" />
+                        <ProgressBar IsIndeterminate="True" Height="3" />
+                      </StackPanel>
+
+                      <Border IsVisible="{Binding HasCombinedTradeIrSynthesis}"
+                              Background="{StaticResource Background.Base}"
+                              BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                              CornerRadius="4" Padding="7,5">
+                        <StackPanel Spacing="2">
+                          <TextBlock Classes="caption" FontFamily="{StaticResource Font.Data}"
+                                     TextTrimming="CharacterEllipsis">
+                            <Run Text="TARGET  " /><Run Text="{Binding CombinedTradeIrTargetHash}" />
+                          </TextBlock>
+                          <TextBlock Classes="caption" FontFamily="{StaticResource Font.Data}"
+                                     TextTrimming="CharacterEllipsis">
+                            <Run Text="RECEIPT " /><Run Text="{Binding CombinedTradeIrReceiptHash}" />
+                          </TextBlock>
+                          <TextBlock Text="{Binding CombinedTradeIrIssueText}"
+                                     Classes="caption" TextWrapping="Wrap"
+                                     Foreground="{StaticResource Warning.Brush}" />
+                        </StackPanel>
+                      </Border>
+
+                      <TextBlock Text="After loading the combined TradeIR, you can run the same closed-target synthetic smoke test. Admission still checks exact data binding and runtime artifacts at run time."
+                                 Classes="caption" TextWrapping="Wrap"
+                                 Foreground="{StaticResource Warning.Brush}" />
+
+                      <WrapPanel HorizontalAlignment="Right">
+                        <Button Classes="ghost" Content="Synthesize valid drafts → TradeIR"
+                                Command="{Binding SynthesizeTradeIrCommand}"
+                                IsEnabled="{Binding CanSynthesizeTradeIr}"
+                                Margin="0,2,6,0"
+                                AutomationProperties.Name="Synthesize valid drafts to TradeIR"
+                                ToolTip.Tip="Uses every selectable lane result by exact candidate hash and makes one additional AI call." />
+                        <Button Classes="aiAction" Content="{Binding CombinedTradeIrActionText}"
+                                Command="{Binding UseCombinedTradeIrCommand}"
+                                IsEnabled="{Binding CanUseCombinedTradeIr}"
+                                Margin="0,2,0,0"
+                                AutomationProperties.Name="Use combined TradeIR in editor"
+                                ToolTip.Tip="Loads the exact synthesized TradeIR artifact into the editor. It does not import, test, backtest, or run it." />
+                      </WrapPanel>
+                    </StackPanel>
+                  </Border>
+
+                  <Border IsVisible="{Binding HasBacktestReadinessContext}"
                           Background="{StaticResource Background.Elevated}"
                           BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
                           CornerRadius="5" Padding="8" Margin="3,7,3,8">
-                    <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
                       <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
                         <TextBlock Text="{Binding BacktestReadinessTitle}" Classes="eyebrow" />
                         <TextBlock Text="{Binding BacktestReadinessText}" Classes="caption"
@@ -994,8 +1090,9 @@
                       </StackPanel>
                       <Button Grid.Row="0" Grid.Column="1" Classes="ghost"
                               Content="{Binding BacktestActionText}"
+                              Command="{Binding RunTradeIrSimulatedBacktestCommand}"
                               IsEnabled="{Binding CanPrepareGeneratedCandidateForBacktest}"
-                              ToolTip.Tip="Backtest enables only after an exact-hash importer, runtime binding, data binding, and target admission are registered." />
+                              ToolTip.Tip="Runs this exact package-valid TradeIR candidate through closed-target admission and deterministic synthetic QuoteL1 events. It is not historical and is not worker-isolated." />
                       <ItemsControl Grid.Row="1" Grid.ColumnSpan="2" Margin="0,6,0,0"
                                     ItemsSource="{Binding BacktestReadinessStages}">
                         <ItemsControl.ItemsPanel>
@@ -1016,8 +1113,29 @@
                           </DataTemplate>
                         </ItemsControl.ItemTemplate>
                       </ItemsControl>
-                      <TextBlock Grid.Row="2" Grid.ColumnSpan="2"
-                                 Text="Package-valid is not the same as runnable. No backtest is started from this screen yet."
+                      <Border Grid.Row="2" Grid.ColumnSpan="2" Margin="0,7,0,0" Padding="7,6"
+                              Background="{StaticResource Background.Base}"
+                              BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                              CornerRadius="4"
+                              AutomationProperties.Name="TradeIR synthetic smoke result">
+                        <StackPanel Spacing="3">
+                          <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="SYNTHETIC SMOKE RESULT" Classes="eyebrow" />
+                            <TextBlock Grid.Column="1" Text="{Binding TradeIrBacktestStatusText}"
+                                       Classes="caption" FontFamily="{StaticResource Font.Data}"
+                                       Foreground="{StaticResource Ai.Text.Brush}" />
+                          </Grid>
+                          <TextBlock Text="{Binding TradeIrBacktestSummary}"
+                                     FontSize="10" TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding TradeIrBacktestIssueText}"
+                                     Classes="caption" Foreground="{StaticResource Warning.Brush}"
+                                     TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding TradeIrBacktestBoundaryText}"
+                                     Classes="caption" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </Border>
+                      <TextBlock Grid.Row="3" Grid.ColumnSpan="2"
+                                 Text="A passed smoke proves this exact graph can be admitted and executed against the bundled synthetic feed. Historical TradeIR backtesting is not connected yet; Backtest Studio remains a separate workflow."
                                  Classes="caption" TextWrapping="Wrap" Margin="0,5,0,0" />
                     </Grid>
                   </Border>
@@ -1045,6 +1163,30 @@
                             <Run Text="{Binding SelectedGeneratedCandidateOption.CandidateHashSha256}" />
                           </TextBlock>
                         </StackPanel>
+
+                        <Border Background="{StaticResource Background.Elevated}"
+                                BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                CornerRadius="4" Padding="7,6">
+                          <StackPanel Spacing="3">
+                            <TextBlock Text="CONTRACT AUTHORITY" Classes="eyebrow" />
+                            <TextBlock FontSize="10.5" TextWrapping="Wrap">
+                              <Run Text="{Binding SelectedGeneratedCandidateOption.ContractRole}" FontWeight="SemiBold" />
+                              <Run Text="  ·  " />
+                              <Run Text="{Binding SelectedGeneratedCandidateOption.ContractVersion}" />
+                            </TextBlock>
+                            <TextBlock Classes="caption" TextWrapping="Wrap">
+                              <Run Text="Authority: " />
+                              <Run Text="{Binding SelectedGeneratedCandidateOption.ContractAuthority}" />
+                              <Run Text="  ·  " />
+                              <Run Text="{Binding SelectedGeneratedCandidateOption.LoweringBoundary}" />
+                            </TextBlock>
+                            <TextBlock Text="{Binding SelectedGeneratedCandidateOption.CompatibilityBoundary}"
+                                       Classes="caption" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding SelectedGeneratedCandidateOption.SpecificationReference}"
+                                       Classes="caption" FontFamily="{StaticResource Font.Data}"
+                                       TextWrapping="Wrap" />
+                          </StackPanel>
+                        </Border>
 
                         <StackPanel Spacing="4">
                           <TextBlock Text="INTERPRETATION" Classes="eyebrow" />

@@ -21,15 +21,55 @@ internal static class StrategyGenerationPackageCatalogV1
     private static readonly Type TradeIrArtifactType = typeof(OperatorGraphModuleV1);
     private static readonly Type TradeIrValidatorType = typeof(TradeIrModuleValidatorV1);
 
+    private const string CanonicalTradeIrContract = "trade-ir/module/v1";
+
+    private static readonly StrategyGenerationContractAuthorityV1 VibePythonAuthority = new(
+        AuthorityId: "DaxAlgo.VibeQuant",
+        SpecificationReference: "docs/vibe-quant-lane-contracts.md#vibe-python-v1",
+        SemanticRole: StrategyGenerationSemanticRoleV1.SourceReview,
+        CanonicalTargetContract: CanonicalTradeIrContract,
+        LoweringMode: StrategyGenerationLoweringModeV1.ReviewedAiSynthesis,
+        ExternalReference: null,
+        ExternalCompatibility: StrategyGenerationExternalCompatibilityV1.NotApplicable);
+
+    private static readonly StrategyGenerationContractAuthorityV1 DeclarativeRulesAuthority = new(
+        AuthorityId: "DaxAlgo.VibeQuant",
+        SpecificationReference: "docs/schemas/vibe-quant-declarative-rules-v1.schema.json",
+        SemanticRole: StrategyGenerationSemanticRoleV1.SourceReview,
+        CanonicalTargetContract: CanonicalTradeIrContract,
+        LoweringMode: StrategyGenerationLoweringModeV1.ReviewedAiSynthesis,
+        ExternalReference: null,
+        ExternalCompatibility: StrategyGenerationExternalCompatibilityV1.NotApplicable);
+
+    private static readonly StrategyGenerationContractAuthorityV1 TradeIrAuthority = new(
+        AuthorityId: "DaxAlgo.TradeIR",
+        SpecificationReference: "docs/vibe-quant-lane-contracts.md#typed-graph-canonical-daxalgo-tradeir-v1",
+        SemanticRole: StrategyGenerationSemanticRoleV1.CanonicalExecutableIr,
+        CanonicalTargetContract: CanonicalTradeIrContract,
+        LoweringMode: StrategyGenerationLoweringModeV1.Identity,
+        ExternalReference: null,
+        ExternalCompatibility: StrategyGenerationExternalCompatibilityV1.NotApplicable);
+
+    private static readonly StrategyGenerationContractAuthorityV1 CspAuthoringAuthority = new(
+        AuthorityId: "DaxAlgo.VibeQuant",
+        SpecificationReference: "docs/vibe-quant-lane-contracts.md#csp-events-authoring-profile-v1",
+        SemanticRole: StrategyGenerationSemanticRoleV1.SourceReview,
+        CanonicalTargetContract: CanonicalTradeIrContract,
+        LoweringMode: StrategyGenerationLoweringModeV1.ReviewedAiSynthesis,
+        ExternalReference: "https://github.com/Point72/csp",
+        ExternalCompatibility: StrategyGenerationExternalCompatibilityV1.Unverified);
+
     private static readonly StrategyGenerationPackageBindingV1 VibePythonBinding = CreateAuthoringBinding(
         StrategyGenerationLaneV1.VibePython,
-        "daxalgo.codegen.authoring.ordinary-python-source",
-        "strategy-generation/ordinary-python/v1");
+        "DaxAlgo.VibeQuant.VibePython.Authoring",
+        "vibe-quant/python-strategy/v1",
+        VibePythonAuthority);
 
     private static readonly StrategyGenerationPackageBindingV1 DeclarativeSpecBinding = CreateAuthoringBinding(
         StrategyGenerationLaneV1.DeclarativeSpec,
-        "daxalgo.codegen.authoring.declarative-strategy-json",
-        "declarative-strategy/v1");
+        "DaxAlgo.VibeQuant.DeclarativeRules",
+        "vibe-quant/declarative-rules/v1",
+        DeclarativeRulesAuthority);
 
     private static readonly StrategyGenerationPackageBindingV1 TradeIrBinding = new(
         PackageId: TradeIrArtifactType.Assembly.GetName().Name!,
@@ -39,12 +79,14 @@ internal static class StrategyGenerationPackageCatalogV1
         ArtifactContractVersion: TradeIrModuleV1.CurrentSchemaVersion,
         ValidatorId: TradeIrValidatorType.FullName!,
         ImporterId: null,
-        OperatorCatalog: TradeIrRegistry.Catalog);
+        OperatorCatalog: TradeIrRegistry.Catalog,
+        Authority: TradeIrAuthority);
 
     private static readonly StrategyGenerationPackageBindingV1 CspPythonBinding = CreateAuthoringBinding(
         StrategyGenerationLaneV1.CspPython,
-        "daxalgo.codegen.authoring.csp-python-source",
-        "strategy-generation/csp-python/v1");
+        "DaxAlgo.VibeQuant.CspAuthoringProfile",
+        "vibe-quant/csp-authoring-profile/v1",
+        CspAuthoringAuthority);
 
     public static bool IsSupported(StrategyGenerationLaneV1 lane) =>
         lane is StrategyGenerationLaneV1.VibePython or
@@ -84,11 +126,11 @@ internal static class StrategyGenerationPackageCatalogV1
     public static string UnsupportedReason(StrategyGenerationLaneV1 lane) => lane switch
     {
         StrategyGenerationLaneV1.VibePython =>
-            "The ordinary-Python authoring artifact has no registered importer, runtime package, or package validator.",
+            "The Vibe Python source/review artifact has no deterministic TradeIR lowerer, registered importer, runtime package, or package validator.",
         StrategyGenerationLaneV1.DeclarativeSpec =>
             "The declarative authoring artifact has no registered lowerer, importer, runtime package, or package validator.",
         StrategyGenerationLaneV1.CspPython =>
-            "The CSP authoring artifact has no registered CSP dependency, importer, runtime host, or package validator.",
+            "The Vibe Quant CSP profile has unverified Point72 CSP compatibility and no registered CSP dependency, importer, runtime host, or package validator.",
         StrategyGenerationLaneV1.TypedGraph =>
             throw new InvalidOperationException("The canonical TradeIR graph package is registered."),
         _ => throw new ArgumentOutOfRangeException(nameof(lane), lane, "Unknown strategy generation lane."),
@@ -112,7 +154,9 @@ internal static class StrategyGenerationPackageCatalogV1
                 Set lane to vibePython. Set artifact.kind to vibePythonSource, fileName to strategy.py,
                 language to python, document to null, and source to the exact plain Python module text.
                 The source must contain no markdown fence and must declare this editable, ordinary
-                Python authoring contract: a top-level `PARAMETERS` mapping, an `initialize_state`
+                Python authoring contract: the exact top-level marker
+                `VIBE_QUANT_CONTRACT = "vibe-quant/python-strategy/v1"`, a top-level `PARAMETERS`
+                sequence, a top-level `DATA_REQUIREMENTS` sequence, an `initialize_state`
                 function with exact signature `initialize_state()`, and an
                 `on_event(event, state, parameters)` function. Pass observations and
                 parameters explicitly, keep all outputs inert (for example signal or target
@@ -138,20 +182,32 @@ internal static class StrategyGenerationPackageCatalogV1
                 strategy.spec.json, language to json, source to null, and document to one JSON object
                 with every required top-level section below:
                 {
-                  "schemaVersion": "declarative-strategy/v1",
+                  "schemaVersion": "vibe-quant/declarative-rules/v1",
                   "strategy": {
                     "id": "<exact strategy id supplied by host>",
+                    "version": "1.0.0",
+                    "displayName": "...",
                     "summary": "..."
+                  },
+                  "clock": {
+                    "basis": "eventTime", "timezone": "...", "sessionCalendar": "...",
+                    "decisionTiming": "onEvent|intervalClose", "interval": null
+                  },
+                  "operatorCatalog": {
+                    "catalogId": "...", "catalogVersion": "...",
+                    "catalogHashSha256": "<64 lowercase hex>"
                   },
                   "parameters": [],
                   "dataRequirements": [],
                   "indicators": [],
                   "entryRules": [],
                   "exitRules": [],
-                  "risk": {}
+                  "risk": {},
+                  "outputs": []
                 }
 
-                Keep rules declarative and causal. Represent references by stable ids, keep adjustable
+                The normative closed schema is docs/schemas/vibe-quant-declarative-rules-v1.schema.json;
+                do not add unknown properties. Keep rules declarative and causal. Represent references by stable ids, keep adjustable
                 literals in parameters, and put missing instruments, schemas, timing facts, or risk
                 choices in unresolvedQuestions instead of inventing them. Do not add code, package
                 glue, execution commands, or claims that this authoring document was validated by a
@@ -167,13 +223,16 @@ internal static class StrategyGenerationPackageCatalogV1
                 Host-owned generation-authoring binding (copy it exactly into packageBinding):
                 {{binding}}
 
-                This binding performs syntax-marker and envelope validation only. It does not prove
-                that the Point72 CSP dependency, an importer, a CSP host, or a runtime package is
-                installed. Never describe the source as runnable, imported, package-valid, or tested.
+                This is the Vibe Quant inert CSP authoring profile. Its Point72 CSP compatibility is
+                unverified: no upstream revision or package is pinned. The binding performs
+                syntax-marker and envelope validation only and does not prove that a CSP dependency,
+                importer, CSP host, or runtime package is installed. Never describe the source as
+                Point72-compatible, runnable, imported, package-valid, or tested.
 
                 Set lane to cspPython. Set artifact.kind to cspPythonSource, fileName to strategy.csp.py,
                 language to python, document to null, and source to the exact plain Python module text.
-                The source must contain all of these structural elements:
+                The source must contain the exact top-level marker
+                `VIBE_QUANT_CSP_CONTRACT = "vibe-quant/csp-authoring-profile/v1"` and all of these structural elements:
                 - an exact `import csp` statement;
                 - at least one `@csp.node` decorated function;
                 - at least one `@csp.graph` decorated function;
@@ -188,6 +247,7 @@ internal static class StrategyGenerationPackageCatalogV1
         }
 
         var manifest = ExecutableStrategyDefinitionCanonicalJson.Serialize(BuildOperatorManifest());
+        var quoteSchemaHash = TradeIrSimulatedBacktestContractV1.SchemaHashSha256;
         return $$"""
             You are GraphAgent. Build the installed canonical DaxAlgo TradeIR operator-graph module.
 
@@ -197,6 +257,16 @@ internal static class StrategyGenerationPackageCatalogV1
             Host-owned operator authoring manifest (use only these operator ids, versions, ports, and
             parameter constraints; never invent an operator, port, parameter, or type):
             {{manifest}}
+
+            Host-owned canonical QuoteL1 schema available to this package and its synthetic smoke target:
+            {
+              "schemaId": "canonical.quote-l1", "schemaVersion": 1,
+              "schemaHashSha256": "{{quoteSchemaHash}}",
+              "payloadFields": ["ask", "ask_size", "bid", "bid_size"]
+            }
+            For a QuoteL1 requirement with the event-time semantics below, copy that exact schema
+            object. Never alter or invent its digest. A requiredSnapshotHashSha256 of null means the
+            execution target must bind and hash its own materialized point-in-time snapshot.
 
             Strict nested JSON shapes (all shown properties are required unless explicitly nullable):
             - dataRequirements[]:
@@ -209,7 +279,7 @@ internal static class StrategyGenerationPackageCatalogV1
                 }] },
                 "eventSchema": {
                   "schemaId": "canonical.quote-l1", "schemaVersion": 1,
-                  "schemaHashSha256": "<exact 64-character lowercase schema digest>",
+                  "schemaHashSha256": "{{quoteSchemaHash}}",
                   "payloadFields": ["ask", "ask_size", "bid", "bid_size"]
                 },
                 "temporalSemantics": {
@@ -238,12 +308,27 @@ internal static class StrategyGenerationPackageCatalogV1
                 } }
               }
             - outputs[]:
-              { "outputId": "signal", "kind": "signal", "nodeId": "decision" }
+              [
+                { "outputId": "order-intent", "kind": "orderIntent", "nodeId": "execution" },
+                { "outputId": "target", "kind": "target", "nodeId": "target" }
+              ]
 
-            The example instrument and schema digest illustrate shape only. Never copy, guess, or
-            fabricate instrument, venue, currency, schema, snapshot, or temporal facts. Declare the
-            exact data contract required by the strategy and preserve missing material facts in
-            unresolvedQuestions. Package validation does not mean data binding or target admission passed.
+            When the brief explicitly asks for the installed QuoteL1 synthetic smoke path, emit
+            exactly one `orderIntent` output whose node is `execution.market@1`, plus the portfolio
+            `target` output consumed by that order path. Its order path must
+            use only `market.quote.mid@1`, `feature.ema@1`, `logic.greater_than@1`,
+            `portfolio.fixed_quantity@1`, optional `risk.trailing_fraction@1`, and
+            `execution.market@1`; every emitted node must contribute to that order-intent path.
+            Bind `market.quote.mid.requirement_id` to the QuoteL1 requirement id, set
+            `execution.market.time_in_force` to the text literal `day`, use the exact fixed target
+            quantities from the brief, and set `flattenOnEnd` to true. This recipe makes the graph
+            eligible for admission; it does not claim admission or execution succeeded.
+
+            The example instrument illustrates shape only; the canonical QuoteL1 schema identity is
+            host-owned fact, not an example. Never copy, guess, or fabricate instrument, venue,
+            currency, another schema, snapshot, or temporal facts. Declare the exact data contract
+            required by the strategy and preserve missing material facts in unresolvedQuestions.
+            Package validation does not mean data binding or target admission passed.
 
             Set lane to typedGraph. Set artifact.kind to tradeIrModuleJson, fileName to
             strategy.tradeir.json, language to json, source to null, and document to one exact
@@ -392,7 +477,8 @@ internal static class StrategyGenerationPackageCatalogV1
     private static StrategyGenerationPackageBindingV1 CreateAuthoringBinding(
         StrategyGenerationLaneV1 lane,
         string artifactContract,
-        string artifactContractVersion)
+        string artifactContractVersion,
+        StrategyGenerationContractAuthorityV1 authority)
     {
         var validatorId = $"{AuthoringValidatorType.FullName}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
         return new StrategyGenerationPackageBindingV1(
@@ -405,12 +491,14 @@ internal static class StrategyGenerationPackageCatalogV1
                 artifactContractVersion,
                 ArtifactFileName(lane),
                 ArtifactLanguage(lane),
-                validatorId)),
+                validatorId,
+                authority)),
             artifactContract,
             artifactContractVersion,
             validatorId,
             ImporterId: null,
-            OperatorCatalog: null);
+            OperatorCatalog: null,
+            Authority: authority);
     }
 
     private static StrategyCandidateGenerationIssueV1 Error(string code, string path, string message) =>
@@ -478,7 +566,8 @@ internal static class StrategyGenerationPackageCatalogV1
         string ArtifactContractVersion,
         string FileName,
         string Language,
-        string ValidatorId);
+        string ValidatorId,
+        StrategyGenerationContractAuthorityV1 Authority);
 
     private sealed record AssemblyImplementationIdentityV1(
         string AssemblyIdentity,

@@ -4,36 +4,51 @@ Vibe Quant can ask four independent generation agents to express one strategy br
 different authoring formats. This is an authoring and comparison workflow. It does not silently
 compile, import, backtest, register, or run any generated artifact.
 
+The exact format rules and their owners are defined in the
+[Vibe Quant lane contracts v1](vibe-quant-lane-contracts.md). The machine-readable Declarative
+Rules contract is [JSON Schema Draft 2020-12](schemas/vibe-quant-declarative-rules-v1.schema.json).
+
 ## Quick start
 
 1. Open **Strategy Studio → Vibe Code → Vibe Quant** and choose **New strategy**.
 2. Search or filter the starter gallery, then choose a starter, or type a strategy brief from
-   scratch. The 22 curated starters span overlapping family, horizon, topology, market, data, risk,
+   scratch. The 23 curated starters span overlapping family, horizon, topology, market, data, risk,
    and execution axes; they are prompts, not runnable templates and not an exhaustive taxonomy.
-3. Keep **Four AI lanes** selected, choose a provider/model, and press **Check & generate**.
-4. Open **Candidate**. The live board reports each real request separately; it does not invent a
+3. For the known-supported synthetic test path, search for `smoke` and choose
+   **QuoteL1 EMA crossover · smoke compatible**. Other starters may produce package-valid graphs,
+   but the current closed smoke target can still reject their data or operators.
+4. Keep **Four AI lanes** selected, choose a provider/model, and press **Check & generate**.
+5. Open **Candidate**. The live board reports each real request separately; it does not invent a
    model-completion percentage.
-5. When generation finishes, select a candidate card to preview it. Review its assumptions,
+6. When generation finishes, select a candidate card to preview it. Review its assumptions,
    unresolved questions, proposed parameters, tests, and exact artifact before choosing
    **Use selected in editor**.
 
 One submission starts four concurrent provider calls:
 
-| Agent | Output | Current success meaning |
-|---|---|---|
-| VibeAgent | `strategy.py` | Structurally valid editable ordinary Python |
-| SpecAgent | `strategy.spec.json` | Structurally valid declarative strategy JSON |
-| GraphAgent | `strategy.tradeir.json` | Typed TradeIR JSON accepted by the installed package validator |
-| CspAgent | `strategy.csp.py` | Structurally valid editable CSP-style Python |
+| Agent | Contract authority | Output | Role and current success meaning |
+|---|---|---|---|
+| VibeAgent | Vibe Quant: `vibe-quant/python-strategy/v1` | `strategy.py` | Editable source/review Python that passed its deterministic shape check |
+| SpecAgent | Vibe Quant: `vibe-quant/declarative-rules/v1` | `strategy.spec.json` | Closed declarative source/review JSON that passed its deterministic structural check |
+| GraphAgent | DaxAlgo TradeIR package: `trade-ir/module/v1` | `strategy.tradeir.json` | Canonical typed-IR candidate accepted by the installed package/catalog validator |
+| CspAgent | Vibe Quant: `vibe-quant/csp-authoring-profile/v1` | `strategy.csp.py` | Inert CSP-style source/review Python that passed its deterministic shape check |
 
 Results are always presented in Vibe, Spec, Graph, CSP order even if the provider calls finish in a
 different order. A failure in one lane does not erase usable results from the other lanes.
 
+"Contract authority" identifies who defines the format. It does not identify an installed runtime.
+Vibe Quant owns the Vibe, Rules, and inert CSP authoring profiles. DaxAlgo's installed TradeIR
+package owns Typed Graph. The CSP profile is informed by Point72 CSP, but compatibility with a
+specific Point72 release is unverified and must not be inferred from the name.
+
 ## Reading the states
 
-During generation, each lane moves through **waiting**, **generating**, and a terminal state such as
-**finished**, **needs attention**, or **canceled**. The `n/4 lanes finished` counter counts terminal
-lane events; it is not an estimate of model progress.
+During generation, the Candidate tab is a four-row job board. Each lane moves through the exact
+host-observable boundaries **preparing request**, **waiting for model**, **parsing response**, and
+**validating artifact**, followed by **ready**, **blocked**, or **canceled**. Completed rows update
+independently while slower requests continue. The `n/4 lanes finished` counter and elapsed clock are
+facts; Vibe Quant does not show a percentage or ETA because the one-shot provider call exposes
+neither.
 
 After generation:
 
@@ -51,6 +66,42 @@ does not silently replace the active artifact.
 
 Choosing or locally revalidating an artifact does not call the model, compile it, import it, or run
 it. A local edit receives a new SHA-256 content hash after deterministic revalidation.
+
+## From four drafts to one canonical artifact
+
+The four cards are alternatives, not four executable pieces that can be concatenated. Combining
+reviewed candidates is a separate AI synthesis operation:
+
+```text
+reviewed selectable source candidates
+  + exact source contract ids and SHA-256 hashes
+  + original brief hash and target TradeIR binding
+  -> one new AI synthesis request
+  -> one new strategy.tradeir.json with a new SHA-256
+  -> installed TradeIR package/catalog validation
+  -> immutable synthesis receipt
+```
+
+The synthesis receipt binds the ordered source lane ids, candidate ids, contract ids and versions,
+source hashes, batch-prompt hash, synthesis-request hash, target package/catalog binding, synthesized
+candidate hash, and provider/model identity. Editing a source, changing the target binding, or
+changing the synthesized bytes makes that receipt stale.
+
+This operation is reviewed **AI synthesis**, not a deterministic compiler. In particular, the
+terminal does not claim that ordinary Python or CSP Python can be mechanically lowered to an
+economically equivalent graph. The combined TradeIR artifact is a fifth candidate with its own
+review boundary. It never overwrites or borrows the hash of a source candidate.
+
+The intended Candidate-tab flow is:
+
+1. Review the selectable Vibe, Rules, Graph, and CSP results and resolve material questions.
+2. Choose **Synthesize valid drafts → TradeIR**. This makes one additional provider request.
+3. Inspect the included source hashes, new target hash, package-validation result, and synthesis
+   receipt hash.
+4. Choose **Use combined TradeIR in editor** only after that review.
+
+After loading that canonical artifact, the same narrow synthetic smoke test described below is
+available. Synthesis itself still runs no test.
 
 ## Does it understand the strategy?
 
@@ -119,14 +170,25 @@ It does not prove:
 - semantic fidelity to the trader's intent or economic validity;
 - Python syntax, dependency safety, or a Python/CSP runtime;
 - a declarative lowerer or importer;
-- data availability, point-in-time correctness, or target admission;
-- compilation, package tests, backtest results, profitability, or live-execution safety.
+- historical data availability, historical point-in-time correctness, or broad target support;
+- profitability, robustness, isolated-worker execution, or live-execution safety.
+
+A successful **synthetic smoke test** adds a smaller, explicit proof: the exact selected TradeIR
+module passed the closed target and data-admission gates and completed a deterministic in-process
+QuoteL1 replay through the evaluator, risk gateway, simulated order book, and portfolio. The result
+is a normal `BacktestReport`, but it is not historical evidence.
 
 ## Stop behavior
 
-Pressing **Stop** marks queued or running lanes **Canceled** and advances the UI generation epoch.
+Pressing **Stop** marks every queued or otherwise nonterminal lane **Canceled** and advances the UI
+generation epoch.
 Late provider callbacks and results are ignored, so they cannot repopulate the candidate list after
 the stop.
+
+When a completed batch already exists, starting a replacement generation keeps that last validated
+batch until the replacement fully validates. Canceling, closing the app, or losing the provider does
+not replace the committed batch with an empty one. A first-ever generation interrupted before any
+response completes still has no candidate artifact to recover.
 
 The current one-shot CLI adapter does not prove process-tree termination. A child provider process
 may finish after the UI has stopped listening; its output remains ignored. Start a new turn to retry.
@@ -137,24 +199,40 @@ The chat and editor files are restored independently from candidate proof. If a 
 created under an older generation or validation contract, Vibe Quant keeps the chat and code but does
 not silently rebind its old hashes. The Candidate tab shows **Saved candidates need fresh
 generation** and reloads the batch's original brief into the composer when it can recover it. Review
-or refine that brief and press **Check & generate** to create a new batch under the current contract.
+or refine that brief and choose **Regenerate 4 candidates** to create a new batch under the current
+contract. Restore itself never sends an AI request.
 
-## Where backtesting works today
+## Test a Graph candidate inside Vibe Quant
 
-The outcome panel at the top of **Candidate** always states whether backtesting is available. After
-choosing a result, its detail view also shows four readiness gates:
+Vibe Quant now has one deliberately narrow generated-candidate execution path. It applies only to a
+package-valid **Graph · Typed** artifact or a package-valid combined TradeIR artifact. To use it:
 
-1. Generated artifact
-2. Package validation
-3. Importer + runtime
-4. Backtest target
+1. Choose **New strategy**, search for `smoke`, and select
+   **QuoteL1 EMA crossover · smoke compatible**.
+2. Keep **Four AI lanes** selected and choose **Check & generate**.
+3. In **Candidate**, preview the package-valid **Graph · Typed** result. If Graph is invalid or
+   blocked, refine and regenerate; a sibling Vibe, Rules, or CSP result cannot enter this runner.
+4. Choose **Use selected in editor**. Preview alone is not enough; the editor must still match the
+   exact candidate hash.
+5. In **Synthetic test readiness**, choose **Run synthetic smoke test**.
+6. Read the normal report summary or the exact rejection code and JSON path.
 
-For all four generated lanes, **Backtest not ready** is intentionally disabled. Vibe Python,
-Declarative Spec, and CSP have no registered importer or runtime. Graph has a package validator, but
-its binding also has no importer and still needs data binding and target admission. Opening Backtest
-Studio separately does not convert or bind the selected generated artifact.
+The runner independently recomputes the persisted module hash, creates and hashes a deterministic
+synthetic QuoteL1 snapshot, performs exact data and closed-target admission, pins the installed
+compiler/runtime/execution-host artifacts, and runs the real TradeIR evaluator and simulated
+portfolio path. A mismatched hash, unsupported operator, incompatible data requirement, missing
+artifact, or runtime failure returns a fail-closed issue instead of a report.
 
-The only authored route connected to the current runtime and strategy registry is **Expert C#**:
+The scope label is important: `in_process_synthetic_quote_l1_smoke`. It uses no historical dataset
+and no isolated worker, and it is not a profitability or robustness claim. The current closed target
+supports the installed QuoteL1/EMA/decision/quantity/market-order path. A package-valid graph can
+still be rejected when it asks for bars, tape, an unsupported operator, or a material data fact the
+runner cannot truthfully bind. The enabled button proves only that the unchanged package-valid hash
+can be submitted; synthetic data, closed-target, runtime, and execution checks run after the click.
+
+Vibe Python, Declarative Rules, and CSP remain non-runnable because no deterministic lowerer/runtime
+is registered for those formats. They must not borrow the Graph test result. The existing Expert C#
+route remains a separate manual reimplementation path:
 
 1. Choose **Use Expert code**.
 2. Ask the agent to implement the strategy as the terminal's C# `IBacktestStrategy` contract.
@@ -163,22 +241,34 @@ The only authored route connected to the current runtime and strategy registry i
 5. Return to the main strategy catalog and use the clock button for **Quick backtest**, or open
    **Tools → Backtest Studio…**.
 
-This is a separate C# implementation path. Registration does not prove it is semantically identical
-to any Python, Spec, Graph, or CSP candidate.
+Registration proves only that this separate C# implementation compiled and was registered. It does
+not prove semantic identity with any generated candidate.
 
-## Planned exact-hash backtest handoff
+## Full historical Backtest Studio path is still future work
 
-The generated-candidate button can become active only when the terminal can complete this chain:
+The in-screen synthetic smoke is intentionally not presented as the full Backtest Studio path. A
+historical, worker-isolated generated-candidate run still needs this chain for the exact hash:
 
 ```text
-selected or revalidated candidate hash
-  → registered lane importer
-  → runnable strategy handle
-  → exact data binding
-  → target admission
-  → Backtest Studio request bound to the same hash
+reviewed source hashes
+  -> synthesis receipt + package-valid synthesized TradeIR hash
+  -> authoritative point-in-time data binding
+  -> target/operator capability admission
+  -> installed worker-isolated TradeIR runtime admission
+  -> historical backtest admission receipt bound to all of the above
+  -> Backtest Studio request bound to the same synthesized hash and receipt
 ```
 
-Binding every stage to the selected SHA-256 prevents the terminal from validating one artifact and
-backtesting different bytes. Until that importer/runtime handoff exists, the disabled button is the
-honest product state.
+The future historical user path is therefore:
+
+1. Generate and review the four source candidates.
+2. Synthesize them into a new TradeIR candidate and review its receipt.
+3. Bind the required instruments, schemas, snapshots, calendars, and event-time rules.
+4. Let the terminal verify target/operator capabilities and the installed importer/runtime.
+5. Review the resulting backtest admission receipt.
+6. Click **Open historical backtest**; Backtest Studio must receive that same target hash and
+   receipt without regenerating or rewriting the artifact.
+
+Binding every stage prevents the terminal from validating one artifact and backtesting different
+bytes. Until the historical data, worker protocol, and admission-receipt handoff exist, Vibe Quant
+labels its available action as a synthetic smoke test and does not call it a historical backtest.

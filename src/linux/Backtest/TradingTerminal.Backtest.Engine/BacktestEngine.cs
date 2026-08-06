@@ -67,21 +67,22 @@ public sealed class BacktestEngine
         var fillModel = new L1TouchFillModel(spec.ExecutionOrDefault.SlippageTicks);
         var book = new SimulatedOrderBook(clock, fillModel, id => tickSizeOf.GetValueOrDefault(id, 0.01));
         var portfolio = new Portfolio(spec.StartingCash, multipliers, fees);
+        var router = new EngineOrderRouter(book, spec.Universe, clock);
 
-        // Book transitions are synchronous. Settle and enqueue them before the router republishes
-        // them to IObservable subscribers, preserving causality even if a subscriber submits again.
+        // The required sink owns settlement, kernel queuing, and authoritative router delivery.
+        // The book's legacy Event surface remains best-effort diagnostics only.
         var orderEvents = new Queue<OrderEvent>();
         long orderTransitionCount = 0;
-        book.Event += (instrument, evt) =>
+        using var requiredBookTransitions = book.BindRequiredTransitionSink((instrument, evt) =>
         {
             if (evt.LastFillQuantity > 0 && evt.LastFillPrice is { } px)
                 portfolio.OnFill(instrument, evt.TimestampUtc, evt.Side, evt.LastFillQuantity, px, evt.Liquidity);
 
             orderEvents.Enqueue(evt);
             orderTransitionCount++;
-        };
+            router.PublishOrderEvent(evt);
+        });
 
-        var router = new EngineOrderRouter(book, spec.Universe, clock);
         var ctx = new StrategyContext(clock, router, new PortfolioView(portfolio), spec.Universe, spec.ParametersOrEmpty);
 
         var equity = new List<EquitySample>();

@@ -53,7 +53,7 @@ internal static class ParallelStrategyGenerationPromptV1
         Return exactly one JSON object with no markdown, code fence, or prose. Every property and array
         shown here is required, including nullable source/document properties:
         {
-          "schemaVersion": "strategy-generation-candidate/v1",
+          "schemaVersion": "strategy-generation-candidate/v2",
           "candidateId": "<exact candidate id supplied by host>",
           "lane": "<exact lane supplied by host>",
           "requestHashSha256": "<exact request hash supplied by host>",
@@ -240,15 +240,18 @@ internal static class StrategyGenerationCandidateValidatorV1
                     [
                         ("schemaVersion", JsonValueKind.String),
                         ("strategy", JsonValueKind.Object),
+                        ("clock", JsonValueKind.Object),
+                        ("operatorCatalog", JsonValueKind.Object),
                         ("parameters", JsonValueKind.Array),
                         ("dataRequirements", JsonValueKind.Array),
                         ("indicators", JsonValueKind.Array),
                         ("entryRules", JsonValueKind.Array),
                         ("exitRules", JsonValueKind.Array),
                         ("risk", JsonValueKind.Object),
+                        ("outputs", JsonValueKind.Array),
                     ],
                     issues);
-                ValidateDeclarativeIdentity(artifact, expectedStrategyId, issues);
+                ValidateDeclarativeContract(artifact, expectedStrategyId, issues);
                 break;
             case StrategyGenerationLaneV1.TypedGraph:
                 ValidateJsonArtifact(artifact, lane,
@@ -336,9 +339,18 @@ internal static class StrategyGenerationCandidateValidatorV1
 
         if (!requireCspProfile)
         {
-            Require(ContainsTopLevelMappingAssignment(source, "PARAMETERS"),
+            Require(ContainsTopLevelStringAssignment(
+                    source,
+                    "VIBE_QUANT_CONTRACT",
+                    "vibe-quant/python-strategy/v1"),
+                "LANE_VIBE_CONTRACT_MARKER_REQUIRED", "artifact.source",
+                "The Vibe Python artifact must declare the exact v1 contract marker.", issues);
+            Require(ContainsTopLevelSequenceAssignment(source, "PARAMETERS"),
                 "LANE_VIBE_PARAMETERS_REQUIRED", "artifact.source",
-                "The ordinary-Python artifact must declare a top-level PARAMETERS mapping.", issues);
+                "The Vibe Python artifact must declare a top-level PARAMETERS sequence.", issues);
+            Require(ContainsTopLevelSequenceAssignment(source, "DATA_REQUIREMENTS"),
+                "LANE_VIBE_DATA_REQUIREMENTS_REQUIRED", "artifact.source",
+                "The Vibe Python artifact must declare a top-level DATA_REQUIREMENTS sequence.", issues);
             Require(ContainsTopLevelFunction(source, "initialize_state", []),
                 "LANE_VIBE_INITIALIZE_STATE_REQUIRED", "artifact.source",
                 "The ordinary-Python artifact must declare initialize_state().", issues);
@@ -348,6 +360,12 @@ internal static class StrategyGenerationCandidateValidatorV1
             return;
         }
 
+        Require(ContainsTopLevelStringAssignment(
+                source,
+                "VIBE_QUANT_CSP_CONTRACT",
+                "vibe-quant/csp-authoring-profile/v1"),
+            "LANE_CSP_CONTRACT_MARKER_REQUIRED", "artifact.source",
+            "The CSP artifact must declare the exact Vibe Quant inert-profile marker.", issues);
         Require(ContainsExactPythonLine(source, "import csp"),
             "LANE_CSP_IMPORT_REQUIRED", "artifact.source",
             "The CSP artifact must contain an exact 'import csp' statement.", issues);
@@ -365,50 +383,18 @@ internal static class StrategyGenerationCandidateValidatorV1
             "The generated CSP authoring artifact must not start a CSP runtime with csp.run.", issues);
     }
 
-    private static void ValidateDeclarativeIdentity(
+    private static void ValidateDeclarativeContract(
         StrategyGenerationArtifactV1 artifact,
         string expectedStrategyId,
         ICollection<StrategyCandidateGenerationIssueV1> issues)
     {
         if (artifact.Document is not { ValueKind: JsonValueKind.Object } document)
             return;
-
-        if (document.TryGetProperty("schemaVersion", out var schemaVersion) &&
-            schemaVersion.ValueKind == JsonValueKind.String)
-        {
-            Require(string.Equals(
-                    schemaVersion.GetString(),
-                    StrategyGenerationPackageCatalogV1.RequireBinding(StrategyGenerationLaneV1.DeclarativeSpec)
-                        .ArtifactContractVersion,
-                    StringComparison.Ordinal),
-                "LANE_SPEC_SCHEMA_INVALID", "artifact.document.schemaVersion",
-                "The declarative artifact schema version does not match its authoring contract.", issues);
-        }
-
-        if (!document.TryGetProperty("strategy", out var strategy) ||
-            strategy.ValueKind != JsonValueKind.Object)
-            return;
-        if (!strategy.TryGetProperty("id", out var strategyId) ||
-            strategyId.ValueKind != JsonValueKind.String)
-        {
-            issues.Add(Error("LANE_SPEC_STRATEGY_ID_REQUIRED", "artifact.document.strategy.id",
-                "The declarative strategy section requires the exact host-owned strategy id."));
-        }
-        else
-        {
-            Require(string.Equals(strategyId.GetString(), expectedStrategyId, StringComparison.Ordinal),
-                "LANE_SPEC_STRATEGY_ID_CHANGED", "artifact.document.strategy.id",
-                "The declarative artifact must preserve the exact host-owned strategy id.", issues);
-        }
-
-        if (!strategy.TryGetProperty("summary", out var summary) ||
-            summary.ValueKind != JsonValueKind.String ||
-            string.IsNullOrWhiteSpace(summary.GetString()))
-            issues.Add(Error("LANE_SPEC_SUMMARY_REQUIRED", "artifact.document.strategy.summary",
-                "The declarative strategy section requires a non-empty summary."));
+        foreach (var issue in VibeQuantDeclarativeRulesContractV1.Validate(document, expectedStrategyId))
+            issues.Add(issue);
     }
 
-    private static bool ContainsTopLevelMappingAssignment(string source, string name) =>
+    private static bool ContainsTopLevelSequenceAssignment(string source, string name) =>
         EnumerateTopLevelLines(source).Any(line =>
         {
             if (!line.StartsWith(name, StringComparison.Ordinal)) return false;
@@ -417,7 +403,19 @@ internal static class StrategyGenerationCandidateValidatorV1
             var assignment = remainder.IndexOf('=');
             if (assignment < 0) return false;
             var value = remainder[(assignment + 1)..].TrimStart();
-            return value.StartsWith('{') || value.StartsWith("dict(", StringComparison.Ordinal);
+            return value.StartsWith('[') || value.StartsWith("list(", StringComparison.Ordinal) ||
+                value.StartsWith('(') || value.StartsWith("tuple(", StringComparison.Ordinal);
+        });
+
+    private static bool ContainsTopLevelStringAssignment(string source, string name, string expectedValue) =>
+        EnumerateTopLevelLines(source).Any(line =>
+        {
+            if (!line.StartsWith(name, StringComparison.Ordinal)) return false;
+            var remainder = line[name.Length..].TrimStart();
+            if (!remainder.StartsWith('=')) return false;
+            var value = remainder[1..].Trim();
+            return string.Equals(value, $"\"{expectedValue}\"", StringComparison.Ordinal) ||
+                string.Equals(value, $"'{expectedValue}'", StringComparison.Ordinal);
         });
 
     private static bool ContainsTopLevelFunction(

@@ -29,7 +29,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         {
             progress.StatesFor(lane).Should().Equal(
                 StrategyGenerationLaneProgressStateV1.Queued,
-                StrategyGenerationLaneProgressStateV1.Running);
+                StrategyGenerationLaneProgressStateV1.PreparingRequest);
         }
         foreach (var agent in agents) agent.Release();
         var result = await generation;
@@ -44,7 +44,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         {
             progress.StatesFor(lane).Should().Equal(
                 StrategyGenerationLaneProgressStateV1.Queued,
-                StrategyGenerationLaneProgressStateV1.Running,
+                StrategyGenerationLaneProgressStateV1.PreparingRequest,
                 StrategyGenerationLaneProgressStateV1.Completed);
         }
     }
@@ -86,7 +86,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         {
             progress.StatesFor(lane).Should().Equal(
                 StrategyGenerationLaneProgressStateV1.Queued,
-                StrategyGenerationLaneProgressStateV1.Running,
+                StrategyGenerationLaneProgressStateV1.PreparingRequest,
                 StrategyGenerationLaneProgressStateV1.Canceled);
         }
     }
@@ -130,7 +130,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         {
             progress.StatesFor(lane).Should().Equal(
                 StrategyGenerationLaneProgressStateV1.Queued,
-                StrategyGenerationLaneProgressStateV1.Running,
+                StrategyGenerationLaneProgressStateV1.PreparingRequest,
                 StrategyGenerationLaneProgressStateV1.Canceled);
         }
     }
@@ -155,7 +155,9 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         var vibePrompt = PromptFor(provider, StrategyGenerationLaneV1.VibePython);
         vibePrompt.Should().Contain("VibeAgent");
         vibePrompt.Should().Contain("editable ordinary-Python");
-        vibePrompt.Should().Contain("top-level `PARAMETERS` mapping");
+        vibePrompt.Should().Contain("VIBE_QUANT_CONTRACT");
+        vibePrompt.Should().Contain("top-level `PARAMETERS`");
+        vibePrompt.Should().Contain("DATA_REQUIREMENTS");
         vibePrompt.Should().Contain("`initialize_state`");
         vibePrompt.Should().Contain("`on_event(event, state, parameters)`");
         vibePrompt.Should().Contain("outputs inert");
@@ -163,7 +165,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
 
         var specPrompt = PromptFor(provider, StrategyGenerationLaneV1.DeclarativeSpec);
         specPrompt.Should().Contain("SpecAgent");
-        specPrompt.Should().Contain("declarative-strategy/v1");
+        specPrompt.Should().Contain("vibe-quant/declarative-rules/v1");
         specPrompt.Should().Contain("dataRequirements");
         specPrompt.Should().Contain("entryRules");
         specPrompt.Should().Contain("exitRules");
@@ -177,6 +179,12 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         graphPrompt.Should().Contain("TradeIrModuleValidatorV1");
         graphPrompt.Should().Contain("packageImplementationHashSha256");
         graphPrompt.Should().Contain("requiredSnapshotHashSha256");
+        graphPrompt.Should().Contain(TradeIrSimulatedBacktestContractV1.SchemaHashSha256);
+        graphPrompt.Should().NotContain("<exact 64-character lowercase schema digest>");
+        graphPrompt.Should().Contain("exactly one `orderIntent` output");
+        graphPrompt.Should().Contain("`target` output consumed by that order path");
+        graphPrompt.Should().Contain("`execution.market.time_in_force` to the text literal `day`");
+        graphPrompt.Should().Contain("eligible for admission; it does not claim admission or execution succeeded");
         graphPrompt.Should().Contain("integerValue");
         graphPrompt.Should().Contain("`assetClass` must be one of `equity`, `future`, `forex`, `crypto`");
         graphPrompt.Should().Contain("`option`, or `index`");
@@ -185,6 +193,8 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
 
         var cspPrompt = PromptFor(provider, StrategyGenerationLaneV1.CspPython);
         cspPrompt.Should().Contain("CspAgent");
+        cspPrompt.Should().Contain("VIBE_QUANT_CSP_CONTRACT");
+        cspPrompt.Should().Contain("Point72 CSP compatibility");
         cspPrompt.Should().Contain("@csp.node");
         cspPrompt.Should().Contain("@csp.graph");
         cspPrompt.Should().Contain("ts[");
@@ -260,14 +270,18 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         StrategyGenerationBatchValidationV1.Validate(result).Should().BeEmpty();
         progress.StatesFor(StrategyGenerationLaneV1.DeclarativeSpec).Should().Equal(
             StrategyGenerationLaneProgressStateV1.Queued,
-            StrategyGenerationLaneProgressStateV1.Running,
+            StrategyGenerationLaneProgressStateV1.PreparingRequest,
+            StrategyGenerationLaneProgressStateV1.WaitingForModel,
             StrategyGenerationLaneProgressStateV1.Failed);
         foreach (var lane in StrategyGenerationLaneCatalogV1.Ordered.Where(lane =>
                      lane != StrategyGenerationLaneV1.DeclarativeSpec))
         {
             progress.StatesFor(lane).Should().Equal(
                 StrategyGenerationLaneProgressStateV1.Queued,
-                StrategyGenerationLaneProgressStateV1.Running,
+                StrategyGenerationLaneProgressStateV1.PreparingRequest,
+                StrategyGenerationLaneProgressStateV1.WaitingForModel,
+                StrategyGenerationLaneProgressStateV1.ParsingResponse,
+                StrategyGenerationLaneProgressStateV1.ValidatingArtifact,
                 StrategyGenerationLaneProgressStateV1.Completed);
         }
     }
@@ -671,6 +685,229 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         selection.Success.Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData(StrategyGenerationLaneV1.VibePython, StrategyGenerationSemanticRoleV1.SourceReview,
+        StrategyGenerationLoweringModeV1.ReviewedAiSynthesis)]
+    [InlineData(StrategyGenerationLaneV1.DeclarativeSpec, StrategyGenerationSemanticRoleV1.SourceReview,
+        StrategyGenerationLoweringModeV1.ReviewedAiSynthesis)]
+    [InlineData(StrategyGenerationLaneV1.TypedGraph, StrategyGenerationSemanticRoleV1.CanonicalExecutableIr,
+        StrategyGenerationLoweringModeV1.Identity)]
+    [InlineData(StrategyGenerationLaneV1.CspPython, StrategyGenerationSemanticRoleV1.SourceReview,
+        StrategyGenerationLoweringModeV1.ReviewedAiSynthesis)]
+    public async Task Every_lane_exposes_its_normative_authority_role_and_canonical_target(
+        StrategyGenerationLaneV1 lane,
+        StrategyGenerationSemanticRoleV1 role,
+        StrategyGenerationLoweringModeV1 lowering)
+    {
+        var batch = await ProductionGenerator().GenerateAsync(new FourLaneArtifactProvider(), Request);
+        var authority = batch.Lanes.Single(result => result.Lane == lane).Candidate!.PackageBinding.Authority;
+
+        authority.AuthorityId.Should().NotBeNullOrWhiteSpace();
+        authority.SpecificationReference.Should().NotBeNullOrWhiteSpace();
+        authority.SemanticRole.Should().Be(role);
+        authority.CanonicalTargetContract.Should().Be("trade-ir/module/v1");
+        authority.LoweringMode.Should().Be(lowering);
+        if (lane == StrategyGenerationLaneV1.CspPython)
+        {
+            authority.ExternalReference.Should().Be("https://github.com/Point72/csp");
+            authority.ExternalCompatibility.Should().Be(StrategyGenerationExternalCompatibilityV1.Unverified);
+        }
+        else
+        {
+            authority.ExternalReference.Should().BeNull();
+            authority.ExternalCompatibility.Should().Be(StrategyGenerationExternalCompatibilityV1.NotApplicable);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Declarative_rules_reject_unknown_properties_at_root_and_nested_risk_boundaries(bool nested)
+    {
+        var batch = await ProductionGenerator().GenerateAsync(new FourLaneArtifactProvider(), Request);
+        var candidate = batch.Lanes.Single(result => result.Lane == StrategyGenerationLaneV1.DeclarativeSpec).Candidate!;
+        var document = nested
+            ? AddNestedJsonProperty(candidate.Artifact.Document!.Value, "risk", "unexpected", "hidden")
+            : AddJsonProperty(candidate.Artifact.Document!.Value, "editorNote", "hidden");
+        var changed = candidate with { Artifact = candidate.Artifact with { Document = document } };
+
+        var issues = StrategyGenerationCandidateValidatorV1.Validate(
+            changed,
+            changed.Lane,
+            changed.CandidateId,
+            changed.RequestHashSha256);
+
+        issues.Should().Contain(issue => issue.Code == "LANE_SPEC_PROPERTY_UNKNOWN" &&
+            issue.Path == (nested ? "artifact.document.risk.unexpected" : "artifact.document.editorNote"));
+    }
+
+    [Fact]
+    public async Task Declarative_rules_reject_schema_invalid_enum_values_that_keep_the_same_shape()
+    {
+        var batch = await ProductionGenerator().GenerateAsync(new FourLaneArtifactProvider(), Request);
+        var candidate = batch.Lanes.Single(result => result.Lane == StrategyGenerationLaneV1.DeclarativeSpec).Candidate!;
+        var changed = candidate with
+        {
+            Artifact = candidate.Artifact with
+            {
+                Document = UpdateFirstArrayObjectProperty(
+                    candidate.Artifact.Document!.Value,
+                    "dataRequirements",
+                    "dataKind",
+                    "futureMagic"),
+            },
+        };
+
+        var issues = StrategyGenerationCandidateValidatorV1.Validate(
+            changed,
+            changed.Lane,
+            changed.CandidateId,
+            changed.RequestHashSha256);
+
+        issues.Should().Contain(issue => issue.Code == "LANE_SPEC_VALUE_INVALID" &&
+            issue.Path == "artifact.document.dataRequirements[0].dataKind");
+    }
+
+    [Theory]
+    [InlineData(StrategyGenerationLaneV1.VibePython, "VIBE_QUANT_CONTRACT", "LANE_VIBE_CONTRACT_MARKER_REQUIRED")]
+    [InlineData(StrategyGenerationLaneV1.CspPython, "VIBE_QUANT_CSP_CONTRACT", "LANE_CSP_CONTRACT_MARKER_REQUIRED")]
+    public async Task Contract_marker_prefix_collision_is_rejected(
+        StrategyGenerationLaneV1 lane,
+        string marker,
+        string expectedCode)
+    {
+        var batch = await ProductionGenerator().GenerateAsync(new FourLaneArtifactProvider(), Request);
+        var candidate = batch.Lanes.Single(result => result.Lane == lane).Candidate!;
+        var changed = candidate with
+        {
+            Artifact = candidate.Artifact with
+            {
+                Source = candidate.Artifact.Source!.Replace(marker + " =", marker + "_EXTRA =", StringComparison.Ordinal),
+            },
+        };
+
+        var issues = StrategyGenerationCandidateValidatorV1.Validate(
+            changed,
+            changed.Lane,
+            changed.CandidateId,
+            changed.RequestHashSha256);
+
+        issues.Should().Contain(issue => issue.Code == expectedCode && issue.Path == "artifact.source");
+    }
+
+    [Fact]
+    public async Task Synthesis_calls_the_model_once_and_returns_hash_bound_package_valid_TradeIr()
+    {
+        var batch = await ProductionGenerator().GenerateAsync(new FourLaneArtifactProvider(), Request);
+        var sourceHashes = batch.Lanes.Where(static lane => lane.Selectable)
+            .Select(static lane => lane.CandidateHashSha256!).Reverse().ToArray();
+        var provider = new SynthesisProvider(Request);
+
+        var result = await new TradeIrCandidateSynthesizerV1().SynthesizeAsync(
+            provider,
+            new TradeIrCandidateSynthesisRequestV1(batch, sourceHashes));
+
+        provider.CallCount.Should().Be(1);
+        provider.LastRequest!.OutputContract.Should().Be(StrategyCodegenOutputContract.RawJsonObject);
+        result.Success.Should().BeTrue(Describe(TradeIrCandidateSynthesisValidationV1.Validate(result, batch)));
+        result.Output.PackageValid.Should().BeTrue(Describe(result.Output.Issues));
+        result.Receipt!.Sources.Select(static source => source.Lane)
+            .Should().Equal(StrategyGenerationLaneCatalogV1.Ordered);
+        result.Receipt.TargetCandidateHashSha256.Should().Be(result.Output.CandidateHashSha256);
+        result.ReceiptHashSha256.Should().Be(TradeIrCandidateSynthesisCanonicalJsonV1.ReceiptHash(result.Receipt));
+        result.Receipt.ProviderId.Should().Be(provider.ProviderId);
+        result.Receipt.Model.Should().Be(provider.Model);
+        var prompt = AgentCliCodegenClient.FlattenPrompt(provider.LastRequest);
+        foreach (var hash in sourceHashes) prompt.Should().Contain(hash);
+        prompt.Should().Contain("AI synthesis, not deterministic semantic compilation");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Duplicate_or_unknown_synthesis_sources_make_no_model_call(bool duplicate)
+    {
+        var batch = await ProductionGenerator().GenerateAsync(new FourLaneArtifactProvider(), Request);
+        var hash = batch.Lanes.First(static lane => lane.Selectable).CandidateHashSha256!;
+        string[] hashes = duplicate ? [hash, hash] : [new string('f', 64)];
+        var provider = new SynthesisProvider(Request);
+
+        var result = await new TradeIrCandidateSynthesizerV1().SynthesizeAsync(
+            provider,
+            new TradeIrCandidateSynthesisRequestV1(batch, hashes));
+
+        result.Success.Should().BeFalse();
+        result.Output.Readiness.Should().Be(StrategyGenerationReadinessV1.Failed);
+        provider.CallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Mutating_a_synthesis_receipt_breaks_its_provenance_proof()
+    {
+        var batch = await ProductionGenerator().GenerateAsync(new FourLaneArtifactProvider(), Request);
+        var provider = new SynthesisProvider(Request);
+        var result = await new TradeIrCandidateSynthesizerV1().SynthesizeAsync(
+            provider,
+            new TradeIrCandidateSynthesisRequestV1(
+                batch,
+                batch.Lanes.Where(static lane => lane.Selectable).Select(static lane => lane.CandidateHashSha256!).ToArray()));
+        var changedReceipt = result.Receipt! with { ProviderId = "tampered" };
+        var mutated = result with
+        {
+            Receipt = changedReceipt,
+            ReceiptHashSha256 = TradeIrCandidateSynthesisCanonicalJsonV1.ReceiptHash(changedReceipt),
+        };
+
+        var issues = TradeIrCandidateSynthesisValidationV1.Validate(mutated, batch);
+        issues.Should().Contain(issue => issue.Code == "SYNTHESIS_REQUEST_HASH_CHANGED");
+        issues.Should().Contain(issue => issue.Code == "SYNTHESIS_PROVIDER_RUN_CHANGED");
+        mutated.Success.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Malformed_synthesis_receipt_returns_issues_instead_of_throwing()
+    {
+        var batch = await ProductionGenerator().GenerateAsync(new FourLaneArtifactProvider(), Request);
+        var provider = new SynthesisProvider(Request);
+        var result = await new TradeIrCandidateSynthesizerV1().SynthesizeAsync(
+            provider,
+            new TradeIrCandidateSynthesisRequestV1(
+                batch,
+                batch.Lanes.Where(static lane => lane.Selectable).Select(static lane => lane.CandidateHashSha256!).ToArray()));
+        var malformed = result with
+        {
+            Receipt = result.Receipt! with
+            {
+                StrategyId = null!,
+                Sources = [null!],
+                Model = null!,
+            },
+        };
+
+        var act = () => TradeIrCandidateSynthesisValidationV1.Validate(malformed, batch);
+
+        act.Should().NotThrow();
+        act().Should().Contain(issue => issue.Code == "SYNTHESIS_STRATEGY_ID_INVALID");
+        act().Should().Contain(issue => issue.Code == "SYNTHESIS_SOURCES_REQUIRED");
+        act().Should().Contain(issue => issue.Code == "SYNTHESIS_MODEL_INVALID");
+    }
+
+    [Fact]
+    public async Task Synthesis_receipt_is_not_current_after_its_source_batch_changes()
+    {
+        var batch = await ProductionGenerator().GenerateAsync(new FourLaneArtifactProvider(), Request);
+        var provider = new SynthesisProvider(Request);
+        var result = await new TradeIrCandidateSynthesizerV1().SynthesizeAsync(
+            provider,
+            new TradeIrCandidateSynthesisRequestV1(
+                batch,
+                batch.Lanes.Where(static lane => lane.Selectable).Select(static lane => lane.CandidateHashSha256!).ToArray()));
+        var staleBatch = batch with { UserPrompt = batch.UserPrompt + " changed" };
+
+        TradeIrCandidateSynthesisValidationV1.Validate(result, staleBatch)
+            .Should().Contain(issue => issue.Code == "SYNTHESIS_SOURCE_BATCH_CHANGED");
+    }
+
     [Fact]
     public void Cli_prompt_keeps_the_existing_CSharp_suffix_for_legacy_two_argument_requests()
     {
@@ -768,7 +1005,17 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
                 "strategy.py",
                 "python",
                 """
-                PARAMETERS = {"fast_period": 4, "slow_period": 12, "quantity": 5.0}
+                VIBE_QUANT_CONTRACT = "vibe-quant/python-strategy/v1"
+
+                PARAMETERS = [
+                    {"id": "fast_period", "type": "integer", "default": 4},
+                    {"id": "slow_period", "type": "integer", "default": 12},
+                    {"id": "quantity", "type": "number", "default": 5.0},
+                ]
+
+                DATA_REQUIREMENTS = [
+                    {"id": "quotes", "dataKind": "quoteL1", "eventTimeBasis": "occurredAtUtc"},
+                ]
 
                 def initialize_state():
                     return {"fast": None, "slow": None}
@@ -792,26 +1039,96 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
                 null,
                 Json($$"""
                     {
-                      "schemaVersion": "declarative-strategy/v1",
+                      "schemaVersion": "vibe-quant/declarative-rules/v1",
                       "strategy": {
                         "id": {{JsonSerializer.Serialize(strategyId)}},
-                        "summary": "Causal EMA cross",
-                        "universe": ["equity/xnas/ALPHA"],
-                        "clock": "quote"
+                        "version": "1.0.0",
+                        "displayName": "Causal EMA cross",
+                        "summary": "Causal EMA cross"
                       },
-                      "parameters": [
-                        {"name":"fast_period","type":"integer","default":4},
-                        {"name":"slow_period","type":"integer","default":12},
-                        {"name":"quantity","type":"number","default":5}
+                      "clock": {
+                        "basis": "eventTime",
+                        "timezone": "UTC",
+                        "sessionCalendar": "24x7",
+                        "decisionTiming": "onEvent",
+                        "interval": null
+                      },
+                      "operatorCatalog": {
+                        "catalogId": "review-required",
+                        "catalogVersion": "1",
+                        "catalogHashSha256": "0000000000000000000000000000000000000000000000000000000000000000"
+                      },
+                      "parameters": [],
+                      "dataRequirements": [
+                        {
+                          "id": "quotes",
+                          "dataKind": "quoteL1",
+                          "instrumentSelector": {
+                            "mode": "references",
+                            "references": [{
+                              "instrumentKey": "review-required",
+                              "assetClass": "future",
+                              "symbol": "ES",
+                              "venue": "CME",
+                              "currency": "USD"
+                            }],
+                            "universeId": null
+                          },
+                          "eventSchema": {
+                            "schemaId": "quote-l1",
+                            "schemaVersion": 1,
+                            "schemaHashSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+                            "payloadFields": ["bid", "ask"]
+                          },
+                          "temporalSemantics": {
+                            "eventTimeBasis": "occurredAtUtc",
+                            "interval": null,
+                            "requireAuthoritativeEventTime": true,
+                            "requirePointInTimeAvailability": true
+                          },
+                          "normalizationPolicy": "rawUnadjusted",
+                          "missingDataPolicy": "reject",
+                          "revisionPolicy": "firstPublishedOnly",
+                          "requiredSnapshotHashSha256": null
+                        }
                       ],
-                      "dataRequirements": [],
-                      "indicators": [
-                        {"id":"fast","kind":"ema","input":"mid","period":"fast_period"},
-                        {"id":"slow","kind":"ema","input":"mid","period":"slow_period"}
+                      "indicators": [],
+                      "entryRules": [
+                        {
+                          "id": "enter",
+                          "direction": "long",
+                          "condition": {"kind": "literal", "value": true},
+                          "quantity": {"kind": "literal", "value": 1},
+                          "order": {"type": "market", "timeInForce": "day", "limitPrice": null, "stopPrice": null},
+                          "tags": []
+                        }
                       ],
-                      "entryRules": [{"when":"fast > slow","target":"quantity"}],
-                      "exitRules": [{"when":"fast <= slow","target":0}],
-                      "risk": {"sizingRule":"fixed_quantity","maximumAbsoluteTarget":"quantity"}
+                      "exitRules": [
+                        {
+                          "id": "exit",
+                          "appliesTo": "long",
+                          "condition": {"kind": "literal", "value": true},
+                          "action": "closePosition",
+                          "quantity": null,
+                          "order": {"type": "market", "timeInForce": "day", "limitPrice": null, "stopPrice": null},
+                          "tags": []
+                        }
+                      ],
+                      "risk": {
+                        "maxConcurrentPositions": 1,
+                        "maxOrdersPerSession": null,
+                        "maxGrossExposure": null,
+                        "stopLoss": null,
+                        "takeProfit": null,
+                        "flattenAtSessionEnd": true
+                      },
+                      "outputs": [
+                        {
+                          "id": "orders",
+                          "kind": "orderIntent",
+                          "source": {"kind": "entryRule", "id": "enter"}
+                        }
+                      ]
                     }
                     """)),
             StrategyGenerationLaneV1.CspPython => new StrategyGenerationArtifactV1(
@@ -819,6 +1136,8 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
                 "strategy.csp.py",
                 "python",
                 """
+                VIBE_QUANT_CSP_CONTRACT = "vibe-quant/csp-authoring-profile/v1"
+
                 import csp
                 @csp.node
                 def ema_cross_signal(fast: csp.ts[float], slow: csp.ts[float]) -> csp.ts[int]:
@@ -978,7 +1297,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             {
                 Artifact = candidate.Artifact with
                 {
-                    Document = Json("""{"schemaVersion":"declarative-strategy/v1"}"""),
+                    Document = Json("""{"schemaVersion":"vibe-quant/declarative-rules/v1"}"""),
                 },
             },
             StrategyGenerationLaneV1.TypedGraph => ReplaceGraph(
@@ -1007,7 +1326,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
                 candidate.Artifact with { Source = candidate.Artifact.Source + "\n# locally edited\n" },
             StrategyGenerationLaneV1.DeclarativeSpec => candidate.Artifact with
             {
-                Document = AddJsonProperty(candidate.Artifact.Document!.Value, "editorNote", "locally edited"),
+                Document = UpdateStrategySummary(candidate.Artifact.Document!.Value, "Locally edited EMA cross"),
             },
             _ => throw new ArgumentOutOfRangeException(nameof(candidate), candidate.Lane, "Expected a generation-only lane."),
         };
@@ -1020,6 +1339,61 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             StringComparer.Ordinal);
         values[name] = JsonSerializer.SerializeToElement(value);
         return JsonSerializer.SerializeToElement(values);
+    }
+
+    private static JsonElement AddNestedJsonProperty(
+        JsonElement source,
+        string objectName,
+        string name,
+        string value)
+    {
+        var values = source.EnumerateObject().ToDictionary(
+            static property => property.Name,
+            static property => property.Value.Clone(),
+            StringComparer.Ordinal);
+        var nested = values[objectName].EnumerateObject().ToDictionary(
+            static property => property.Name,
+            static property => property.Value.Clone(),
+            StringComparer.Ordinal);
+        nested[name] = JsonSerializer.SerializeToElement(value);
+        values[objectName] = JsonSerializer.SerializeToElement(nested);
+        return JsonSerializer.SerializeToElement(values);
+    }
+
+    private static JsonElement UpdateStrategySummary(JsonElement source, string summary)
+    {
+        var values = source.EnumerateObject().ToDictionary(
+            static property => property.Name,
+            static property => property.Value.Clone(),
+            StringComparer.Ordinal);
+        var strategy = values["strategy"].EnumerateObject().ToDictionary(
+            static property => property.Name,
+            static property => property.Value.Clone(),
+            StringComparer.Ordinal);
+        strategy["summary"] = JsonSerializer.SerializeToElement(summary);
+        values["strategy"] = JsonSerializer.SerializeToElement(strategy);
+        return JsonSerializer.SerializeToElement(values);
+    }
+
+    private static JsonElement UpdateFirstArrayObjectProperty(
+        JsonElement source,
+        string arrayName,
+        string propertyName,
+        object? value)
+    {
+        var root = source.EnumerateObject().ToDictionary(
+            static property => property.Name,
+            static property => property.Value.Clone(),
+            StringComparer.Ordinal);
+        var items = root[arrayName].EnumerateArray().Select(static item => item.Clone()).ToList();
+        var first = items[0].EnumerateObject().ToDictionary(
+            static property => property.Name,
+            static property => property.Value.Clone(),
+            StringComparer.Ordinal);
+        first[propertyName] = JsonSerializer.SerializeToElement(value);
+        items[0] = JsonSerializer.SerializeToElement(first);
+        root[arrayName] = JsonSerializer.SerializeToElement(items);
+        return JsonSerializer.SerializeToElement(root);
     }
 
     private static string PromptFor(
@@ -1076,7 +1450,8 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             IStrategyCodegenClient provider,
             ParallelStrategyGenerationRequestV1 request,
             string expectedCandidateId,
-            CancellationToken ct = default)
+            CancellationToken ct = default,
+            IProgress<StrategyGenerationLaneProgressV1>? progress = null)
         {
             _started.TrySetResult();
             if (honorCancellation)
@@ -1162,6 +1537,43 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             return Task.FromResult(StrategyCodegenResponse.Reply(
                 StrategyGenerationCandidateCanonicalJsonV1.Serialize(candidate),
                 new CodegenUsage(50, 25)));
+        }
+    }
+
+    private sealed class SynthesisProvider(ParallelStrategyGenerationRequestV1 generationRequest)
+        : IStrategyCodegenClient
+    {
+        private int _callCount;
+
+        public int CallCount => Volatile.Read(ref _callCount);
+        public string ProviderId => "synthesis-provider";
+        public string DisplayName => "Synthesis provider";
+        public bool IsAvailable => true;
+        public string Model => "synthesis-test-model";
+        public StrategyCodegenRequest? LastRequest { get; private set; }
+
+        public Task<StrategyCodegenResponse> GenerateAsync(
+            StrategyCodegenRequest request,
+            CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref _callCount);
+            LastRequest = request;
+            var userMessage = request.Messages.Last().Content;
+            var jsonStart = userMessage.IndexOf('{');
+            using var envelope = JsonDocument.Parse(userMessage[jsonStart..]);
+            var root = envelope.RootElement;
+            var candidateId = root.GetProperty("expectedCandidateId").GetString()!;
+            var requestHash = root.GetProperty("expectedRequestHashSha256").GetString()!;
+            var candidate = GraphCandidate(candidateId, generationRequest) with
+            {
+                RequestHashSha256 = requestHash,
+                Title = "Synthesized EMA cross",
+                Explanation = "Review this new TradeIR synthesis against every source hash.",
+            };
+            return Task.FromResult(StrategyCodegenResponse.Reply(
+                StrategyGenerationCandidateCanonicalJsonV1.Serialize(candidate),
+                new CodegenUsage(80, 40)));
         }
     }
 }

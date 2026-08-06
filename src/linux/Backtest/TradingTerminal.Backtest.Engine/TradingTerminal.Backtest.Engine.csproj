@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
+    <ProjectReference Include="..\TradingTerminal.TradeIr.Runtime\TradingTerminal.TradeIr.Runtime.csproj" />
   </ItemGroup>
 
   <ItemGroup>

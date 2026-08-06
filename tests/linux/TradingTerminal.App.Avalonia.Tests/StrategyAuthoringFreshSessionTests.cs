@@ -12,6 +12,43 @@ namespace TradingTerminal.App.Avalonia.Tests;
 public sealed class StrategyAuthoringFreshSessionTests
 {
     [Fact]
+    public void Generation_lane_row_exposes_real_phases_and_rejects_late_regression()
+    {
+        var row = new StrategyGenerationLaneProgressRow(StrategyGenerationLaneV1.TypedGraph);
+
+        row.Apply(new StrategyGenerationLaneProgressV1(
+            row.Lane,
+            StrategyGenerationLaneProgressStateV1.PreparingRequest));
+        row.StateLabel.Should().Be("PREPARING");
+        row.PipelineText.Should().Contain("● PREPARE");
+
+        row.Apply(new StrategyGenerationLaneProgressV1(
+            row.Lane,
+            StrategyGenerationLaneProgressStateV1.WaitingForModel));
+        row.StateLabel.Should().Be("WAITING FOR MODEL");
+        row.StateDetail.Should().Contain("waiting for the model response");
+
+        row.Apply(new StrategyGenerationLaneProgressV1(
+            row.Lane,
+            StrategyGenerationLaneProgressStateV1.ValidatingArtifact));
+        row.StateDetail.Should().Contain("installed package check");
+
+        row.Apply(new StrategyGenerationLaneProgressV1(
+            row.Lane,
+            StrategyGenerationLaneProgressStateV1.Completed,
+            "Installed package validation passed; nothing was tested or run."));
+        row.StateLabel.Should().Be("READY");
+        row.PipelineText.Should().Be("✓ PREPARE   ✓ MODEL   ✓ PARSE   ✓ CHECK");
+
+        row.Apply(new StrategyGenerationLaneProgressV1(
+            row.Lane,
+            StrategyGenerationLaneProgressStateV1.ParsingResponse,
+            "late callback"));
+        row.State.Should().Be(StrategyGenerationLaneProgressStateV1.Completed);
+        row.StateDetail.Should().Be("Installed package validation passed; nothing was tested or run.");
+    }
+
+    [Fact]
     public async Task Stop_marks_active_four_lane_rows_canceled_and_rejects_late_generator_output()
     {
         var provider = new StubCodegenClient();
@@ -183,7 +220,7 @@ public sealed class StrategyAuthoringFreshSessionTests
                     StrategyGenerationLaneProgressStateV1.Queued));
                 progress?.Report(new StrategyGenerationLaneProgressV1(
                     lane,
-                    StrategyGenerationLaneProgressStateV1.Running));
+                    StrategyGenerationLaneProgressStateV1.WaitingForModel));
             }
 
             _started.TrySetResult();

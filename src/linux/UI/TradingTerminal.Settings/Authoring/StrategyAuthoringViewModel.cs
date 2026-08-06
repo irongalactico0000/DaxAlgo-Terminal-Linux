@@ -84,7 +84,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         AuthoredStrategyInstaller? installer = null,
         ICliWorkspaceLauncher? cliLauncher = null,
         IParallelStrategyCandidateGeneratorV1? parallelCandidateGenerator = null,
-        IAuthoringSessionRepository? sessionRepository = null)
+        IAuthoringSessionRepository? sessionRepository = null,
+        ITradeIrCandidateSynthesizerV1? tradeIrCandidateSynthesizer = null,
+        ITradeIrSimulatedBacktestRunnerV1? tradeIrSimulatedBacktestRunner = null)
     {
         _compiler = compiler;
         _registry = registry;
@@ -92,6 +94,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _ai = ai;
         _candidateGenerator = candidateGenerator;
         _parallelCandidateGenerator = parallelCandidateGenerator;
+        _tradeIrCandidateSynthesizer = tradeIrCandidateSynthesizer;
+        _tradeIrSimulatedBacktestRunner = tradeIrSimulatedBacktestRunner;
         _options = options?.Value ?? new AiCodegenOptions();
         _installer = installer;
         _cliLauncher = cliLauncher;
@@ -284,11 +288,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             return $"{selectable} {selectableLabel} · {blocked} {blockedLabel}";
         }
     }
-    public string CandidateBacktestAvailabilityText =>
-        "Backtest unavailable · no generated-lane importer/runtime is registered.";
     public bool HasSelectedGeneratedCandidate => SelectedGeneratedCandidateOption?.Candidate is not null;
     public bool HasChosenGeneratedCandidate => ChosenGeneratedCandidateOption is not null;
-    public bool IsGeneratingCandidates => IsGenerating && GenerateCandidateFirst;
+    public bool IsGeneratingCandidates => IsGenerating && GenerateCandidateFirst && !IsSynthesizingTradeIr;
+    public bool HasRetainedCandidateBatchDuringGeneration => IsGeneratingCandidates && HasGeneratedCandidates;
     public bool CanChooseGeneratedCandidate =>
         SelectedGeneratedCandidateOption is { Result.Selectable: true } selected &&
         !string.Equals(
@@ -332,48 +335,6 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             return $"{finished}/4 lanes finished";
         }
     }
-    public bool CanPrepareGeneratedCandidateForBacktest => false;
-    public string BacktestActionText => "Backtest not ready";
-    public string BacktestReadinessTitle => ChosenGeneratedCandidateOption is { } chosen
-        ? $"Backtest readiness · {chosen.LaneName}"
-        : "Backtest readiness";
-    public string BacktestReadinessText => ChosenGeneratedCandidateOption?.Result.Lane switch
-    {
-        StrategyGenerationLaneV1.VibePython =>
-            "The ordinary-Python draft has no registered importer, runtime package, or package validator.",
-        StrategyGenerationLaneV1.DeclarativeSpec =>
-            "The declarative draft has no registered lowerer, importer, runtime package, or package validator.",
-        StrategyGenerationLaneV1.TypedGraph =>
-            "This TradeIR module is package-valid only. It still needs a terminal importer, data binding, and target admission.",
-        StrategyGenerationLaneV1.CspPython =>
-            "The CSP draft has no registered CSP dependency, importer, runtime host, or package validator.",
-        _ => "Choose a candidate to see the exact backtest requirements.",
-    };
-    public IReadOnlyList<CandidateReadinessStageRow> BacktestReadinessStages
-    {
-        get
-        {
-            if (ChosenGeneratedCandidateOption is not { } chosen) return [];
-            return
-            [
-                new CandidateReadinessStageRow(
-                    "1", "Generated artifact", chosen.Result.Generated ? "READY" : "BLOCKED",
-                    chosen.Result.Generated ? "A model response produced an editable artifact." : "No valid artifact was produced."),
-                new CandidateReadinessStageRow(
-                    "2", "Package validation", chosen.Result.PackageValid ? "PASSED" : "NOT AVAILABLE",
-                    chosen.Result.PackageValid
-                        ? "The installed package validator accepted this exact artifact hash."
-                        : "This lane has no package-valid proof."),
-                new CandidateReadinessStageRow(
-                    "3", "Importer + runtime", "MISSING",
-                    "No registered importer can turn this artifact into a runnable terminal strategy."),
-                new CandidateReadinessStageRow(
-                    "4", "Backtest target", "LOCKED",
-                    "Backtest unlocks only after an exact-hash import, data binding, and target admission succeed."),
-            ];
-        }
-    }
-
     private StrategyGenerationCandidateOption? ChosenGeneratedCandidateOption =>
         ChosenGeneratedCandidateHash is { } chosenHash
             ? GeneratedCandidateOptions.FirstOrDefault(option => string.Equals(
@@ -391,6 +352,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         OnPropertyChanged(nameof(GenerationLaneText));
         OnPropertyChanged(nameof(SendButtonText));
         OnPropertyChanged(nameof(AuthoringBoundaryText));
+        RegenerateRecoveredCandidatesCommand.NotifyCanExecuteChanged();
         AiStatus = value
             ? "Four AI agents generate editable strategy alternatives in parallel; available package validators are reported separately."
             : "Expert Code lane: chat writes and compiles C# directly.";
@@ -413,8 +375,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ConfirmCandidateCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnCandidateRestoreWarningChanged(string? value) =>
+    partial void OnCandidateRestoreWarningChanged(string? value)
+    {
         OnPropertyChanged(nameof(HasCandidateRestoreWarning));
+        RegenerateRecoveredCandidatesCommand.NotifyCanExecuteChanged();
+    }
 
     partial void OnSelectedGeneratedCandidateOptionChanged(StrategyGenerationCandidateOption? value)
     {
@@ -440,6 +405,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         OnPropertyChanged(nameof(BacktestReadinessText));
         OnPropertyChanged(nameof(BacktestReadinessStages));
         ChooseGeneratedCandidateCommand.NotifyCanExecuteChanged();
+        NotifyTradeIrBacktestStateChanged(clearStaleResult: true);
     }
 
     partial void OnStrategyIdChanged(string value)
@@ -558,9 +524,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ResetSession("Switched provider.");
         Models.Clear();
         OnPropertyChanged(nameof(EffortSupported));
+        RegenerateRecoveredCandidatesCommand.NotifyCanExecuteChanged();
         if (value is null)
         {
             SyncModelChoice();
+            NotifyTradeIrSynthesisStateChanged();
             return;
         }
 
@@ -568,6 +536,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         SelectedModel = Models.FirstOrDefault();
         SelectedEffort = value.Client.Effort;
         SyncModelChoice();
+        NotifyTradeIrSynthesisStateChanged();
     }
 
     partial void OnSelectedModelChanged(string? value)
@@ -1002,19 +971,43 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     partial void OnIsGeneratingChanged(bool value)
     {
+        if (!value && IsSynthesizingTradeIr) IsSynthesizingTradeIr = false;
         SendCommand.NotifyCanExecuteChanged();
+        RegenerateRecoveredCandidatesCommand.NotifyCanExecuteChanged();
         StopCommand.NotifyCanExecuteChanged();
         ConfirmCandidateCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsGeneratingCandidates));
+        OnPropertyChanged(nameof(HasRetainedCandidateBatchDuringGeneration));
         OnPropertyChanged(nameof(CanChooseGeneratedCandidate));
         OnPropertyChanged(nameof(CanRevalidateGeneratedCandidate));
         ChooseGeneratedCandidateCommand.NotifyCanExecuteChanged();
         RevalidateGeneratedCandidateCommand.NotifyCanExecuteChanged();
+        NotifyTradeIrSynthesisStateChanged();
+        NotifyTradeIrBacktestStateChanged();
     }
 
-    partial void OnComposerChanged(string value) => SendCommand.NotifyCanExecuteChanged();
+    partial void OnComposerChanged(string value)
+    {
+        SendCommand.NotifyCanExecuteChanged();
+        RegenerateRecoveredCandidatesCommand.NotifyCanExecuteChanged();
+    }
 
     private bool CanSend => !IsGenerating && !string.IsNullOrWhiteSpace(Composer);
+
+    private bool CanRegenerateRecoveredCandidatesAction() =>
+        HasCandidateRestoreWarning &&
+        GenerateCandidateFirst &&
+        !IsGenerating &&
+        !string.IsNullOrWhiteSpace(Composer) &&
+        _parallelCandidateGenerator is not null &&
+        SelectedAiProvider is { IsAvailable: true };
+
+    /// <summary>
+    /// Replays the recovered brief only after an explicit user click. Restore itself never starts a
+    /// provider request; this command uses the normal four-lane send path and its existing validation.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanRegenerateRecoveredCandidatesAction))]
+    private Task RegenerateRecoveredCandidatesAsync() => SendAsync();
 
     /// <summary>
     /// One turn: send what the user typed (plus their hand-edits, if any), let the session generate →
@@ -1217,9 +1210,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         var turnStrategyId = StrategyId.Trim();
         var turnEpoch = Interlocked.Increment(ref _generationContextEpoch);
-        // A failed/cancelled new prompt must not leave the previous prompt's candidates looking like
-        // the current result. The transcript remains as history, but selection starts from no batch.
-        ClearParallelCandidates();
+        // Keep the last completed, hash-validated batch until the replacement fully validates and
+        // commits. A cancelled provider call or app shutdown must not erase expensive prior output.
         Composer = string.Empty;
         Append(new AuthoringMessage(CodegenRole.User, prompt));
         Activity.Clear();
@@ -1232,7 +1224,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         WorkingVerb = "Generating four alternatives…";
         StepText = GenerationProgressSummary;
         IsGenerating = true;
-        AiStatus = "Asking four AI agents to generate editable strategy alternatives…";
+        AiStatus = HasGeneratedCandidates
+            ? "Generating a replacement batch. The last completed candidates remain preserved until all replacement results validate."
+            : "Asking four AI agents to generate editable strategy alternatives…";
 
         _generateCts?.Cancel();
         _generateCts?.Dispose();
@@ -1327,7 +1321,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         var row = GenerationLaneProgressRows.FirstOrDefault(candidate => candidate.Lane == progress.Lane);
         if (row is null) return;
-        row.State = progress.State;
+        row.Apply(progress);
         NotifyGenerationProgressChanged();
     }
 
@@ -1360,6 +1354,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 $"{issue.Path}: {issue.Message}")));
 
         CandidateRestoreWarning = null;
+        ClearTradeIrSynthesis();
         ClearSemanticCandidate();
         SetEditorBaseGeneratedCandidateHash(null);
         SelectedGeneratedCandidateOption = null;
@@ -1397,13 +1392,13 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _filesEditedByUser = false;
         SetEditorBaseGeneratedCandidateHash(selection.CandidateHashSha256);
         ChosenGeneratedCandidateHash = selection.CandidateHashSha256;
-        WorkbenchTab = 0;
+        // Keep a package-valid graph on Candidate so the newly unlocked exact-hash test is visible.
+        // Source-review lanes still open Code because they have no runnable target yet.
+        WorkbenchTab = candidate.Lane == StrategyGenerationLaneV1.TypedGraph ? 3 : 0;
         if (laneResult.PackageValid)
         {
-            AiStatus = $"{StrategyGenerationLaneCatalogV1.DisplayName(candidate.Lane)} selected at package-valid hash {selection.CandidateHashSha256![..12]}…. It has not been tested or run.";
-            Status = candidate.PackageBinding.ImporterId is null
-                ? $"Loaded {candidate.Artifact.FileName}. Package validation passed, but no terminal importer is registered; no tests or execution ran."
-                : $"Loaded {candidate.Artifact.FileName} for importer '{candidate.PackageBinding.ImporterId}'. No tests or execution ran.";
+            AiStatus = $"{StrategyGenerationLaneCatalogV1.DisplayName(candidate.Lane)} loaded at package-valid hash {selection.CandidateHashSha256![..12]}…. The synthetic smoke action is now visible below; nothing has run yet.";
+            Status = $"Loaded {candidate.Artifact.FileName}. Choose Run synthetic smoke test to perform exact-hash data, target, and runtime admission. This is not a historical backtest.";
         }
         else
         {
@@ -1413,7 +1408,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Append(AuthoringMessage.Tool(
             "Ok",
             $"Selected {StrategyGenerationLaneCatalogV1.DisplayName(candidate.Lane)}",
-            $"Loaded {candidate.Artifact.FileName} · {(laneResult.PackageValid ? "package valid" : "not package-validated")} · not tested · hash {selection.CandidateHashSha256![..12]}…"));
+            $"Loaded {candidate.Artifact.FileName} · {(laneResult.PackageValid ? "package valid · synthetic smoke unlocked" : "not package-validated")} · not tested · hash {selection.CandidateHashSha256![..12]}…"));
         Save();
     }
 
@@ -2067,12 +2062,13 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             }
             if (!string.IsNullOrWhiteSpace(session.ParallelCandidateBatchJson))
             {
-                string? recoveryPrompt = null;
+                var recoveryPrompt = RecoverParallelCandidatePrompt(session);
                 try
                 {
                     var restoredBatch = StrategyGenerationCandidateCanonicalJsonV1.DeserializeBatch(
                         session.ParallelCandidateBatchJson);
-                    recoveryPrompt = restoredBatch.UserPrompt;
+                    if (!string.IsNullOrWhiteSpace(restoredBatch.UserPrompt))
+                        recoveryPrompt = restoredBatch.UserPrompt;
                     ApplyParallelCandidateBatch(restoredBatch);
 
                     // The editor base survives hand-edits even after the selected-candidate proof
@@ -2142,8 +2138,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                         "Saved candidate results no longer match the current validation contract. " +
                         "Your chat and code were kept, but the old candidate choices were discarded. " +
                         (string.IsNullOrWhiteSpace(recoveryPrompt)
-                            ? "Paste or refine the strategy brief in chat, then press Check & generate."
-                            : "The original brief is loaded in the composer; review or refine it, then press Check & generate.");
+                            ? "Paste or refine the strategy brief in the composer, then select Regenerate 4 candidates."
+                            : "The original brief is loaded in the composer; review or refine it, then select Regenerate 4 candidates.");
                     restoreWarning = CandidateRestoreWarning;
                     WorkbenchTab = 3;
                     _logger.LogWarning(exception, "Could not restore parallel strategy candidates for {Id}", session.StrategyId);
@@ -2162,6 +2158,33 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         {
             _restoring = false;
         }
+    }
+
+    private static string? RecoverParallelCandidatePrompt(AuthoringSessionSnapshot session)
+    {
+        // Read the prompt independently of the typed contract first. This keeps recovery useful when
+        // the batch fails specifically because its schema version can no longer be deserialized.
+        try
+        {
+            using var document = JsonDocument.Parse(session.ParallelCandidateBatchJson!);
+            if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("userPrompt", out var promptElement) &&
+                promptElement.ValueKind == JsonValueKind.String &&
+                promptElement.GetString() is { } persistedPrompt &&
+                !string.IsNullOrWhiteSpace(persistedPrompt))
+            {
+                return persistedPrompt;
+            }
+        }
+        catch (JsonException)
+        {
+            // Fall through to the visible transcript. The invalid batch is intentionally discarded.
+        }
+
+        return session.Chat.LastOrDefault(entry =>
+                string.Equals(entry.Role, AuthoringChatEntry.User, StringComparison.Ordinal) &&
+                !string.IsNullOrWhiteSpace(entry.Text))
+            ?.Text;
     }
 
     /// <summary>Writes the current session out. Called after anything worth not losing: a turn, a compile,
@@ -2418,11 +2441,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         var changed = false;
         foreach (var row in GenerationLaneProgressRows)
         {
-            if (row.State is not (StrategyGenerationLaneProgressStateV1.Queued or
-                    StrategyGenerationLaneProgressStateV1.Running))
+            if (row.State is StrategyGenerationLaneProgressStateV1.Completed or
+                StrategyGenerationLaneProgressStateV1.Failed or
+                StrategyGenerationLaneProgressStateV1.Canceled)
                 continue;
 
-            row.State = StrategyGenerationLaneProgressStateV1.Canceled;
+            row.Apply(new StrategyGenerationLaneProgressV1(
+                row.Lane,
+                StrategyGenerationLaneProgressStateV1.Canceled));
             changed = true;
         }
 
@@ -2479,6 +2505,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private void ClearParallelCandidates()
     {
+        ClearTradeIrSynthesis();
         SetEditorBaseGeneratedCandidateHash(null);
         _parallelCandidateBatch = null;
         SelectedGeneratedCandidateOption = null;
@@ -2513,6 +2540,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         RefreshGeneratedCandidateOptionFlags();
         OnPropertyChanged(nameof(HasGeneratedCandidates));
+        OnPropertyChanged(nameof(HasRetainedCandidateBatchDuringGeneration));
         OnPropertyChanged(nameof(HasCandidateContent));
         OnPropertyChanged(nameof(SelectableGeneratedCandidateCount));
         OnPropertyChanged(nameof(BlockedGeneratedCandidateCount));
@@ -2528,10 +2556,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         OnPropertyChanged(nameof(CanRevalidateGeneratedCandidate));
         ChooseGeneratedCandidateCommand.NotifyCanExecuteChanged();
         RevalidateGeneratedCandidateCommand.NotifyCanExecuteChanged();
+        NotifyTradeIrSynthesisStateChanged();
     }
 
     private void SetFiles(IReadOnlyList<StrategyFile> files)
     {
+        SetLoadedCombinedTradeIrCandidateHash(null);
         SetEditorBaseGeneratedCandidateHash(null);
         ChosenGeneratedCandidateHash = null;
         CompiledOk = false;
@@ -2559,6 +2589,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (e.PropertyName is nameof(AuthoredFile.Content) or nameof(AuthoredFile.Name))
         {
             _filesEditedByUser = true;
+            InvalidateLoadedTradeIrSynthesisProof();
             InvalidateEditorProofs("The editor changed; prior compile, registration, and candidate-hash proofs were cleared.");
         }
     }
@@ -2733,6 +2764,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     public void Dispose()
     {
         InvalidateGenerationContext();
+        DisposeTradeIrBacktest();
         // Hand-edits in the Code tab aren't saved per keystroke; catch them on the way out.
         Save();
 
@@ -2933,12 +2965,34 @@ public sealed partial class StrategyGenerationCandidateOption : ObservableObject
     public string LaneName => StrategyGenerationLaneCatalogV1.DisplayName(Result.Lane);
     public string Representation => Result.Lane switch
     {
-        StrategyGenerationLaneV1.VibePython => "editable ordinary Python",
-        StrategyGenerationLaneV1.DeclarativeSpec => "declarative strategy JSON",
+        StrategyGenerationLaneV1.VibePython => "Vibe Quant Python source profile",
+        StrategyGenerationLaneV1.DeclarativeSpec => "closed Vibe Quant Rules JSON",
         StrategyGenerationLaneV1.TypedGraph => "canonical DaxAlgo TradeIR module",
-        StrategyGenerationLaneV1.CspPython => "editable CSP event code",
+        StrategyGenerationLaneV1.CspPython => "Vibe Quant inert CSP profile",
         _ => Result.Lane.ToString(),
     };
+    public string ContractVersion => Candidate?.PackageBinding.ArtifactContractVersion ?? "no contract";
+    public string ContractAuthority => Candidate?.PackageBinding.Authority.AuthorityId ?? "no authority";
+    public string ContractRole => Candidate?.PackageBinding.Authority.SemanticRole switch
+    {
+        StrategyGenerationSemanticRoleV1.SourceReview => "SOURCE / REVIEW",
+        StrategyGenerationSemanticRoleV1.CanonicalExecutableIr => "CANONICAL IR",
+        _ => "UNKNOWN ROLE",
+    };
+    public string LoweringBoundary => Candidate?.PackageBinding.Authority.LoweringMode switch
+    {
+        StrategyGenerationLoweringModeV1.ReviewedAiSynthesis => "reviewed AI synthesis → TradeIR",
+        StrategyGenerationLoweringModeV1.Identity => "already canonical TradeIR",
+        _ => "no lowering route declared",
+    };
+    public string CompatibilityBoundary => Candidate?.PackageBinding.Authority.ExternalCompatibility switch
+    {
+        StrategyGenerationExternalCompatibilityV1.Unverified => "external compatibility unverified",
+        StrategyGenerationExternalCompatibilityV1.Verified => "external compatibility verified",
+        _ => "DaxAlgo-owned contract",
+    };
+    public string SpecificationReference =>
+        Candidate?.PackageBinding.Authority.SpecificationReference ?? "no specification reference";
     public string StatusText => Result.Readiness switch
     {
         StrategyGenerationReadinessV1.PackageValid => "PACKAGE VALID · NOT TESTED",
@@ -3000,30 +3054,109 @@ public sealed partial class StrategyGenerationLaneProgressRow : ObservableObject
         StrategyGenerationLaneV1.CspPython => "strategy.csp.py",
         _ => "strategy artifact",
     };
+    public string PurposeText => Lane switch
+    {
+        StrategyGenerationLaneV1.VibePython => "readable Python draft",
+        StrategyGenerationLaneV1.DeclarativeSpec => "explicit rules JSON",
+        StrategyGenerationLaneV1.TypedGraph => "canonical typed graph",
+        StrategyGenerationLaneV1.CspPython => "event-graph draft",
+        _ => "editable strategy draft",
+    };
+    public string ValidationPlanText => Lane switch
+    {
+        StrategyGenerationLaneV1.TypedGraph => "TradeIR structure + installed package check",
+        StrategyGenerationLaneV1.DeclarativeSpec => "closed Rules v1 contract check",
+        StrategyGenerationLaneV1.CspPython => "inert CSP authoring-profile check",
+        _ => "Python authoring-profile check",
+    };
+
+    private StrategyGenerationLaneProgressStateV1 _lastActiveState =
+        StrategyGenerationLaneProgressStateV1.Queued;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StateLabel))]
     [NotifyPropertyChangedFor(nameof(StateDetail))]
+    [NotifyPropertyChangedFor(nameof(PipelineText))]
     private StrategyGenerationLaneProgressStateV1 _state = StrategyGenerationLaneProgressStateV1.Queued;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StateDetail))]
+    private string? _detail;
+
+    public void Apply(StrategyGenerationLaneProgressV1 progress)
+    {
+        if (progress.Lane != Lane)
+            throw new ArgumentException("Progress belongs to a different generation lane.", nameof(progress));
+
+        if (IsTerminal(State)) return;
+        if (!IsTerminal(progress.State) && progress.State < State) return;
+        if (!IsTerminal(progress.State)) _lastActiveState = progress.State;
+
+        Detail = progress.Detail;
+        State = progress.State;
+    }
 
     public string StateLabel => State switch
     {
-        StrategyGenerationLaneProgressStateV1.Queued => "WAITING",
-        StrategyGenerationLaneProgressStateV1.Running => "GENERATING",
-        StrategyGenerationLaneProgressStateV1.Completed => "FINISHED",
-        StrategyGenerationLaneProgressStateV1.Failed => "NEEDS ATTENTION",
+        StrategyGenerationLaneProgressStateV1.Queued => "QUEUED",
+        StrategyGenerationLaneProgressStateV1.PreparingRequest => "PREPARING",
+        StrategyGenerationLaneProgressStateV1.WaitingForModel => "WAITING FOR MODEL",
+        StrategyGenerationLaneProgressStateV1.ParsingResponse => "PARSING RESPONSE",
+        StrategyGenerationLaneProgressStateV1.ValidatingArtifact => "VALIDATING",
+        StrategyGenerationLaneProgressStateV1.Completed => "READY",
+        StrategyGenerationLaneProgressStateV1.Failed => "BLOCKED",
         StrategyGenerationLaneProgressStateV1.Canceled => "CANCELED",
         _ => State.ToString().ToUpperInvariant(),
     };
     public string StateDetail => State switch
     {
-        StrategyGenerationLaneProgressStateV1.Queued => "Queued for an independent model request",
-        StrategyGenerationLaneProgressStateV1.Running => $"Writing {ArtifactName}",
-        StrategyGenerationLaneProgressStateV1.Completed => "Artifact returned; deterministic checks finished",
-        StrategyGenerationLaneProgressStateV1.Failed => "Provider or deterministic validation blocked this lane",
+        StrategyGenerationLaneProgressStateV1.Queued => "Waiting to start its independent request",
+        StrategyGenerationLaneProgressStateV1.PreparingRequest => "Binding the brief to this lane's contract",
+        StrategyGenerationLaneProgressStateV1.WaitingForModel => "Request sent; waiting for the model response",
+        StrategyGenerationLaneProgressStateV1.ParsingResponse => "Response received; parsing the candidate envelope",
+        StrategyGenerationLaneProgressStateV1.ValidatingArtifact => $"Checking {ValidationPlanText}",
+        StrategyGenerationLaneProgressStateV1.Completed => Detail ?? "Artifact returned and checks finished",
+        StrategyGenerationLaneProgressStateV1.Failed => Detail is { Length: > 0 }
+            ? $"Stopped at {FailureStageLabel}: {Detail}"
+            : $"Stopped at {FailureStageLabel}",
         StrategyGenerationLaneProgressStateV1.Canceled => "Stopped by the user",
         _ => string.Empty,
     };
+    public string PipelineText => State switch
+    {
+        StrategyGenerationLaneProgressStateV1.Queued => "○ PREPARE   ○ MODEL   ○ PARSE   ○ CHECK",
+        StrategyGenerationLaneProgressStateV1.PreparingRequest => "● PREPARE   ○ MODEL   ○ PARSE   ○ CHECK",
+        StrategyGenerationLaneProgressStateV1.WaitingForModel => "✓ PREPARE   ● MODEL   ○ PARSE   ○ CHECK",
+        StrategyGenerationLaneProgressStateV1.ParsingResponse => "✓ PREPARE   ✓ MODEL   ● PARSE   ○ CHECK",
+        StrategyGenerationLaneProgressStateV1.ValidatingArtifact => "✓ PREPARE   ✓ MODEL   ✓ PARSE   ● CHECK",
+        StrategyGenerationLaneProgressStateV1.Completed => "✓ PREPARE   ✓ MODEL   ✓ PARSE   ✓ CHECK",
+        StrategyGenerationLaneProgressStateV1.Failed => FailurePipelineText,
+        StrategyGenerationLaneProgressStateV1.Canceled => "■ STOPPED",
+        _ => string.Empty,
+    };
+
+    private string FailureStageLabel => _lastActiveState switch
+    {
+        StrategyGenerationLaneProgressStateV1.PreparingRequest => "request preparation",
+        StrategyGenerationLaneProgressStateV1.WaitingForModel => "model response",
+        StrategyGenerationLaneProgressStateV1.ParsingResponse => "response parsing",
+        StrategyGenerationLaneProgressStateV1.ValidatingArtifact => "contract validation",
+        _ => "generation",
+    };
+
+    private string FailurePipelineText => _lastActiveState switch
+    {
+        StrategyGenerationLaneProgressStateV1.PreparingRequest => "! PREPARE   ○ MODEL   ○ PARSE   ○ CHECK",
+        StrategyGenerationLaneProgressStateV1.WaitingForModel => "✓ PREPARE   ! MODEL   ○ PARSE   ○ CHECK",
+        StrategyGenerationLaneProgressStateV1.ParsingResponse => "✓ PREPARE   ✓ MODEL   ! PARSE   ○ CHECK",
+        StrategyGenerationLaneProgressStateV1.ValidatingArtifact => "✓ PREPARE   ✓ MODEL   ✓ PARSE   ! CHECK",
+        _ => "! GENERATION BLOCKED",
+    };
+
+    private static bool IsTerminal(StrategyGenerationLaneProgressStateV1 state) =>
+        state is StrategyGenerationLaneProgressStateV1.Completed or
+            StrategyGenerationLaneProgressStateV1.Failed or
+            StrategyGenerationLaneProgressStateV1.Canceled;
 }
 
 /// <summary>One explicit gate between a generated authoring artifact and a runnable backtest.</summary>

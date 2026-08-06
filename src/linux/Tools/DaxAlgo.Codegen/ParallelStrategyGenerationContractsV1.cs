@@ -17,15 +17,19 @@ public enum StrategyGenerationLaneV1
 public enum StrategyGenerationLaneProgressStateV1
 {
     Queued = 1,
-    Running = 2,
-    Completed = 3,
-    Failed = 4,
-    Canceled = 5,
+    PreparingRequest = 2,
+    WaitingForModel = 3,
+    ParsingResponse = 4,
+    ValidatingArtifact = 5,
+    Completed = 6,
+    Failed = 7,
+    Canceled = 8,
 }
 
 public sealed record StrategyGenerationLaneProgressV1(
     StrategyGenerationLaneV1 Lane,
-    StrategyGenerationLaneProgressStateV1 State);
+    StrategyGenerationLaneProgressStateV1 State,
+    string? Detail = null);
 
 public enum StrategyGenerationArtifactKindV1
 {
@@ -53,6 +57,45 @@ public enum StrategyGenerationReadinessV1
     Invalid = 6,
 }
 
+/// <summary>The meaning assigned to an artifact by its normative contract.</summary>
+public enum StrategyGenerationSemanticRoleV1
+{
+    SourceReview = 1,
+    CanonicalExecutableIr = 2,
+}
+
+/// <summary>How an artifact can reach the canonical TradeIR target.</summary>
+public enum StrategyGenerationLoweringModeV1
+{
+    /// <summary>A new model-authored artifact with explicit source-hash lineage and human review.</summary>
+    ReviewedAiSynthesis = 1,
+
+    /// <summary>The artifact is already the canonical target representation.</summary>
+    Identity = 2,
+}
+
+/// <summary>Evidence state for compatibility with a separately governed external format or runtime.</summary>
+public enum StrategyGenerationExternalCompatibilityV1
+{
+    NotApplicable = 1,
+    Unverified = 2,
+    Verified = 3,
+}
+
+/// <summary>
+/// Normative meaning and transformation boundary for one authoring contract. This is deliberately
+/// separate from the validator implementation and package hash: structural validation never grants
+/// runtime compatibility by implication.
+/// </summary>
+public sealed record StrategyGenerationContractAuthorityV1(
+    string AuthorityId,
+    string SpecificationReference,
+    StrategyGenerationSemanticRoleV1 SemanticRole,
+    string CanonicalTargetContract,
+    StrategyGenerationLoweringModeV1 LoweringMode,
+    string? ExternalReference,
+    StrategyGenerationExternalCompatibilityV1 ExternalCompatibility);
+
 /// <summary>
 /// Exact host-owned contract against which an artifact was generated. The operator catalog remains
 /// separate because its semantic hash changes independently from the module schema.
@@ -65,7 +108,8 @@ public sealed record StrategyGenerationPackageBindingV1(
     string ArtifactContractVersion,
     string ValidatorId,
     string? ImporterId,
-    StrategyOperatorCatalogReferenceV1? OperatorCatalog);
+    StrategyOperatorCatalogReferenceV1? OperatorCatalog,
+    StrategyGenerationContractAuthorityV1 Authority);
 
 public enum StrategyVariationAxisKindV1
 {
@@ -126,7 +170,7 @@ public sealed record StrategyGenerationCandidateV1(
     string Explanation,
     IReadOnlyList<string> ProposedTests)
 {
-    public const string CurrentSchemaVersion = "strategy-generation-candidate/v1";
+    public const string CurrentSchemaVersion = "strategy-generation-candidate/v2";
 }
 
 public sealed record ParallelStrategyGenerationRequestV1(
@@ -244,7 +288,8 @@ public interface IStrategyGenerationLaneAgentV1
         IStrategyCodegenClient provider,
         ParallelStrategyGenerationRequestV1 request,
         string expectedCandidateId,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        IProgress<StrategyGenerationLaneProgressV1>? progress = null);
 }
 
 public interface IParallelStrategyCandidateGeneratorV1

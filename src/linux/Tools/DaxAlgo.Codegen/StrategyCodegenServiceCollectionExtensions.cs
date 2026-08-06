@@ -47,6 +47,9 @@ public static class StrategyCodegenServiceCollectionExtensions
         services.AddSingleton<ParallelStrategyCandidateGeneratorV1>();
         services.AddSingleton<IParallelStrategyCandidateGeneratorV1>(sp =>
             sp.GetRequiredService<ParallelStrategyCandidateGeneratorV1>());
+        services.AddSingleton<TradeIrCandidateSynthesizerV1>();
+        services.AddSingleton<ITradeIrCandidateSynthesizerV1>(sp =>
+            sp.GetRequiredService<TradeIrCandidateSynthesizerV1>());
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiCodegenOptions>>().Value;

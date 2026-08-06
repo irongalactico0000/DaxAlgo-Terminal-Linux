@@ -40,7 +40,7 @@ public sealed class CandidateAuthoringUxContractTests
     }
 
     [Fact]
-    public void Generation_mode_switch_is_secondary_and_candidate_generation_has_progress_feedback()
+    public void Generation_mode_switch_is_secondary_and_candidate_generation_has_truthful_phase_feedback()
     {
         var root = LoadAuthoringWindow();
 
@@ -52,12 +52,21 @@ public sealed class CandidateAuthoringUxContractTests
 
         var progressRegion = root.Descendants(Avalonia + "Border").Single(element =>
             (string?)element.Attribute("IsVisible") == "{Binding IsGeneratingCandidates}");
-        progressRegion.Descendants(Avalonia + "ProgressBar").Should().ContainSingle()
-            .Which.Attribute("IsIndeterminate")!.Value.Should().Be("True");
+        progressRegion.Descendants(Avalonia + "ProgressBar").Should().BeEmpty(
+            "generation has no provider percentage or ETA, so a progress bar would imply false precision");
         progressRegion.Descendants(Avalonia + "ItemsControl").Should().ContainSingle(element =>
             (string?)element.Attribute("ItemsSource") == "{Binding GenerationLaneProgressRows}");
         progressRegion.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
             (string?)element.Attribute("Text") == "{Binding StateLabel}");
+        progressRegion.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "{Binding PipelineText}");
+        progressRegion.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "{Binding StateDetail}");
+        progressRegion.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "{Binding ElapsedCompact}");
+        progressRegion.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "Nothing is compiled, tested, run, or backtested here.");
     }
 
     [Fact]
@@ -81,7 +90,7 @@ public sealed class CandidateAuthoringUxContractTests
     }
 
     [Fact]
-    public void Chosen_candidate_shows_an_explicit_non_runnable_backtest_gate()
+    public void Package_valid_graph_exposes_an_explicit_synthetic_smoke_action_and_boundary()
     {
         var root = LoadAuthoringWindow();
         var backtestAction = root.Descendants(Avalonia + "Button").Single(element =>
@@ -89,11 +98,15 @@ public sealed class CandidateAuthoringUxContractTests
 
         backtestAction.Attribute("IsEnabled")!.Value
             .Should().Be("{Binding CanPrepareGeneratedCandidateForBacktest}");
+        backtestAction.Attribute("Command")!.Value
+            .Should().Be("{Binding RunTradeIrSimulatedBacktestCommand}");
         root.Descendants(Avalonia + "ItemsControl").Should().ContainSingle(element =>
             (string?)element.Attribute("ItemsSource") == "{Binding BacktestReadinessStages}");
         root.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
             (string?)element.Attribute("Text") ==
-                "Package-valid is not the same as runnable. No backtest is started from this screen yet.");
+                "{Binding TradeIrBacktestBoundaryText}");
+        root.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "{Binding TradeIrBacktestSummary}");
     }
 
     [Fact]
@@ -123,11 +136,36 @@ public sealed class CandidateAuthoringUxContractTests
             (string?)element.Attribute("Text") == "{Binding CandidateBacktestAvailabilityText}");
         outcome.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
             (string?)element.Attribute("Text") ==
-                "Draft flow · Preview → Use selected → edit → Revalidate. Runnable path · switch mode, ask for a C# reimplementation, then Compile & Register.");
+                "Test flow · Preview Graph · Typed → Use selected in editor → Run synthetic smoke test. Other lanes still require a lowerer/runtime.");
 
         var expert = outcome.Descendants(Avalonia + "Button").Single(element =>
-            (string?)element.Attribute("Content") == "Switch to Expert C#");
+            (string?)element.Attribute("Content") == "Expert C# (separate path)");
         expert.Attribute("Command")!.Value.Should().Be("{Binding ToggleGenerationModeCommand}");
+    }
+
+    [Fact]
+    public void TradeIr_synthesis_is_an_explicit_fifth_artifact_with_separate_use_action()
+    {
+        var root = LoadAuthoringWindow();
+        var synthesis = root.Descendants(Avalonia + "Border").Single(element =>
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "AutomationProperties.Name" &&
+                attribute.Value == "TradeIR synthesis bridge"));
+
+        var synthesize = synthesis.Descendants(Avalonia + "Button").Single(element =>
+            (string?)element.Attribute("Content") == "Synthesize valid drafts → TradeIR");
+        synthesize.Attribute("Command")!.Value.Should().Be("{Binding SynthesizeTradeIrCommand}");
+        synthesize.Attribute("IsEnabled")!.Value.Should().Be("{Binding CanSynthesizeTradeIr}");
+
+        var use = synthesis.Descendants(Avalonia + "Button").Single(element =>
+            (string?)element.Attribute("Content") == "{Binding CombinedTradeIrActionText}");
+        use.Attribute("Command")!.Value.Should().Be("{Binding UseCombinedTradeIrCommand}");
+        use.Attribute("IsEnabled")!.Value.Should().Be("{Binding CanUseCombinedTradeIr}");
+
+        synthesis.Descendants(Avalonia + "Run").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "{Binding CombinedTradeIrTargetHash}");
+        synthesis.Descendants(Avalonia + "Run").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "{Binding CombinedTradeIrReceiptHash}");
     }
 
     [Fact]

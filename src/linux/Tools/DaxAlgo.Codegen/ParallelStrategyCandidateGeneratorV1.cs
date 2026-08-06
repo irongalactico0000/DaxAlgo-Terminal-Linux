@@ -16,7 +16,8 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
         IStrategyCodegenClient provider,
         ParallelStrategyGenerationRequestV1 request,
         string expectedCandidateId,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        IProgress<StrategyGenerationLaneProgressV1>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentNullException.ThrowIfNull(request);
@@ -30,6 +31,10 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
         {
             OutputContract = StrategyCodegenOutputContract.RawJsonObject,
         };
+
+        progress?.Report(new StrategyGenerationLaneProgressV1(
+            Lane,
+            StrategyGenerationLaneProgressStateV1.WaitingForModel));
 
         StrategyCodegenResponse response;
         try
@@ -62,6 +67,10 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
                 usage);
         }
 
+        progress?.Report(new StrategyGenerationLaneProgressV1(
+            Lane,
+            StrategyGenerationLaneProgressStateV1.ParsingResponse));
+
         if (!StrategyModelJsonV1.TryDeserialize<StrategyGenerationCandidateV1>(
                 raw,
                 StrategyCandidateGenerationOrchestratorV1.MaxModelResponseCharacters,
@@ -78,6 +87,10 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
                 "The model returned a null candidate.",
                 raw,
                 usage);
+
+        progress?.Report(new StrategyGenerationLaneProgressV1(
+            Lane,
+            StrategyGenerationLaneProgressStateV1.ValidatingArtifact));
 
         var expectedRequestHash = StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
             request.StrategyId,
@@ -279,17 +292,26 @@ public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCand
     {
         progress?.Report(new StrategyGenerationLaneProgressV1(
             agent.Lane,
-            StrategyGenerationLaneProgressStateV1.Running));
+            StrategyGenerationLaneProgressStateV1.PreparingRequest));
         try
         {
-            var result = await InvokeLaneAsync(provider, request, agent, ct).ConfigureAwait(false);
+            var result = await InvokeLaneAsync(provider, request, agent, ct, progress).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
             var state = result.Readiness is StrategyGenerationReadinessV1.Failed
                 or StrategyGenerationReadinessV1.Unsupported
                 or StrategyGenerationReadinessV1.Invalid
                     ? StrategyGenerationLaneProgressStateV1.Failed
                     : StrategyGenerationLaneProgressStateV1.Completed;
-            progress?.Report(new StrategyGenerationLaneProgressV1(agent.Lane, state));
+            var detail = state == StrategyGenerationLaneProgressStateV1.Completed
+                ? result.Readiness == StrategyGenerationReadinessV1.PackageValid
+                    ? "Installed package validation passed; nothing was tested or run."
+                    : "Authoring contract check passed; no package validator is registered."
+                : result.Issues.FirstOrDefault(static issue =>
+                        issue.Severity == StrategyCandidateGenerationIssueSeverityV1.Error)?.Code
+                    ?? result.Issues.FirstOrDefault()?.Code
+                    ?? result.AgentRun?.Error
+                    ?? "This lane was blocked.";
+            progress?.Report(new StrategyGenerationLaneProgressV1(agent.Lane, state, detail));
             return result;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -305,12 +327,13 @@ public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCand
         IStrategyCodegenClient provider,
         ParallelStrategyGenerationRequestV1 request,
         IStrategyGenerationLaneAgentV1 agent,
-        CancellationToken ct)
+        CancellationToken ct,
+        IProgress<StrategyGenerationLaneProgressV1>? progress)
     {
         var candidateId = $"{request.StrategyId.Trim()}/{StrategyGenerationLaneCatalogV1.WireName(agent.Lane)}";
         try
         {
-            var result = await agent.GenerateAsync(provider, request, candidateId, ct).ConfigureAwait(false);
+            var result = await agent.GenerateAsync(provider, request, candidateId, ct, progress).ConfigureAwait(false);
             if (result is null)
                 return AgentFailure(provider, agent.Lane, "LANE_AGENT_NULL_RESULT",
                     $"The {StrategyGenerationLaneCatalogV1.DisplayName(agent.Lane)} lane returned no result.");

@@ -49,6 +49,19 @@ exercises the strategy factory, writes `DaxAlgoTerminal/diagnostics/smoke-strate
 platform local application-data directory, and exits with the smoke result. Run it with the real
 release plugins; an unextended app is expected to contain no strategy implementations.
 
+## Vibe Quant strategy builder
+
+Vibe Quant generates four independently reviewable strategy representations, can synthesize them
+into a hash-bound canonical TradeIR artifact, and can run a package-valid Typed Graph through the
+bounded in-process synthetic QuoteL1 smoke path. The smoke path is explicitly non-historical and
+non-worker-isolated. See the [four-lane workflow](docs/vibe-quant-four-lane-workflow.md) and
+[normative lane contracts](docs/vibe-quant-lane-contracts.md).
+
+For the shortest supported trial, open **New strategy**, search for `smoke`, choose
+**QuoteL1 EMA crossover · smoke compatible**, generate the four lanes, then choose
+**Graph · Typed → Use selected in editor → Run synthetic smoke test**. This exercises deterministic
+synthetic QuoteL1 events for the exact selected hash; it is not a historical Backtest Studio run.
+
 ## Remaining release boundary
 
 Windows-hosted builds and tests verify source and packaging invariants, not macOS delivery. Before

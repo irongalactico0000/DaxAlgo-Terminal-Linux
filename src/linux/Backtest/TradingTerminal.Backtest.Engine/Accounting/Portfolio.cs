@@ -29,6 +29,7 @@ internal sealed class Portfolio
 
     public double Cash { get; private set; }
     public double TotalFees { get; private set; }
+    public double TotalRealizedPnl => _books.Values.Sum(static book => book.RealizedPnl);
     public IReadOnlyList<RoundTripTrade> Trades => _trades;
 
     private double Multiplier(InstrumentId id) => _multipliers.TryGetValue(id, out var m) ? m : 1.0;
