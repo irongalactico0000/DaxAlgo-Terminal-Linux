@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Definition;
@@ -23,11 +24,14 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(expectedCandidateId);
 
+        var systemContext = ParallelStrategyGenerationPromptV1.SystemContext(Lane);
+        var originalUserMessage = ParallelStrategyGenerationPromptV1.UserMessage(
+            Lane,
+            request,
+            expectedCandidateId);
         var codegenRequest = new StrategyCodegenRequest(
-            ParallelStrategyGenerationPromptV1.SystemContext(Lane),
-            [new CodegenMessage(
-                CodegenRole.User,
-                ParallelStrategyGenerationPromptV1.UserMessage(Lane, request, expectedCandidateId))])
+            systemContext,
+            [new CodegenMessage(CodegenRole.User, originalUserMessage)])
         {
             OutputContract = StrategyCodegenOutputContract.RawJsonObject,
         };
@@ -67,18 +71,100 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
                 usage);
         }
 
+        var firstResult = ParseAndValidate(
+            provider,
+            request,
+            expectedCandidateId,
+            raw,
+            usage,
+            progress,
+            "LANE_JSON_INVALID");
+        if (firstResult.Readiness != StrategyGenerationReadinessV1.Invalid)
+            return firstResult;
+
+        progress?.Report(new StrategyGenerationLaneProgressV1(
+            Lane,
+            StrategyGenerationLaneProgressStateV1.RepairingResponse,
+            "The first output was invalid; requesting one contract-aware repair."));
+
+        StrategyCodegenResponse repairResponse;
+        try
+        {
+            repairResponse = await provider.GenerateAsync(
+                new StrategyCodegenRequest(
+                    systemContext,
+                    [
+                        new CodegenMessage(CodegenRole.User, originalUserMessage),
+                        new CodegenMessage(CodegenRole.Assistant, raw ?? string.Empty),
+                        new CodegenMessage(
+                            CodegenRole.User,
+                            ParallelStrategyGenerationPromptV1.RepairMessage(
+                                Lane,
+                                expectedCandidateId,
+                                StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
+                                    request.StrategyId,
+                                    request.UserPrompt,
+                                    Lane),
+                                firstResult.Issues)),
+                    ])
+                {
+                    OutputContract = StrategyCodegenOutputContract.RawJsonObject,
+                },
+                ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            return Invalid(
+                provider,
+                "LANE_REPAIR_PROVIDER_EXCEPTION",
+                $"The first output was invalid and the one repair request failed: {exception.Message}",
+                raw,
+                usage);
+        }
+
+        var repairUsage = repairResponse.Usage ?? CodegenUsage.None;
+        var totalUsage = usage.Add(repairUsage);
+        var repairRaw = repairResponse.RawText ?? repairResponse.Code;
+        if (!repairResponse.Success)
+        {
+            return Invalid(
+                provider,
+                "LANE_REPAIR_PROVIDER_FAILED",
+                $"The first output was invalid and the one repair request failed: " +
+                (repairResponse.Error ?? "The provider returned no repair result."),
+                repairRaw ?? raw,
+                totalUsage);
+        }
+
+        return ParseAndValidate(
+            provider,
+            request,
+            expectedCandidateId,
+            repairRaw,
+            totalUsage,
+            progress,
+            "LANE_JSON_INVALID_AFTER_REPAIR");
+    }
+
+    private StrategyGenerationLaneResultV1 ParseAndValidate(
+        IStrategyCodegenClient provider,
+        ParallelStrategyGenerationRequestV1 request,
+        string expectedCandidateId,
+        string? raw,
+        CodegenUsage usage,
+        IProgress<StrategyGenerationLaneProgressV1>? progress,
+        string parseIssueCode)
+    {
         progress?.Report(new StrategyGenerationLaneProgressV1(
             Lane,
             StrategyGenerationLaneProgressStateV1.ParsingResponse));
 
-        if (!StrategyModelJsonV1.TryDeserialize<StrategyGenerationCandidateV1>(
-                raw,
-                StrategyCandidateGenerationOrchestratorV1.MaxModelResponseCharacters,
-                out var candidate,
-                out var parseError))
-        {
-            return Invalid(provider, "LANE_JSON_INVALID", parseError, raw, usage);
-        }
+        if (!TryDeserializeCandidate(raw, out var candidate, out var parseError))
+            return Invalid(provider, parseIssueCode, parseError, raw, usage);
 
         if (candidate is null)
             return Invalid(
@@ -92,10 +178,6 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
             Lane,
             StrategyGenerationLaneProgressStateV1.ValidatingArtifact));
 
-        var expectedRequestHash = StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
-            request.StrategyId,
-            request.UserPrompt,
-            Lane);
         IReadOnlyList<StrategyCandidateGenerationIssueV1> issues;
         try
         {
@@ -103,9 +185,12 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
                 candidate,
                 Lane,
                 expectedCandidateId,
-                expectedRequestHash);
+                StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
+                    request.StrategyId,
+                    request.UserPrompt,
+                    Lane));
         }
-        catch (Exception exception) when (exception is System.Text.Json.JsonException or ArgumentException or
+        catch (Exception exception) when (exception is JsonException or ArgumentException or
             FormatException or InvalidOperationException or NotSupportedException or OverflowException)
         {
             return Invalid(
@@ -146,6 +231,111 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
             candidateHash,
             issues,
             run);
+    }
+
+    private static bool TryDeserializeCandidate(
+        string? raw,
+        out StrategyGenerationCandidateV1? candidate,
+        out string error)
+    {
+        if (StrategyModelJsonV1.TryDeserialize(
+                raw,
+                StrategyCandidateGenerationOrchestratorV1.MaxModelResponseCharacters,
+                out candidate,
+                out error))
+            return true;
+
+        if (string.IsNullOrWhiteSpace(raw) ||
+            raw.Length > StrategyCandidateGenerationOrchestratorV1.MaxModelResponseCharacters ||
+            !TryExtractSingleJsonObject(raw, out var extracted))
+            return false;
+
+        return StrategyModelJsonV1.TryDeserialize(
+            extracted,
+            StrategyCandidateGenerationOrchestratorV1.MaxModelResponseCharacters,
+            out candidate,
+            out error);
+    }
+
+    /// <summary>
+    /// Recovers one syntactically complete JSON object from harmless model prose or markdown. It
+    /// deliberately rejects a second parseable object so recovery cannot silently choose between
+    /// competing candidates. Contract deserialization, host bindings, validation, and hashing still
+    /// run after extraction.
+    /// </summary>
+    private static bool TryExtractSingleJsonObject(string raw, out string json)
+    {
+        json = string.Empty;
+        string? recovered = null;
+        var start = -1;
+        var depth = 0;
+        var inString = false;
+        var escaped = false;
+
+        for (var index = 0; index < raw.Length; index++)
+        {
+            var character = raw[index];
+            if (depth == 0)
+            {
+                if (character != '{')
+                    continue;
+
+                start = index;
+                depth = 1;
+                inString = false;
+                escaped = false;
+                continue;
+            }
+
+            if (inString)
+            {
+                if (escaped)
+                    escaped = false;
+                else if (character == '\\')
+                    escaped = true;
+                else if (character == '"')
+                    inString = false;
+                continue;
+            }
+
+            if (character == '"')
+            {
+                inString = true;
+                continue;
+            }
+            if (character == '{')
+            {
+                depth++;
+                continue;
+            }
+            if (character != '}')
+                continue;
+
+            depth--;
+            if (depth != 0)
+                continue;
+
+            var candidate = raw[start..(index + 1)];
+            try
+            {
+                using var document = JsonDocument.Parse(candidate);
+                if (document.RootElement.ValueKind != JsonValueKind.Object)
+                    continue;
+                if (recovered is not null)
+                    return false;
+                recovered = candidate;
+            }
+            catch (JsonException)
+            {
+                // This balanced brace span was prose, not JSON. Continue looking conservatively.
+            }
+        }
+
+        if (recovered is null)
+            return false;
+
+        json = recovered;
+        return true;
     }
 
     private StrategyGenerationLaneResultV1 Invalid(
@@ -311,7 +501,14 @@ public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCand
                     ?? result.Issues.FirstOrDefault()?.Code
                     ?? result.AgentRun?.Error
                     ?? "This lane was blocked.";
-            progress?.Report(new StrategyGenerationLaneProgressV1(agent.Lane, state, detail));
+            // This result has passed the coordinator's lane identity/coherence checks. Publishing it
+            // with terminal progress lets the UI inspect one finished artifact while sibling model
+            // calls continue, without constructing or persisting an invalid partial batch.
+            progress?.Report(new StrategyGenerationLaneProgressV1(
+                agent.Lane,
+                state,
+                detail,
+                result));
             return result;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)

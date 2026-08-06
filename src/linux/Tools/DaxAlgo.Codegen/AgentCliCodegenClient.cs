@@ -14,11 +14,13 @@ public sealed record AgentCliAdapter(
     IReadOnlyList<string> Arguments,
     string? ModelFlag = null,
     string? EffortFlag = null,
-    string? ProfileFlag = null)
+    string? ProfileFlag = null,
+    string? JsonSchemaFlag = null)
 {
     /// <summary>The stdin marker some CLIs take as a positional argument ("read the prompt from stdin").
     /// Flags must precede it, so <see cref="ArgumentsFor"/> inserts the model there.</summary>
     private const string StdinMarker = "-";
+    private const string JsonObjectSchema = "{\"type\":\"object\"}";
 
     /// <summary>Claude Code in print mode: <c>claude -p</c> reads the prompt from stdin and prints the
     /// reply to stdout. The user's subscription/key lives in Claude Code itself — never seen here.
@@ -26,7 +28,7 @@ public sealed record AgentCliAdapter(
     /// effort for the run.</summary>
     public static AgentCliAdapter ClaudeCode { get; } =
         new("claude-cli", "Claude Code (installed CLI)", "claude", ["-p"],
-            ModelFlag: "--model", EffortFlag: "--effort")
+            ModelFlag: "--model", EffortFlag: "--effort", JsonSchemaFlag: "--json-schema")
         {
             // --include-partial-messages is what turns the JSONL into token-by-token deltas rather than
             // one lump at the end; --verbose is required by the CLI alongside stream-json.
@@ -53,7 +55,8 @@ public sealed record AgentCliAdapter(
     /// any) so they parse as options and not as the prompt. Unset ⇒ the CLI uses its own defaults.</summary>
     public IReadOnlyList<string> ArgumentsFor(
         string? model, CodegenEffort effort = CodegenEffort.Default, bool stream = false,
-        string? cliProfile = null)
+        string? cliProfile = null,
+        StrategyCodegenOutputContract outputContract = StrategyCodegenOutputContract.CSharpPluginFiles)
     {
         var flags = new List<string>();
         if (!string.IsNullOrWhiteSpace(cliProfile) && ProfileFlag is not null)
@@ -73,6 +76,11 @@ public sealed record AgentCliAdapter(
         }
         if (stream && StreamFlags is { Count: > 0 } streaming)
             flags.AddRange(streaming);
+        if (outputContract == StrategyCodegenOutputContract.RawJsonObject && JsonSchemaFlag is not null)
+        {
+            flags.Add(JsonSchemaFlag);
+            flags.Add(JsonObjectSchema);
+        }
 
         if (flags.Count == 0) return Arguments;
 
@@ -139,7 +147,7 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             yield break;
         }
 
-        var psi = ProcessFor(exe, stream: true);
+        var psi = ProcessFor(exe, stream: true, request.OutputContract);
         using var process = new Process { StartInfo = psi };
 
         if (!process.Start())
@@ -247,7 +255,10 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             : StrategyCodegenResponse.Ok(files, text, usage);
     }
 
-    internal ProcessStartInfo ProcessFor(string exe, bool stream)
+    internal ProcessStartInfo ProcessFor(
+        string exe,
+        bool stream,
+        StrategyCodegenOutputContract outputContract = StrategyCodegenOutputContract.CSharpPluginFiles)
     {
         var psi = new ProcessStartInfo(exe)
         {
@@ -260,7 +271,8 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        foreach (var arg in _adapter.ArgumentsFor(_model, _effort, stream, _cliProfile)) psi.ArgumentList.Add(arg);
+        foreach (var arg in _adapter.ArgumentsFor(_model, _effort, stream, _cliProfile, outputContract))
+            psi.ArgumentList.Add(arg);
         return psi;
     }
 
@@ -272,7 +284,10 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
 
         var prompt = FlattenPrompt(request);
 
-        using var process = new Process { StartInfo = ProcessFor(exe, stream: false) };
+        using var process = new Process
+        {
+            StartInfo = ProcessFor(exe, stream: false, request.OutputContract),
+        };
         try
         {
             if (!process.Start())

@@ -135,6 +135,87 @@ public sealed class CandidateRestoreRecoveryTests
     }
 
     [Fact]
+    public async Task Live_lane_results_are_previewable_but_only_the_full_batch_is_committed()
+    {
+        const string prompt = "Compare two causal moving averages.";
+        var sessions = new MemoryAuthoringSessionRepository();
+        var generator = new ProgressiveParallelGenerator();
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            ai: new StubAiStrategyBuilder(new StubCodegenClient()),
+            parallelCandidateGenerator: generator,
+            sessionRepository: sessions);
+        viewModel.Composer = prompt;
+
+        var send = viewModel.SendCommand.ExecuteAsync(null);
+        await generator.Started.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var specRow = viewModel.GenerationLaneProgressRows.Single(row =>
+            row.Lane == StrategyGenerationLaneV1.DeclarativeSpec);
+        generator.Publish(StrategyGenerationLaneV1.DeclarativeSpec);
+        await WaitUntilAsync(() => specRow.HasResult);
+
+        send.IsCompleted.Should().BeFalse("three lane results are still outstanding");
+        specRow.ResultOption!.Result.Should().BeSameAs(
+            generator.Batch!.Lanes.Single(lane => lane.Lane == specRow.Lane));
+        specRow.InspectablePreview.Should().Be(specRow.ResultOption.ArtifactPreview);
+        specRow.InspectablePreview.Should().Contain("vibe-quant/declarative-rules/v1");
+        viewModel.GeneratedCandidateOptions.Should().BeEmpty(
+            "a transient lane preview is not a committed candidate batch");
+        viewModel.SelectedGeneratedCandidateOption.Should().BeNull();
+        viewModel.ChosenGeneratedCandidateHash.Should().BeNull();
+        viewModel.CanChooseGeneratedCandidate.Should().BeFalse();
+        var inFlight = sessions.List().Single();
+        inFlight.ParallelCandidateBatchJson.Should().BeNull();
+        inFlight.SelectedParallelCandidateHash.Should().BeNull();
+
+        var graphRow = viewModel.GenerationLaneProgressRows.Single(row =>
+            row.Lane == StrategyGenerationLaneV1.TypedGraph);
+        generator.Publish(StrategyGenerationLaneV1.TypedGraph);
+        await WaitUntilAsync(() => graphRow.HasResult);
+
+        graphRow.ResultOption!.IsFailed.Should().BeTrue();
+        graphRow.ResultOption.FirstIssueCode.Should().Be("PROVIDER_FAILED");
+        graphRow.ResultOption.FirstIssuePath.Should().Be("agentRun");
+        graphRow.ResultOption.FirstIssueMessage.Should().Be("Fixture provider failure.");
+        graphRow.InspectablePreview.Should().Be(
+            "PROVIDER_FAILED · agentRun: Fixture provider failure.");
+        viewModel.GeneratedCandidateOptions.Should().BeEmpty(
+            "even multiple terminal lanes cannot form a partial committed batch");
+
+        generator.Publish(StrategyGenerationLaneV1.VibePython);
+        generator.Publish(StrategyGenerationLaneV1.CspPython);
+        await WaitUntilAsync(() => viewModel.GenerationLaneProgressRows.All(row => row.HasResult));
+        viewModel.GeneratedCandidateOptions.Should().BeEmpty(
+            "terminal callbacks remain staging-only until GenerateAsync returns the validated aggregate");
+        generator.Complete();
+        await send.WaitAsync(TimeSpan.FromSeconds(5));
+
+        viewModel.GeneratedCandidateOptions.Should().HaveCount(4);
+        viewModel.GeneratedCandidateOptions.Select(option => option.Result.Lane)
+            .Should().Equal(StrategyGenerationLaneCatalogV1.Ordered);
+        viewModel.ChosenGeneratedCandidateHash.Should().BeNull(
+            "previewing a result never chooses it");
+        viewModel.CanChooseGeneratedCandidate.Should().BeTrue();
+
+        var committed = sessions.List().Single();
+        committed.ParallelCandidateBatchJson.Should().NotBeNullOrWhiteSpace();
+        committed.SelectedParallelCandidateHash.Should().BeNull();
+        var restoredBatch = StrategyGenerationCandidateCanonicalJsonV1.DeserializeBatch(
+            committed.ParallelCandidateBatchJson!);
+        StrategyGenerationBatchValidationV1.Validate(restoredBatch).Should().BeEmpty();
+        restoredBatch.Lanes.Select(lane => lane.Lane)
+            .Should().Equal(StrategyGenerationLaneCatalogV1.Ordered);
+        foreach (var lane in restoredBatch.Lanes.Where(static lane => lane.Candidate is not null))
+        {
+            lane.CandidateHashSha256.Should().Be(
+                StrategyGenerationCandidateCanonicalJsonV1.Hash(lane.Candidate!));
+        }
+    }
+
+    [Fact]
     public async Task Replacement_generation_keeps_last_completed_batch_through_stop_and_restart()
     {
         const string strategyId = "saved-strategy";
@@ -290,11 +371,49 @@ public sealed class CandidateRestoreRecoveryTests
             sessionRepository: new MemoryAuthoringSessionRepository(saved));
 
         viewModel.Composer.Should().BeEmpty();
+        var restoredFile = viewModel.Files.Single();
+        var restoredContent = restoredFile.Content;
         viewModel.ToggleGenerationModeCommand.Execute(null);
 
         viewModel.GenerateCandidateFirst.Should().BeTrue();
+        viewModel.WorkbenchTab.Should().Be(3,
+            "returning to the four-lane workflow must reveal Candidate rather than leave Code selected");
+        viewModel.Files.Should().ContainSingle().Which.Should().BeSameAs(restoredFile);
+        viewModel.Files.Single().Content.Should().Be(restoredContent,
+            "mode navigation must not rewrite or discard the editor artifact");
         viewModel.Composer.Should().Be(pending);
         viewModel.HasPendingFourLanePrompt.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Expert_compile_eligibility_tracks_file_extensions_and_non_C_sharp_never_reaches_compiler()
+    {
+        var compiler = new RecordingCompiler();
+        using var viewModel = new StrategyAuthoringViewModel(
+            compiler,
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            sessionRepository: new MemoryAuthoringSessionRepository());
+
+        viewModel.ToggleGenerationModeCommand.Execute(null);
+        viewModel.GenerateCandidateFirst.Should().BeFalse();
+        viewModel.WorkbenchTab.Should().Be(0);
+        viewModel.HasExpertCSharpFiles.Should().BeTrue();
+        viewModel.HasNonCSharpExpertArtifact.Should().BeFalse();
+
+        viewModel.SelectedFile!.Name = "strategy.py";
+
+        viewModel.HasExpertCSharpFiles.Should().BeFalse();
+        viewModel.HasNonCSharpExpertArtifact.Should().BeTrue();
+        viewModel.AuthoringBoundaryText.Should().Be("source review only · no importer/runtime");
+        viewModel.CompileCommand.Execute(null);
+        compiler.CallCount.Should().Be(0);
+        viewModel.Status.Should().Contain("C# expert-code path");
+
+        var sameFile = viewModel.SelectedFile;
+        viewModel.ToggleGenerationModeCommand.Execute(null);
+        viewModel.WorkbenchTab.Should().Be(3);
+        viewModel.SelectedFile.Should().BeSameAs(sameFile);
     }
 
     [Fact]
@@ -416,6 +535,67 @@ public sealed class CandidateRestoreRecoveryTests
             "a malformed editor copy invalidates only its proof, not a separately valid batch");
         viewModel.ChosenGeneratedCandidateHash.Should().BeNull();
         viewModel.Status.Should().Contain("proof did not match");
+    }
+
+    [Fact]
+    public async Task Restored_batch_is_labeled_until_explicit_fresh_generation_replaces_it()
+    {
+        const string strategyId = "restored-strategy";
+        const string prompt = "Compare two causal moving averages.";
+        var batch = ValidBatchWithDeclarativeCandidate(strategyId, prompt);
+        var saved = new AuthoringSessionSnapshot(
+            StrategyId: strategyId,
+            DisplayName: "Restored strategy",
+            Chat: [new AuthoringChatEntry(AuthoringChatEntry.User, prompt, DateTime.Now)],
+            Thread: [],
+            Files: [],
+            GenerateCandidateFirst: true,
+            ParallelCandidateBatchJson: StrategyGenerationCandidateCanonicalJsonV1.SerializeBatch(batch),
+            FourLaneStrategyBrief: prompt,
+            AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion,
+            UpdatedUtc: DateTime.UtcNow);
+        var generator = new RecordingParallelGenerator();
+
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            ai: new StubAiStrategyBuilder(new StubCodegenClient()),
+            parallelCandidateGenerator: generator,
+            sessionRepository: new MemoryAuthoringSessionRepository(saved));
+
+        viewModel.CandidateBatchRestored.Should().BeTrue();
+        viewModel.RegenerateFourCandidatesCommand.CanExecute(null).Should().BeTrue();
+
+        await viewModel.RegenerateFourCandidatesCommand.ExecuteAsync(null);
+
+        generator.CallCount.Should().Be(1);
+        viewModel.CandidateBatchRestored.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Live_lane_progress_surfaces_the_bounded_repair_cycle()
+    {
+        var lane = StrategyGenerationLaneV1.VibePython;
+        var row = new StrategyGenerationLaneProgressRow(lane);
+        row.Apply(new StrategyGenerationLaneProgressV1(
+            lane,
+            StrategyGenerationLaneProgressStateV1.ValidatingArtifact));
+        row.Apply(new StrategyGenerationLaneProgressV1(
+            lane,
+            StrategyGenerationLaneProgressStateV1.RepairingResponse,
+            "The first output was invalid; requesting one contract-aware repair."));
+
+        row.StateLabel.Should().Be("REPAIRING RESPONSE");
+        row.StateDetail.Should().Contain("one contract-aware repair");
+        row.PipelineText.Should().Contain("REPAIR");
+
+        row.Apply(new StrategyGenerationLaneProgressV1(
+            lane,
+            StrategyGenerationLaneProgressStateV1.ParsingResponse));
+
+        row.State.Should().Be(StrategyGenerationLaneProgressStateV1.ParsingResponse);
+        row.StateLabel.Should().Be("PARSING RESPONSE");
     }
 
     private static readonly XNamespace Avalonia = "https://github.com/avaloniaui";
@@ -806,6 +986,13 @@ public sealed class CandidateRestoreRecoveryTests
             null,
             CodegenUsage.None);
 
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (!condition())
+            await Task.Delay(TimeSpan.FromMilliseconds(10), timeout.Token);
+    }
+
     [Fact]
     public void Empty_candidate_tab_explains_stale_restore_without_presenting_old_proofs()
     {
@@ -827,6 +1014,28 @@ public sealed class CandidateRestoreRecoveryTests
                 "Regenerate four candidates from recovered brief");
         regenerate.Attribute("Content")!.Value.Should().Be("Regenerate 4 candidates");
         regenerate.Attribute("Command")!.Value.Should().Be("{Binding RegenerateRecoveredCandidatesCommand}");
+    }
+
+    [Fact]
+    public void Candidate_results_distinguish_restored_snapshots_and_offer_failure_regeneration()
+    {
+        var root = XDocument.Load(Fixture("StrategyAuthoringWindow.axaml")).Root
+            ?? throw new InvalidOperationException("The strategy authoring fixture has no root element.");
+        var restored = root.Descendants(Avalonia + "Border").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") == "Restored candidate snapshot notice");
+        restored.Attribute("IsVisible")!.Value.Should().Be("{Binding CandidateBatchRestored}");
+        restored.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "RESTORED RESULT · NOT A NEW AI RUN");
+        restored.Descendants(Avalonia + "Button").Should().ContainSingle(element =>
+            (string?)element.Attribute("Command") == "{Binding RegenerateFourCandidatesCommand}");
+
+        var repair = root.Descendants(Avalonia + "Button").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") ==
+                "Regenerate after selected candidate failure");
+        repair.Attribute("Content")!.Value.Should().Be("Generate fresh 4 candidates");
+        repair.Attribute("Command")!.Value.Should().Be("{Binding RegenerateFourCandidatesCommand}");
+        repair.Parent!.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "{Binding SelectedGeneratedCandidateOption.RecoveryText}");
     }
 
     private static string Fixture(string name) =>
@@ -856,6 +1065,17 @@ public sealed class CandidateRestoreRecoveryTests
         public StrategyCompileResult Compile(StrategyScript script) => StrategyCompileResult.Failed([]);
     }
 
+    private sealed class RecordingCompiler : IStrategyCompiler
+    {
+        public int CallCount { get; private set; }
+
+        public StrategyCompileResult Compile(StrategyScript script)
+        {
+            CallCount++;
+            return StrategyCompileResult.Failed([]);
+        }
+    }
+
     private sealed class RecordingParallelGenerator : IParallelStrategyCandidateGeneratorV1
     {
         public int CallCount { get; private set; }
@@ -871,6 +1091,48 @@ public sealed class CandidateRestoreRecoveryTests
             LastRequest = request;
             return Task.FromResult(ValidBatchWithDeclarativeCandidate(request.StrategyId, request.UserPrompt));
         }
+    }
+
+    private sealed class ProgressiveParallelGenerator : IParallelStrategyCandidateGeneratorV1
+    {
+        private readonly TaskCompletionSource _started =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<ParallelStrategyGenerationResultV1> _completion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private IProgress<StrategyGenerationLaneProgressV1>? _progress;
+
+        public Task Started => _started.Task;
+        public ParallelStrategyGenerationResultV1? Batch { get; private set; }
+
+        public async Task<ParallelStrategyGenerationResultV1> GenerateAsync(
+            IStrategyCodegenClient provider,
+            ParallelStrategyGenerationRequestV1 request,
+            CancellationToken ct = default,
+            IProgress<StrategyGenerationLaneProgressV1>? progress = null)
+        {
+            Batch = ValidBatchWithDeclarativeCandidate(request.StrategyId, request.UserPrompt);
+            _progress = progress;
+            _started.TrySetResult();
+            return await _completion.Task.WaitAsync(ct);
+        }
+
+        public void Publish(StrategyGenerationLaneV1 lane)
+        {
+            var result = Batch?.Lanes.Single(candidate => candidate.Lane == lane)
+                ?? throw new InvalidOperationException("Generation has not started.");
+            var state = result.Readiness is StrategyGenerationReadinessV1.Generated or
+                StrategyGenerationReadinessV1.PackageValid or StrategyGenerationReadinessV1.TestPassed
+                    ? StrategyGenerationLaneProgressStateV1.Completed
+                    : StrategyGenerationLaneProgressStateV1.Failed;
+            _progress?.Report(new StrategyGenerationLaneProgressV1(
+                lane,
+                state,
+                "Terminal fixture result.",
+                result));
+        }
+
+        public void Complete() => _completion.TrySetResult(
+            Batch ?? throw new InvalidOperationException("Generation has not started."));
     }
 
     private sealed class CancelableParallelGenerator : IParallelStrategyCandidateGeneratorV1

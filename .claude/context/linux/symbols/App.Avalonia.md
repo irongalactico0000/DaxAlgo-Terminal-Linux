@@ -1,6 +1,6 @@
 # TradingTerminal.App.Avalonia — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `cb463a404ff1`. Declaration lines only;
+Generated from source fingerprint `3b8482429c18`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Shell/TradingTerminal.App.Avalonia/App.axaml.cs

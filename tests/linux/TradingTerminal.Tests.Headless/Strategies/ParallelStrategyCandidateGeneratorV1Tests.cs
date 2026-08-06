@@ -50,6 +50,42 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
     }
 
     [Fact]
+    public async Task Terminal_lane_result_is_reported_before_the_other_lanes_complete()
+    {
+        var agents = StrategyGenerationLaneCatalogV1.Ordered.Select(lane => new GatedLaneAgent(lane)).ToArray();
+        var sut = new ParallelStrategyCandidateGeneratorV1(agents);
+        var progress = new SynchronousProgressRecorder();
+
+        var generation = sut.GenerateAsync(new UnusedProvider(), Request, progress: progress);
+        await Task.WhenAll(agents.Select(agent => agent.Started)).WaitAsync(TimeSpan.FromSeconds(5));
+
+        var graphAgent = agents.Single(agent => agent.Lane == StrategyGenerationLaneV1.TypedGraph);
+        graphAgent.Release();
+        var terminal = await progress.TerminalResultForAsync(graphAgent.Lane)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        generation.IsCompleted.Should().BeFalse("the three slower lanes are still gated");
+        terminal.State.Should().Be(StrategyGenerationLaneProgressStateV1.Completed);
+        terminal.Result.Should().NotBeNull();
+        terminal.Result!.Lane.Should().Be(graphAgent.Lane);
+        terminal.Result.Readiness.Should().Be(StrategyGenerationReadinessV1.PackageValid);
+        terminal.Result.Candidate.Should().NotBeNull();
+        terminal.Result.CandidateHashSha256.Should().Be(
+            StrategyGenerationCandidateCanonicalJsonV1.Hash(terminal.Result.Candidate!));
+        progress.ResultEvents.Should().ContainSingle();
+
+        foreach (var agent in agents.Where(agent => agent.Lane != graphAgent.Lane).Reverse())
+            agent.Release();
+        var batch = await generation;
+
+        batch.Lanes.Select(lane => lane.Lane).Should().Equal(StrategyGenerationLaneCatalogV1.Ordered);
+        batch.Lanes.Single(lane => lane.Lane == graphAgent.Lane).Should().BeSameAs(terminal.Result);
+        progress.ResultEvents.Should().HaveCount(4)
+            .And.OnlyHaveUniqueItems(item => item.Lane);
+        StrategyGenerationBatchValidationV1.Validate(batch).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Returns_Vibe_Spec_Graph_Csp_order_regardless_of_completion_order()
     {
         var agents = StrategyGenerationLaneCatalogV1.Ordered.Select(lane => new GatedLaneAgent(lane)).ToArray();
@@ -133,6 +169,8 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
                 StrategyGenerationLaneProgressStateV1.PreparingRequest,
                 StrategyGenerationLaneProgressStateV1.Canceled);
         }
+        progress.ResultEvents.Should().BeEmpty(
+            "results returned after cancellation must not escape as completed lane artifacts");
     }
 
     [Fact]
@@ -286,6 +324,15 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
 
         result.Lanes.Single(lane => lane.Lane == StrategyGenerationLaneV1.DeclarativeSpec)
             .Readiness.Should().Be(StrategyGenerationReadinessV1.Failed);
+        var failedProgress = await progress.TerminalResultForAsync(StrategyGenerationLaneV1.DeclarativeSpec);
+        failedProgress.State.Should().Be(StrategyGenerationLaneProgressStateV1.Failed);
+        failedProgress.Result.Should().BeSameAs(
+            result.Lanes.Single(lane => lane.Lane == StrategyGenerationLaneV1.DeclarativeSpec));
+        failedProgress.Result!.Candidate.Should().BeNull();
+        failedProgress.Result.Issues.Should().ContainSingle(issue =>
+            issue.Code == "LANE_PROVIDER_FAILED" &&
+            issue.Path == StrategyGenerationLaneCatalogV1.WireName(StrategyGenerationLaneV1.DeclarativeSpec) &&
+            issue.Message.Contains("Simulated", StringComparison.Ordinal));
         result.Lanes.Where(lane => lane.Lane != StrategyGenerationLaneV1.DeclarativeSpec)
             .Should().OnlyContain(lane => lane.Selectable);
         provider.CallCount.Should().Be(4);
@@ -351,6 +398,126 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
     }
 
     [Fact]
+    public async Task Prose_wrapped_single_candidate_JSON_is_recovered_without_another_model_call()
+    {
+        var lane = StrategyGenerationLaneV1.VibePython;
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var candidate = CandidateForLane(lane, candidateId, Request);
+        var raw = "Here is the requested candidate.\n```json\n" +
+                  StrategyGenerationCandidateCanonicalJsonV1.Serialize(candidate) +
+                  "\n```\nI kept it inert and editable.";
+        var provider = new SequenceResponseProvider(
+            StrategyCodegenResponse.Reply(raw, new CodegenUsage(10, 5)));
+
+        var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            provider,
+            Request,
+            candidateId);
+
+        result.Readiness.Should().Be(StrategyGenerationReadinessV1.Generated, Describe(result.Issues));
+        result.Selectable.Should().BeTrue(Describe(result.Issues));
+        result.CandidateHashSha256.Should().Be(
+            StrategyGenerationCandidateCanonicalJsonV1.Hash(candidate));
+        result.AgentRun.RawResponse.Should().Be(raw, "the exact provider reply remains inspectable");
+        provider.CallCount.Should().Be(1, "deterministic wrapper recovery does not need another AI call");
+    }
+
+    [Fact]
+    public async Task Deterministic_validation_errors_receive_one_contract_aware_repair_attempt()
+    {
+        var lane = StrategyGenerationLaneV1.VibePython;
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var valid = CandidateForLane(lane, candidateId, Request);
+        var invalid = valid with { CandidateId = "model/changed-host-id" };
+        var provider = new SequenceResponseProvider(
+            StrategyCodegenResponse.Reply(
+                StrategyGenerationCandidateCanonicalJsonV1.Serialize(invalid),
+                new CodegenUsage(10, 5)),
+            StrategyCodegenResponse.Reply(
+                StrategyGenerationCandidateCanonicalJsonV1.Serialize(valid),
+                new CodegenUsage(7, 3)));
+
+        var progress = new SynchronousProgressRecorder();
+        var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            provider,
+            Request,
+            candidateId,
+            progress: progress);
+
+        result.Readiness.Should().Be(StrategyGenerationReadinessV1.Generated, Describe(result.Issues));
+        result.Selectable.Should().BeTrue(Describe(result.Issues));
+        result.CandidateHashSha256.Should().Be(
+            StrategyGenerationCandidateCanonicalJsonV1.Hash(valid));
+        result.AgentRun.Usage.Should().Be(new CodegenUsage(17, 8));
+        provider.CallCount.Should().Be(2);
+        provider.Requests.Should().HaveCount(2);
+        var repair = provider.Requests.Last();
+        repair.OutputContract.Should().Be(StrategyCodegenOutputContract.RawJsonObject);
+        repair.Messages.Should().HaveCount(3);
+        repair.Messages[1].Role.Should().Be(CodegenRole.Assistant);
+        repair.Messages[1].Content.Should().Be(
+            StrategyGenerationCandidateCanonicalJsonV1.Serialize(invalid));
+        repair.Messages[2].Content.Should().Contain("LANE_CANDIDATE_ID_CHANGED");
+        repair.Messages[2].Content.Should().Contain("candidateId");
+        repair.Messages[2].Content.Should().Contain(candidateId);
+        repair.Messages[2].Content.Should().Contain(valid.RequestHashSha256);
+        progress.StatesFor(lane).Should().Equal(
+            StrategyGenerationLaneProgressStateV1.WaitingForModel,
+            StrategyGenerationLaneProgressStateV1.ParsingResponse,
+            StrategyGenerationLaneProgressStateV1.ValidatingArtifact,
+            StrategyGenerationLaneProgressStateV1.RepairingResponse,
+            StrategyGenerationLaneProgressStateV1.ParsingResponse,
+            StrategyGenerationLaneProgressStateV1.ValidatingArtifact);
+    }
+
+    [Fact]
+    public async Task Two_candidate_objects_are_never_silently_chosen_and_repair_is_bounded_to_one_call()
+    {
+        var lane = StrategyGenerationLaneV1.VibePython;
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var json = StrategyGenerationCandidateCanonicalJsonV1.Serialize(
+            CandidateForLane(lane, candidateId, Request));
+        var ambiguous = json + "\n" + json;
+        var provider = new SequenceResponseProvider(
+            StrategyCodegenResponse.Reply(ambiguous, new CodegenUsage(10, 5)),
+            StrategyCodegenResponse.Reply(ambiguous, new CodegenUsage(7, 3)));
+
+        var result = await new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            provider,
+            Request,
+            candidateId);
+
+        result.Readiness.Should().Be(StrategyGenerationReadinessV1.Invalid);
+        result.Candidate.Should().BeNull();
+        result.Issues.Should().ContainSingle(issue => issue.Code == "LANE_JSON_INVALID_AFTER_REPAIR");
+        result.AgentRun.Usage.Should().Be(new CodegenUsage(17, 8));
+        provider.CallCount.Should().Be(2, "one initial request plus exactly one repair is the hard limit");
+    }
+
+    [Fact]
+    public async Task Cancellation_during_the_bounded_repair_is_never_converted_to_an_invalid_result()
+    {
+        var lane = StrategyGenerationLaneV1.VibePython;
+        var candidateId = $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var invalid = CandidateForLane(lane, candidateId, Request) with { CandidateId = "changed" };
+        var provider = new CancellableRepairProvider(
+            StrategyGenerationCandidateCanonicalJsonV1.Serialize(invalid));
+        using var cts = new CancellationTokenSource();
+
+        var generation = new StrategyGenerationLaneAgentV1(lane).GenerateAsync(
+            provider,
+            Request,
+            candidateId,
+            cts.Token);
+        await provider.RepairStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        cts.Cancel();
+
+        var act = async () => await generation;
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        provider.CallCount.Should().Be(2);
+    }
+
+    [Fact]
     public async Task Structured_parameter_default_remains_rejected_as_invalid_model_JSON()
     {
         var lane = StrategyGenerationLaneV1.VibePython;
@@ -367,7 +534,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         result.Readiness.Should().Be(StrategyGenerationReadinessV1.Invalid);
         result.Candidate.Should().BeNull();
         result.Issues.Should().ContainSingle(issue =>
-            issue.Code == "LANE_JSON_INVALID" &&
+            issue.Code == "LANE_JSON_INVALID_AFTER_REPAIR" &&
             issue.Message.Contains("string, number, or boolean scalar", StringComparison.Ordinal));
     }
 
@@ -440,10 +607,14 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
     {
         var provider = new FourLaneArtifactProvider((candidateLane, candidate) =>
             candidateLane == lane ? Malform(candidate) : candidate);
-        var batch = await ProductionGenerator().GenerateAsync(provider, Request);
+        var progress = new SynchronousProgressRecorder();
+        var batch = await ProductionGenerator().GenerateAsync(provider, Request, progress: progress);
         var laneResult = batch.Lanes.Single(result => result.Lane == lane);
+        var terminal = await progress.TerminalResultForAsync(lane);
 
         laneResult.Readiness.Should().Be(StrategyGenerationReadinessV1.Invalid);
+        terminal.State.Should().Be(StrategyGenerationLaneProgressStateV1.Failed);
+        terminal.Result.Should().BeSameAs(laneResult);
         laneResult.Generated.Should().BeTrue();
         laneResult.Selectable.Should().BeFalse();
         laneResult.PackageValid.Should().BeFalse();
@@ -1007,6 +1178,25 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         flattened.Should().Contain("COMPLETE plugin");
     }
 
+    [Fact]
+    public void Claude_cli_enforces_a_root_JSON_object_only_for_structured_generation_requests()
+    {
+        var structured = AgentCliAdapter.ClaudeCode.ArgumentsFor(
+            "claude-opus-4-8",
+            outputContract: StrategyCodegenOutputContract.RawJsonObject);
+        var expert = AgentCliAdapter.ClaudeCode.ArgumentsFor(
+            "claude-opus-4-8",
+            outputContract: StrategyCodegenOutputContract.CSharpPluginFiles);
+        var codex = AgentCliAdapter.Codex.ArgumentsFor(
+            "gpt-5.4",
+            outputContract: StrategyCodegenOutputContract.RawJsonObject);
+
+        structured.Should().ContainInOrder("--json-schema", "{\"type\":\"object\"}");
+        expert.Should().NotContain("--json-schema");
+        codex.Should().NotContain("--json-schema",
+            "only adapters that advertise a supported structured-output flag may receive it");
+    }
+
     private static ParallelStrategyCandidateGeneratorV1 ProductionGenerator() => new(
         StrategyGenerationLaneCatalogV1.Ordered.Select(lane =>
             (IStrategyGenerationLaneAgentV1)new StrategyGenerationLaneAgentV1(lane)));
@@ -1512,11 +1702,31 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
     private sealed class SynchronousProgressRecorder : IProgress<StrategyGenerationLaneProgressV1>
     {
         private readonly ConcurrentQueue<StrategyGenerationLaneProgressV1> _events = new();
+        private readonly ConcurrentDictionary<StrategyGenerationLaneV1,
+            TaskCompletionSource<StrategyGenerationLaneProgressV1>> _terminalResults = new();
 
-        public void Report(StrategyGenerationLaneProgressV1 value) => _events.Enqueue(value);
+        public void Report(StrategyGenerationLaneProgressV1 value)
+        {
+            _events.Enqueue(value);
+            if (value.Result is not null)
+                TerminalSource(value.Lane).TrySetResult(value);
+        }
+
+        public IReadOnlyList<StrategyGenerationLaneProgressV1> ResultEvents =>
+            _events.Where(static item => item.Result is not null).ToArray();
 
         public IReadOnlyList<StrategyGenerationLaneProgressStateV1> StatesFor(StrategyGenerationLaneV1 lane) =>
             _events.Where(item => item.Lane == lane).Select(item => item.State).ToArray();
+
+        public Task<StrategyGenerationLaneProgressV1> TerminalResultForAsync(StrategyGenerationLaneV1 lane) =>
+            TerminalSource(lane).Task;
+
+        private TaskCompletionSource<StrategyGenerationLaneProgressV1> TerminalSource(
+            StrategyGenerationLaneV1 lane) =>
+            _terminalResults.GetOrAdd(
+                lane,
+                static _ => new TaskCompletionSource<StrategyGenerationLaneProgressV1>(
+                    TaskCreationOptions.RunContinuationsAsynchronously));
     }
 
     private sealed class GatedLaneAgent(
@@ -1578,6 +1788,58 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             StrategyCodegenRequest request,
             CancellationToken ct = default) =>
             Task.FromResult(StrategyCodegenResponse.Reply(raw, new CodegenUsage(10, 5)));
+    }
+
+    private sealed class SequenceResponseProvider : IStrategyCodegenClient
+    {
+        private readonly ConcurrentQueue<StrategyCodegenResponse> _responses;
+        private int _callCount;
+
+        public SequenceResponseProvider(params StrategyCodegenResponse[] responses) =>
+            _responses = new ConcurrentQueue<StrategyCodegenResponse>(responses);
+
+        public int CallCount => Volatile.Read(ref _callCount);
+        public string ProviderId => "sequence-response";
+        public string DisplayName => "Sequence response";
+        public bool IsAvailable => true;
+        public ConcurrentQueue<StrategyCodegenRequest> Requests { get; } = new();
+
+        public Task<StrategyCodegenResponse> GenerateAsync(
+            StrategyCodegenRequest request,
+            CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref _callCount);
+            Requests.Enqueue(request);
+            return Task.FromResult(_responses.TryDequeue(out var response)
+                ? response
+                : StrategyCodegenResponse.Fail("No more test responses were configured."));
+        }
+    }
+
+    private sealed class CancellableRepairProvider(string invalidRaw) : IStrategyCodegenClient
+    {
+        private readonly TaskCompletionSource _repairStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _callCount;
+
+        public int CallCount => Volatile.Read(ref _callCount);
+        public Task RepairStarted => _repairStarted.Task;
+        public string ProviderId => "cancellable-repair";
+        public string DisplayName => "Cancellable repair";
+        public bool IsAvailable => true;
+
+        public async Task<StrategyCodegenResponse> GenerateAsync(
+            StrategyCodegenRequest request,
+            CancellationToken ct = default)
+        {
+            if (Interlocked.Increment(ref _callCount) == 1)
+                return StrategyCodegenResponse.Reply(invalidRaw, new CodegenUsage(10, 5));
+
+            _repairStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            throw new InvalidOperationException("The cancellation wait unexpectedly completed.");
+        }
     }
 
     private sealed class FourLaneArtifactProvider : IStrategyCodegenClient

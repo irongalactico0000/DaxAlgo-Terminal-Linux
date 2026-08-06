@@ -32,6 +32,39 @@ public sealed class CandidateAuthoringUxContractTests
                 (string?)label.Attribute("Text") == "ACTIVE IN EDITOR"));
         candidateList.Descendants(Avalonia + "TextBlock").Should().Contain(label =>
             (string?)label.Attribute("Text") == "{Binding SyntheticTestCapabilityText}");
+        candidateList.Descendants(Avalonia + "TextBlock").Should().Contain(label =>
+            (string?)label.Attribute("Text") == "SELECT TO INSPECT EXACT RESULT");
+        candidateList.Attribute("MaxHeight").Should().BeNull(
+            "the enclosing candidate scroller owns compact-height navigation");
+
+        var selectedPreview = root.Descendants(Avalonia + "Border").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") ==
+                "Selected candidate exact result preview");
+        candidateList.ElementsAfterSelf().First().Should().BeSameAs(selectedPreview,
+            "the exact selected result belongs immediately below the two-by-two grid");
+        selectedPreview.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "{Binding SelectedGeneratedCandidateOption.PreviewHeading}");
+        selectedPreview.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "{Binding SelectedGeneratedCandidateOption.PreviewStateText}");
+        selectedPreview.Descendants(Avalonia + "Run").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "{Binding SelectedGeneratedCandidateOption.FirstIssueCode}");
+        selectedPreview.Descendants(Avalonia + "Run").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "{Binding SelectedGeneratedCandidateOption.FirstIssuePath}");
+        selectedPreview.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "{Binding SelectedGeneratedCandidateOption.FirstIssueMessage}");
+        var selectedPreviewText = selectedPreview.Descendants(Avalonia + "TextBox").Single();
+        selectedPreviewText.Attribute("Text")!.Value.Should().Be(
+            "{Binding SelectedGeneratedCandidateOption.InspectablePreview, Mode=OneWay}");
+        selectedPreviewText.Attribute("IsReadOnly")!.Value.Should().Be("True");
+        selectedPreviewText.Attribute("ScrollViewer.HorizontalScrollBarVisibility")!.Value
+            .Should().Be("Auto");
+        selectedPreviewText.Attribute("ScrollViewer.VerticalScrollBarVisibility")!.Value
+            .Should().Be("Auto");
 
         var candidateAction = root.Descendants(Avalonia + "Button").Single(element =>
             (string?)element.Attribute("Command") == "{Binding ChooseGeneratedCandidateCommand}");
@@ -54,10 +87,18 @@ public sealed class CandidateAuthoringUxContractTests
 
         var progressRegion = root.Descendants(Avalonia + "Border").Single(element =>
             (string?)element.Attribute("IsVisible") == "{Binding IsGeneratingCandidates}");
+        progressRegion.Attribute("MaxHeight")!.Value.Should().Be("400");
+        progressRegion.Descendants(Avalonia + "ScrollViewer").First()
+            .Attribute("VerticalScrollBarVisibility")!.Value.Should().Be("Auto");
         progressRegion.Descendants(Avalonia + "ProgressBar").Should().BeEmpty(
             "generation has no provider percentage or ETA, so a progress bar would imply false precision");
-        progressRegion.Descendants(Avalonia + "ItemsControl").Should().ContainSingle(element =>
+        progressRegion.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "Four initial AI requests; an invalid lane may make one visible repair request.");
+        var progressList = progressRegion.Descendants(Avalonia + "ListBox").Single(element =>
             (string?)element.Attribute("ItemsSource") == "{Binding GenerationLaneProgressRows}");
+        progressList.Attribute("SelectedItem")!.Value.Should().Be(
+            "{Binding SelectedGenerationLaneProgressRow, Mode=TwoWay}");
         progressRegion.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
             (string?)element.Attribute("Text") == "{Binding StateLabel}");
         progressRegion.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
@@ -66,9 +107,63 @@ public sealed class CandidateAuthoringUxContractTests
             (string?)element.Attribute("Text") == "{Binding StateDetail}");
         progressRegion.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
             (string?)element.Attribute("Text") == "{Binding ElapsedCompact}");
+        progressList.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("IsVisible") == "{Binding HasResult}" &&
+            (string?)element.Attribute("Text") == "SELECT TO INSPECT EXACT RESULT");
+
+        var livePreview = progressRegion.Descendants(Avalonia + "Border").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") ==
+                "Live lane exact result preview");
+        livePreview.Attribute("IsVisible")!.Value.Should().Be(
+            "{Binding SelectedGenerationLaneProgressRow.HasResult}");
+        livePreview.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "{Binding SelectedGenerationLaneProgressRow.PreviewHeading}");
+        livePreview.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "{Binding SelectedGenerationLaneProgressRow.ResultOption.StatusText}");
+        livePreview.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "LIVE RESULT · READ ONLY · NOT COMMITTED");
+        livePreview.Descendants(Avalonia + "Run").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "{Binding SelectedGenerationLaneProgressRow.ResultOption.FirstIssueCode}");
+        livePreview.Descendants(Avalonia + "Run").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "{Binding SelectedGenerationLaneProgressRow.ResultOption.FirstIssuePath}");
+        livePreview.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "{Binding SelectedGenerationLaneProgressRow.ResultOption.FirstIssueMessage}");
+        var livePreviewText = livePreview.Descendants(Avalonia + "TextBox").Single();
+        livePreviewText.Attribute("Text")!.Value.Should().Be(
+            "{Binding SelectedGenerationLaneProgressRow.InspectablePreview, Mode=OneWay}");
+        livePreviewText.Attribute("IsReadOnly")!.Value.Should().Be("True");
+        livePreviewText.Attribute("ScrollViewer.HorizontalScrollBarVisibility")!.Value
+            .Should().Be("Auto");
+        livePreviewText.Attribute("ScrollViewer.VerticalScrollBarVisibility")!.Value
+            .Should().Be("Auto");
         progressRegion.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
             (string?)element.Attribute("Text") ==
                 "Nothing is compiled, tested, run, or backtested here.");
+    }
+
+    [Fact]
+    public void Expert_mode_has_a_prominent_candidate_return_and_hides_compile_for_non_C_sharp_artifacts()
+    {
+        var root = LoadAuthoringWindow();
+        var expertNotice = root.Descendants(Avalonia + "Border").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") == "Expert C sharp mode notice");
+        expertNotice.Attribute("IsVisible")!.Value.Should().Be("{Binding !GenerateCandidateFirst}");
+        var returnAction = expertNotice.Descendants(Avalonia + "Button").Single();
+        returnAction.Attribute("Content")!.Value.Should().Be("Return to candidates");
+        returnAction.Attribute("Command")!.Value.Should().Be("{Binding ToggleGenerationModeCommand}");
+
+        var compile = root.Descendants(Avalonia + "Button").Single(element =>
+            (string?)element.Attribute("Content") == "⚡  Compile & Register");
+        compile.Attribute("IsVisible")!.Value.Should().Be("{Binding HasExpertCSharpFiles}");
+        var boundary = root.Descendants(Avalonia + "Border").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") ==
+                "Non C sharp source review boundary");
+        boundary.Attribute("IsVisible")!.Value.Should().Be("{Binding HasNonCSharpExpertArtifact}");
     }
 
     [Fact]

@@ -1,6 +1,6 @@
 # macOS index / Shell
 
-Generated from source fingerprint `cb463a404ff1`. macOS/Avalonia source only.
+Generated from source fingerprint `3b8482429c18`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
@@ -54,7 +54,7 @@ Generated from source fingerprint `cb463a404ff1`. macOS/Avalonia source only.
 | `src/linux/Shell/TradingTerminal.App.Avalonia/Settings/ResearchSettingsWindow.axaml.cs` | 8 | linux | TradingTerminal.App.Avalonia | product | Y |  |
 | `src/linux/Shell/TradingTerminal.App.Avalonia/Settings/ResearchSettingsWindow.axaml` | 24 | linux | TradingTerminal.App.Avalonia | product | N | UI |
 | `src/linux/Shell/TradingTerminal.App.Avalonia/Settings/StrategyAuthoringWindow.axaml.cs` | 117 | linux | TradingTerminal.App.Avalonia | product | Y | Lets the Avalonia parameter workbench select the correct editor without UI-specific VM |
-| `src/linux/Shell/TradingTerminal.App.Avalonia/Settings/StrategyAuthoringWindow.axaml` | 1551 | linux | TradingTerminal.App.Avalonia | product | N | UI |
+| `src/linux/Shell/TradingTerminal.App.Avalonia/Settings/StrategyAuthoringWindow.axaml` | 1726 | linux | TradingTerminal.App.Avalonia | product | N | UI |
 | `src/linux/Shell/TradingTerminal.App.Avalonia/Settings/SupportWindow.axaml.cs` | 18 | linux | TradingTerminal.App.Avalonia | product | Y |  |
 | `src/linux/Shell/TradingTerminal.App.Avalonia/Settings/SupportWindow.axaml` | 55 | linux | TradingTerminal.App.Avalonia | product | N | UI |
 | `src/linux/Shell/TradingTerminal.App.Avalonia/Shell/BrokerApiChipViewModel.cs` | 84 | linux | TradingTerminal.App.Avalonia | product | Y | Drives the chip's background colour bucket. |

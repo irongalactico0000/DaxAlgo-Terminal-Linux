@@ -1,10 +1,10 @@
 # macOS index / Tools
 
-Generated from source fingerprint `cb463a404ff1`. macOS/Avalonia source only.
+Generated from source fingerprint `3b8482429c18`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
-| `src/linux/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs` | 374 | linux | DaxAlgo.Codegen | product | Y | Per-CLI details, isolated so one vendor's output-format drift doesn't touch the others. |
+| `src/linux/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs` | 389 | linux | DaxAlgo.Codegen | product | Y | Per-CLI details, isolated so one vendor's output-format drift doesn't touch the others. |
 | `src/linux/Tools/DaxAlgo.Codegen/AiModelCatalog.cs` | 60 | linux | DaxAlgo.Codegen | product | Y | Anthropic model ids — the same strings Claude Code's |
 | `src/linux/Tools/DaxAlgo.Codegen/AiStrategyBuilder.cs` | 106 | linux | DaxAlgo.Codegen | product | Y | Every provider the app knows how to build, available or not — |
 | `src/linux/Tools/DaxAlgo.Codegen/AnthropicCodegenClient.cs` | 288 | linux | DaxAlgo.Codegen | product | Y | The models this key can actually call. A failure here is not |
@@ -13,9 +13,9 @@ Generated from source fingerprint `cb463a404ff1`. macOS/Avalonia source only.
 | `src/linux/Tools/DaxAlgo.Codegen/CodegenCodeExtractor.cs` | 148 | linux | DaxAlgo.Codegen | product | Y | A bare file name mentioned in prose/info strings — |
 | `src/linux/Tools/DaxAlgo.Codegen/FakeCodegenClient.cs` | 82 | linux | DaxAlgo.Codegen | product | Y | How many times the loop asked this client to generate — the |
 | `src/linux/Tools/DaxAlgo.Codegen/OpenAiCompatibleCodegenClient.cs` | 275 | linux | DaxAlgo.Codegen | product | Y | Every OpenAI-compatible endpoint (including Ollama) exposes |
-| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyCandidateGeneratorV1.cs` | 510 | linux | DaxAlgo.Codegen | product | Y | One format-specific authoring request and deterministic validation pass. Every lane calls the |
-| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationContractsV1.cs` | 764 | linux | DaxAlgo.Codegen | product | Y | The four authoring representations offered for every strategy brief. |
-| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationPromptV1.cs` | 583 | linux | DaxAlgo.Codegen | product | Y |  |
+| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyCandidateGeneratorV1.cs` | 707 | linux | DaxAlgo.Codegen | product | Y | One format-specific authoring request and deterministic validation pass. Every lane calls the |
+| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationContractsV1.cs` | 766 | linux | DaxAlgo.Codegen | product | Y | The four authoring representations offered for every strategy brief. |
+| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationPromptV1.cs` | 615 | linux | DaxAlgo.Codegen | product | Y |  |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyBacktestSmoke.cs` | 112 | linux | DaxAlgo.Codegen | product | Y | Ticks fed through |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyBuildSession.cs` | 469 | linux | DaxAlgo.Codegen | product | Y | What one turn of the conversation produced. |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyCandidateGenerationOrchestratorV1.cs` | 611 | linux | DaxAlgo.Codegen | product | Y | One intake or revision request. CurrentCandidate is null for the original idea; |

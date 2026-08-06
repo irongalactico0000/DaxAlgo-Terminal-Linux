@@ -1,26 +1,26 @@
 # DaxAlgo.Codegen — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `cb463a404ff1`. Declaration lines only;
+Generated from source fingerprint `3b8482429c18`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs
 ```cs
    10: public sealed record AgentCliAdapter(
-   27: public static AgentCliAdapter ClaudeCode { get; } =
-   40: public static AgentCliAdapter Codex { get; } =
-   45: public static IReadOnlyList<AgentCliAdapter> All { get; } = [ClaudeCode, Codex];
-   50: public IReadOnlyList<string>? StreamFlags { get; init; }
-   54: public IReadOnlyList<string> ArgumentsFor(
-   93: public sealed class AgentCliCodegenClient : IStrategyCodegenClient
-  102: public AgentCliCodegenClient(
-  116: public string ProviderId => _adapter.ProviderId;
-  117: public string DisplayName => _adapter.DisplayName;
-  118: public bool IsAvailable => _resolveOnPath(_adapter.Executable) is not null;
-  121: public string Model => _model ?? string.Empty;
-  122: public CodegenEffort Effort => _effort;
-  123: public IReadOnlyList<string> KnownModels => AiModelCatalog.Offer(ProviderId, _model);
-  131: public async IAsyncEnumerable<CodegenEvent> StreamAsync(
-  267: public async Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
+   29: public static AgentCliAdapter ClaudeCode { get; } =
+   42: public static AgentCliAdapter Codex { get; } =
+   47: public static IReadOnlyList<AgentCliAdapter> All { get; } = [ClaudeCode, Codex];
+   52: public IReadOnlyList<string>? StreamFlags { get; init; }
+   56: public IReadOnlyList<string> ArgumentsFor(
+  101: public sealed class AgentCliCodegenClient : IStrategyCodegenClient
+  110: public AgentCliCodegenClient(
+  124: public string ProviderId => _adapter.ProviderId;
+  125: public string DisplayName => _adapter.DisplayName;
+  126: public bool IsAvailable => _resolveOnPath(_adapter.Executable) is not null;
+  129: public string Model => _model ?? string.Empty;
+  130: public CodegenEffort Effort => _effort;
+  131: public IReadOnlyList<string> KnownModels => AiModelCatalog.Offer(ProviderId, _model);
+  139: public async IAsyncEnumerable<CodegenEvent> StreamAsync(
+  279: public async Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
 ```
 
 ## src/linux/Tools/DaxAlgo.Codegen/AiModelCatalog.cs
@@ -145,78 +145,78 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyCandidateGeneratorV1.cs
 ```cs
-   11: public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane) : IStrategyGenerationLaneAgentV1
-   13: public StrategyGenerationLaneV1 Lane { get; } = lane;
-   15: public async Task<StrategyGenerationLaneResultV1> GenerateAsync(
-  208: public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCandidateGeneratorV1
-  210: public const int MaxUserPromptCharacters = 100_000;
-  215: public ParallelStrategyCandidateGeneratorV1(
-  240: public async Task<ParallelStrategyGenerationResultV1> GenerateAsync(
+   12: public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane) : IStrategyGenerationLaneAgentV1
+   14: public StrategyGenerationLaneV1 Lane { get; } = lane;
+   16: public async Task<StrategyGenerationLaneResultV1> GenerateAsync(
+  398: public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCandidateGeneratorV1
+  400: public const int MaxUserPromptCharacters = 100_000;
+  405: public ParallelStrategyCandidateGeneratorV1(
+  430: public async Task<ParallelStrategyGenerationResultV1> GenerateAsync(
 ```
 
 ## src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationContractsV1.cs
 ```cs
     9: public enum StrategyGenerationLaneV1
    18: public enum StrategyGenerationLaneProgressStateV1
-   30: public sealed record StrategyGenerationLaneProgressV1(
-   35: public enum StrategyGenerationArtifactKindV1
-   47: public enum StrategyGenerationReadinessV1
-   62: public enum StrategyGenerationSemanticRoleV1
-   69: public enum StrategyGenerationLoweringModeV1
-   79: public enum StrategyGenerationExternalCompatibilityV1
-   91: public sealed record StrategyGenerationContractAuthorityV1(
-  104: public sealed record StrategyGenerationPackageBindingV1(
-  115: public enum StrategyVariationAxisKindV1
-  128: public sealed record StrategyGenerationParameterV1(
-  144: public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-  163: public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) =>
-  168: public sealed record StrategyVariationAxisV1(
-  179: public sealed record StrategyGenerationArtifactV1(
-  190: public sealed record StrategyGenerationCandidateV1(
-  206: public const string CurrentSchemaVersion = "strategy-generation-candidate/v2";
-  209: public sealed record ParallelStrategyGenerationRequestV1(
-  213: public sealed record StrategyGenerationLaneResultV1(
-  221: public bool Generated => Candidate is not null && CandidateHashSha256 is not null &&
-  229: public bool PackageValidationAvailable =>
-  237: public bool Selectable
-  277: public bool PackageValid
-  304: public sealed record ParallelStrategyGenerationResultV1(
-  311: public bool HasPackageValidCandidate =>
-  316: public interface IStrategyGenerationLaneAgentV1
-  318:     StrategyGenerationLaneV1 Lane { get; }
-  320:     Task<StrategyGenerationLaneResultV1> GenerateAsync(
-  321:     IStrategyCodegenClient provider,
-  322:     ParallelStrategyGenerationRequestV1 request,
-  323:     string expectedCandidateId,
-  324:     CancellationToken ct = default,
-  325:     IProgress<StrategyGenerationLaneProgressV1>? progress = null);
-  328: public interface IParallelStrategyCandidateGeneratorV1
-  330:     Task<ParallelStrategyGenerationResultV1> GenerateAsync(
-  331:     IStrategyCodegenClient provider,
-  332:     ParallelStrategyGenerationRequestV1 request,
-  333:     CancellationToken ct = default,
-  334:     IProgress<StrategyGenerationLaneProgressV1>? progress = null);
-  337: public static class StrategyGenerationCandidateCanonicalJsonV1
-  339: public static string Serialize(StrategyGenerationCandidateV1 candidate) =>
-  342: public static StrategyGenerationCandidateV1 Deserialize(string json) =>
-  345: public static string Hash(StrategyGenerationCandidateV1 candidate) =>
-  368: public static string SerializeBatch(ParallelStrategyGenerationResultV1 result) =>
-  371: public static ParallelStrategyGenerationResultV1 DeserializeBatch(string json) =>
-  374: public static string PromptHash(string strategyId, string userPrompt) =>
-  377: public static string RequestHash(
-  427: public sealed record StrategyGenerationSelectionResultV1(
-  432: public bool Success => Candidate is not null && CandidateHashSha256 is not null &&
-  437: public sealed record StrategyGenerationRevalidationResultV1(
-  442: public bool Applied => Batch is not null && LaneResult is not null && Issues is not null &&
-  448: public static class StrategyGenerationBatchValidationV1
-  450: public static IReadOnlyList<StrategyCandidateGenerationIssueV1> Validate(
-  611: public static StrategyGenerationSelectionResultV1 Select(
-  638: public static StrategyGenerationRevalidationResultV1 RevalidateArtifact(
-  727: public static class StrategyGenerationLaneCatalogV1
-  729: public static IReadOnlyList<StrategyGenerationLaneV1> Ordered { get; } = Array.AsReadOnly(
-  738: public static string WireName(StrategyGenerationLaneV1 lane) => lane switch
-  747: public static string DisplayName(StrategyGenerationLaneV1 lane) => lane switch
-  756: public static StrategyGenerationArtifactKindV1 ArtifactKind(StrategyGenerationLaneV1 lane) => lane switch
+   31: public sealed record StrategyGenerationLaneProgressV1(
+   37: public enum StrategyGenerationArtifactKindV1
+   49: public enum StrategyGenerationReadinessV1
+   64: public enum StrategyGenerationSemanticRoleV1
+   71: public enum StrategyGenerationLoweringModeV1
+   81: public enum StrategyGenerationExternalCompatibilityV1
+   93: public sealed record StrategyGenerationContractAuthorityV1(
+  106: public sealed record StrategyGenerationPackageBindingV1(
+  117: public enum StrategyVariationAxisKindV1
+  130: public sealed record StrategyGenerationParameterV1(
+  146: public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+  165: public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) =>
+  170: public sealed record StrategyVariationAxisV1(
+  181: public sealed record StrategyGenerationArtifactV1(
+  192: public sealed record StrategyGenerationCandidateV1(
+  208: public const string CurrentSchemaVersion = "strategy-generation-candidate/v2";
+  211: public sealed record ParallelStrategyGenerationRequestV1(
+  215: public sealed record StrategyGenerationLaneResultV1(
+  223: public bool Generated => Candidate is not null && CandidateHashSha256 is not null &&
+  231: public bool PackageValidationAvailable =>
+  239: public bool Selectable
+  279: public bool PackageValid
+  306: public sealed record ParallelStrategyGenerationResultV1(
+  313: public bool HasPackageValidCandidate =>
+  318: public interface IStrategyGenerationLaneAgentV1
+  320:     StrategyGenerationLaneV1 Lane { get; }
+  322:     Task<StrategyGenerationLaneResultV1> GenerateAsync(
+  323:     IStrategyCodegenClient provider,
+  324:     ParallelStrategyGenerationRequestV1 request,
+  325:     string expectedCandidateId,
+  326:     CancellationToken ct = default,
+  327:     IProgress<StrategyGenerationLaneProgressV1>? progress = null);
+  330: public interface IParallelStrategyCandidateGeneratorV1
+  332:     Task<ParallelStrategyGenerationResultV1> GenerateAsync(
+  333:     IStrategyCodegenClient provider,
+  334:     ParallelStrategyGenerationRequestV1 request,
+  335:     CancellationToken ct = default,
+  336:     IProgress<StrategyGenerationLaneProgressV1>? progress = null);
+  339: public static class StrategyGenerationCandidateCanonicalJsonV1
+  341: public static string Serialize(StrategyGenerationCandidateV1 candidate) =>
+  344: public static StrategyGenerationCandidateV1 Deserialize(string json) =>
+  347: public static string Hash(StrategyGenerationCandidateV1 candidate) =>
+  370: public static string SerializeBatch(ParallelStrategyGenerationResultV1 result) =>
+  373: public static ParallelStrategyGenerationResultV1 DeserializeBatch(string json) =>
+  376: public static string PromptHash(string strategyId, string userPrompt) =>
+  379: public static string RequestHash(
+  429: public sealed record StrategyGenerationSelectionResultV1(
+  434: public bool Success => Candidate is not null && CandidateHashSha256 is not null &&
+  439: public sealed record StrategyGenerationRevalidationResultV1(
+  444: public bool Applied => Batch is not null && LaneResult is not null && Issues is not null &&
+  450: public static class StrategyGenerationBatchValidationV1
+  452: public static IReadOnlyList<StrategyCandidateGenerationIssueV1> Validate(
+  613: public static StrategyGenerationSelectionResultV1 Select(
+  640: public static StrategyGenerationRevalidationResultV1 RevalidateArtifact(
+  729: public static class StrategyGenerationLaneCatalogV1
+  731: public static IReadOnlyList<StrategyGenerationLaneV1> Ordered { get; } = Array.AsReadOnly(
+  740: public static string WireName(StrategyGenerationLaneV1 lane) => lane switch
+  749: public static string DisplayName(StrategyGenerationLaneV1 lane) => lane switch
+  758: public static StrategyGenerationArtifactKindV1 ArtifactKind(StrategyGenerationLaneV1 lane) => lane switch
 ```
 
 ## src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationPromptV1.cs
@@ -224,8 +224,9 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
     8: public static string AgentId(StrategyGenerationLaneV1 lane) => lane switch
    17: public static string SystemContext(StrategyGenerationLaneV1 lane)
    25: public static string UserMessage(
-  128: public const int MaxArtifactCharacters = 750_000;
-  130: public static IReadOnlyList<StrategyCandidateGenerationIssueV1> Validate(
+   42: public static string RepairMessage(
+  160: public const int MaxArtifactCharacters = 750_000;
+  162: public static IReadOnlyList<StrategyCandidateGenerationIssueV1> Validate(
 ```
 
 ## src/linux/Tools/DaxAlgo.Codegen/StrategyBacktestSmoke.cs

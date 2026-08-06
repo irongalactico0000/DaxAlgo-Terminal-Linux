@@ -19,15 +19,16 @@ Rules contract is [JSON Schema Draft 2020-12](schemas/vibe-quant-declarative-rul
    but the current closed smoke target can still reject their data or operators.
 4. Keep **Four AI lanes** selected, choose a provider/model, and press **Check & generate**.
 5. Open **Candidate**. The live board reports each real request separately; it does not invent a
-   model-completion percentage.
-6. When generation finishes, select a candidate card to preview it. Review its assumptions,
-   unresolved questions, proposed parameters, tests, and exact artifact before choosing
-   **Use selected in editor**.
+   model-completion percentage. As soon as one lane reaches **ready** or **blocked**, select that row
+   to inspect its exact source/JSON or raw invalid response while the other lanes keep running.
+6. When all four lanes finish, select any candidate card. Its exact read-only artifact appears
+   immediately below the four cards; then review its assumptions, unresolved questions, proposed
+   parameters, tests, and hash before choosing **Use selected in editor**.
 7. The Candidate action panels deliberately separate **Generate / Regenerate** from
    **Test · synthetic only**. Testing requires **Graph · Typed → Use selected in editor → Run
    exact-hash synthetic smoke**; it never reruns the generation agents.
 
-One submission starts four concurrent provider calls:
+One submission starts four concurrent initial provider calls, one for each lane:
 
 | Agent | Contract authority | Output | Role and current success meaning |
 |---|---|---|---|
@@ -39,6 +40,12 @@ One submission starts four concurrent provider calls:
 Results are always presented in Vibe, Spec, Graph, CSP order even if the provider calls finish in a
 different order. A failure in one lane does not erase usable results from the other lanes.
 
+If an initial response is not one valid candidate envelope, that lane may make at most one separate
+repair request. The repair prompt contains the original host envelope plus the exact deterministic
+issue codes, paths, and messages. Therefore a generation turn makes four initial requests and zero
+to four bounded repair requests; a first-pass-valid turn still makes exactly four. Repair never
+silently changes a valid sibling lane and never bypasses deterministic validation.
+
 "Contract authority" identifies who defines the format. It does not identify an installed runtime.
 Vibe Quant owns the Vibe, Rules, and inert CSP authoring profiles. DaxAlgo's installed TradeIR
 package owns Typed Graph. The CSP profile is informed by Point72 CSP, but compatibility with a
@@ -48,10 +55,18 @@ specific Point72 release is unverified and must not be inferred from the name.
 
 During generation, the Candidate tab is a four-row job board. Each lane moves through the exact
 host-observable boundaries **preparing request**, **waiting for model**, **parsing response**, and
-**validating artifact**, followed by **ready**, **blocked**, or **canceled**. Completed rows update
-independently while slower requests continue. The `n/4 lanes finished` counter and elapsed clock are
-facts; Vibe Quant does not show a percentage or ETA because the one-shot provider call exposes
-neither.
+**validating artifact**. A rejected first response may then show **repairing response** before the
+same parse-and-validation gates run once more. The terminal states are **ready**, **blocked**, or
+**canceled**. Completed rows update independently while slower requests continue. The `n/4 lanes
+finished` counter and elapsed clock are facts; Vibe Quant does not show a percentage or ETA because
+the one-shot provider call exposes neither.
+
+Live lane results are deliberately read-only staging data. Seeing one lane early never constructs a
+partial candidate batch and never enables selection, persistence, synthesis, testing, or execution.
+Only the complete ordered four-lane batch can cross those gates. An invalid response remains
+inspectable during the live turn: parsed artifacts show their lane-native source/JSON, while an
+unparseable envelope shows the exact raw model response and its blocking diagnostic. Raw invalid
+responses are not written into the durable session snapshot.
 
 After generation:
 
@@ -65,7 +80,15 @@ After generation:
 
 The violet **PREVIEW** card is the result currently being inspected. **ACTIVE IN EDITOR** identifies
 the exact candidate hash loaded into the editor. Those are separate states: previewing another card
-does not silently replace the active artifact.
+does not silently replace the active artifact. Each committed card is explicitly clickable, and the
+selected artifact preview sits directly beneath the two-by-two grid instead of being hidden below
+the synthesis and testing sections.
+
+If the composer says **Expert C#**, candidate comparison is temporarily hidden rather than deleted.
+Use the prominent **Return to candidates** action; it switches directly to the Candidate tab without
+changing the editor artifact or candidate hashes. **Compile & Register** is shown only when every
+editor file is C#. A selected Python/JSON source-review artifact instead shows that no importer or
+runtime is installed, so it cannot be mistaken for compilable C#.
 
 Choosing or locally revalidating an artifact does not call the model, compile it, import it, or run
 it. A local edit receives a new SHA-256 content hash after deterministic revalidation.
@@ -90,6 +113,20 @@ spelling as a string for comparison and canonical hashing. Objects and arrays re
 does not coerce the lane artifact itself: each artifact contract still owns its native parameter
 types. Every prompt now embeds the exact host-owned `packageBinding` object, so a model cannot satisfy
 the contract with a `copy` placeholder.
+
+## Response recovery boundary
+
+The provider is still required to return one root JSON object. Claude CLI requests add its
+root-object structured-output flag; other adapters retain the same host-side parser and validator.
+For resilience, the host first tries strict JSON parsing, then accepts exactly one unambiguous JSON
+object embedded in incidental prose or a Markdown fence. It does not guess when two objects are
+present.
+
+If that recovered object still fails the shared envelope or lane contract, the host may make one
+validation-aware repair request for that lane. Cancellation propagates through the repair call,
+provider failures are not retried, and an invalid repaired response ends as
+`LANE_JSON_INVALID_AFTER_REPAIR`. Usage from both calls is reported together. This is bounded output
+recovery, not an execution retry and not a semantic-correctness proof.
 
 ## From four drafts to one canonical artifact
 
@@ -183,7 +220,8 @@ runtime target admits it, or that the strategy can be backtested.
 
 The workflow can prove:
 
-- four distinct provider requests were started for one brief;
+- four distinct initial provider requests were started for one brief, plus no more than one repair
+  request for each invalid lane;
 - each preserved response belongs to its expected lane and request;
 - deterministic envelope and lane-specific shape checks passed or failed;
 - the exact candidate/edit content hash;
@@ -232,6 +270,11 @@ not silently rebind its old hashes. The Candidate tab shows **Saved candidates n
 generation** and reloads the batch's original brief into the composer when it can recover it. Review
 or refine that brief and choose **Regenerate 4 candidates** to create a new batch under the current
 contract. Restore itself never sends an AI request.
+
+When a saved batch still matches the current contract, it is shown as **RESTORED RESULT · NOT A NEW
+AI RUN**. Its prior invalid diagnostics remain evidence; installing a newer parser or repair pass
+does not retroactively make the old bytes valid. Choose **Generate fresh 4 candidates** to create a
+new batch under the current implementation.
 
 ## Test a Graph candidate inside Vibe Quant
 

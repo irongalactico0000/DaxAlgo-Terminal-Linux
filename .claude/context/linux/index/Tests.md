@@ -1,6 +1,6 @@
 # macOS index / Tests
 
-Generated from source fingerprint `cb463a404ff1`. macOS/Avalonia source only.
+Generated from source fingerprint `3b8482429c18`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
@@ -27,10 +27,10 @@ Generated from source fingerprint `cb463a404ff1`. macOS/Avalonia source only.
 | `tests/linux/DaxAlgo.Daxq.Vm.Tests/ValidationAndRuntimeSafetyTests.cs` | 756 | linux | DaxAlgo.Daxq.Vm.Tests | test | Y |  |
 | `tests/linux/Fixtures/DaxAlgo.SamplePlugin/SamplePlugin.cs` | 97 | linux | DaxAlgo.SamplePlugin | test | Y | Catalog descriptor — the metadata the Strategies pane renders. |
 | `tests/linux/TradingTerminal.App.Avalonia.Tests/AuthoringSessionMigrationTests.cs` | 65 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
-| `tests/linux/TradingTerminal.App.Avalonia.Tests/CandidateAuthoringUxContractTests.cs` | 323 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
-| `tests/linux/TradingTerminal.App.Avalonia.Tests/CandidateRestoreRecoveryTests.cs` | 962 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
+| `tests/linux/TradingTerminal.App.Avalonia.Tests/CandidateAuthoringUxContractTests.cs` | 418 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
+| `tests/linux/TradingTerminal.App.Avalonia.Tests/CandidateRestoreRecoveryTests.cs` | 1224 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
 | `tests/linux/TradingTerminal.App.Avalonia.Tests/MacPackagingConfigurationTests.cs` | 285 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
-| `tests/linux/TradingTerminal.App.Avalonia.Tests/StrategyAuthoringFreshSessionTests.cs` | 295 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
+| `tests/linux/TradingTerminal.App.Avalonia.Tests/StrategyAuthoringFreshSessionTests.cs` | 460 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
 | `tests/linux/TradingTerminal.App.Avalonia.Tests/StrategyStarterCatalogTests.cs` | 216 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
 | `tests/linux/TradingTerminal.App.Avalonia.Tests/ThemeManagerTests.cs` | 18 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
 | `tests/linux/TradingTerminal.App.Avalonia.Tests/TradeIrBacktestAuthoringTests.cs` | 514 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
@@ -131,7 +131,7 @@ Generated from source fingerprint `cb463a404ff1`. macOS/Avalonia source only.
 | `tests/linux/TradingTerminal.Tests.Headless/Risk/RiskManagerTests.cs` | 110 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/AuthoredStrategyComposerTests.cs` | 261 | linux | TradingTerminal.Tests.Headless | test | Y | Kernel + descriptor + live view-model, no view — the shape the |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/IndexRegimeAggregatorTests.cs` | 103 | linux | TradingTerminal.Tests.Headless | test | Y | Snapshot whose every timeframe column carries the trend score returned by |
-| `tests/linux/TradingTerminal.Tests.Headless/Strategies/ParallelStrategyCandidateGeneratorV1Tests.cs` | 1676 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Strategies/ParallelStrategyCandidateGeneratorV1Tests.cs` | 1938 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/RoslynStrategyCompilerTests.cs` | 100 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/StrategyCandidateGenerationOrchestratorV1Tests.cs` | 464 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Strategies/StrategyCandidateV1Tests.cs` | 522 | linux | TradingTerminal.Tests.Headless | test | Y |  |

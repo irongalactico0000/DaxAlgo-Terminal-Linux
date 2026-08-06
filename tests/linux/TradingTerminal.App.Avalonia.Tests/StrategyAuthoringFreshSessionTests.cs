@@ -49,6 +49,110 @@ public sealed class StrategyAuthoringFreshSessionTests
     }
 
     [Fact]
+    public void Generation_lane_row_exposes_terminal_artifact_and_raw_failure_for_inspection()
+    {
+        const string source = "def on_event(state, event):\n    return state\n";
+        var lane = StrategyGenerationLaneV1.VibePython;
+        var candidate = new StrategyGenerationCandidateV1(
+            StrategyGenerationCandidateV1.CurrentSchemaVersion,
+            "preview/vibe-python",
+            lane,
+            new string('a', 64),
+            StrategyGenerationPackageCatalogV1.RequireBinding(lane),
+            "Preview candidate",
+            "Inspect the exact source before choosing it.",
+            [],
+            [],
+            [],
+            [],
+            new StrategyGenerationArtifactV1(
+                StrategyGenerationArtifactKindV1.VibePythonSource,
+                "strategy.py",
+                "python",
+                source,
+                null),
+            "Review-only fixture.",
+            []);
+        var generated = new StrategyGenerationLaneResultV1(
+            lane,
+            StrategyGenerationReadinessV1.Generated,
+            candidate,
+            StrategyGenerationCandidateCanonicalJsonV1.Hash(candidate),
+            [],
+            new StrategyGenerationAgentRunV1(
+                "vibe-agent",
+                "test-provider",
+                null,
+                true,
+                null,
+                null,
+                CodegenUsage.None));
+        var generatedRow = new StrategyGenerationLaneProgressRow(lane);
+
+        generatedRow.Apply(new StrategyGenerationLaneProgressV1(
+            lane,
+            StrategyGenerationLaneProgressStateV1.Completed,
+            "Artifact ready for review.",
+            generated));
+
+        generatedRow.HasResult.Should().BeTrue();
+        generatedRow.ResultOption.Should().NotBeNull();
+        generatedRow.ResultOption!.Result.Should().BeSameAs(generated);
+        generatedRow.InspectablePreview.Should().Be(source);
+        generatedRow.PreviewHeading.Should().Be("strategy.py · exact generated artifact");
+
+        const string rawResponse = "{ broken model response";
+        var issue = new StrategyCandidateGenerationIssueV1(
+            StrategyCandidateGenerationIssueSeverityV1.Error,
+            "LANE_JSON_INVALID",
+            "candidate",
+            "The candidate envelope could not be parsed.");
+        var failed = new StrategyGenerationLaneResultV1(
+            StrategyGenerationLaneV1.TypedGraph,
+            StrategyGenerationReadinessV1.Failed,
+            null,
+            null,
+            [issue],
+            new StrategyGenerationAgentRunV1(
+                "graph-agent",
+                "test-provider",
+                null,
+                false,
+                "The model returned invalid JSON.",
+                rawResponse,
+                CodegenUsage.None));
+        var failedRow = new StrategyGenerationLaneProgressRow(failed.Lane);
+
+        failedRow.Apply(new StrategyGenerationLaneProgressV1(
+            failed.Lane,
+            StrategyGenerationLaneProgressStateV1.Failed,
+            "Candidate envelope invalid.",
+            failed));
+
+        failedRow.HasResult.Should().BeTrue();
+        failedRow.ResultOption!.IsFailed.Should().BeTrue();
+        failedRow.ResultOption.FirstIssue.Should().BeSameAs(issue);
+        failedRow.InspectablePreview.Should().Be(rawResponse,
+            "the exact failed provider response is more inspectable than a flattened status string");
+        failedRow.PreviewHeading.Should().Be("Raw model response · candidate envelope invalid");
+
+        var whitespaceArtifact = candidate with
+        {
+            Artifact = candidate.Artifact with { Source = "   " },
+        };
+        var whitespaceResult = failed with
+        {
+            Lane = lane,
+            Candidate = whitespaceArtifact,
+            CandidateHashSha256 = StrategyGenerationCandidateCanonicalJsonV1.Hash(whitespaceArtifact),
+        };
+        var whitespaceOption = new StrategyGenerationCandidateOption(whitespaceResult);
+        whitespaceOption.InspectablePreview.Should().Be(rawResponse);
+        whitespaceOption.PreviewHeading.Should().Be("Raw model response · candidate envelope invalid",
+            "the heading must describe the content actually displayed, not a blank artifact shell");
+    }
+
+    [Fact]
     public async Task Stop_marks_active_four_lane_rows_canceled_and_rejects_late_generator_output()
     {
         var provider = new StubCodegenClient();
@@ -81,7 +185,11 @@ public sealed class StrategyAuthoringFreshSessionTests
         viewModel.GenerationLaneProgressRows.Should().OnlyContain(row =>
             row.State == StrategyGenerationLaneProgressStateV1.Canceled,
             "progress callbacks and completion from the invalidated epoch must be ignored");
+        viewModel.GenerationLaneProgressRows.Should().OnlyContain(row =>
+            !row.HasResult && row.ResultOption == null && string.IsNullOrEmpty(row.InspectablePreview),
+            "a terminal result delivered after Stop must not become a transient preview");
         viewModel.GeneratedCandidateOptions.Should().BeEmpty();
+        viewModel.ChosenGeneratedCandidateHash.Should().BeNull();
         viewModel.InputTokens.Should().Be(0);
         viewModel.OutputTokens.Should().Be(0);
         viewModel.CachedTokens.Should().Be(0);
@@ -136,6 +244,32 @@ public sealed class StrategyAuthoringFreshSessionTests
         viewModel.IsRegistered = true;
         viewModel.AwaitingAnswer = true;
         viewModel.ReviewOpen = true;
+        var rawResult = new StrategyGenerationLaneResultV1(
+            StrategyGenerationLaneV1.TypedGraph,
+            StrategyGenerationReadinessV1.Failed,
+            null,
+            null,
+            [new StrategyCandidateGenerationIssueV1(
+                StrategyCandidateGenerationIssueSeverityV1.Error,
+                "RAW_FAILURE",
+                "candidate",
+                "Transient raw response fixture.")],
+            new StrategyGenerationAgentRunV1(
+                "graph-agent",
+                "test-provider",
+                null,
+                false,
+                "Transient failure.",
+                "transient raw provider payload",
+                CodegenUsage.None));
+        var rawRow = new StrategyGenerationLaneProgressRow(rawResult.Lane);
+        rawRow.Apply(new StrategyGenerationLaneProgressV1(
+            rawResult.Lane,
+            StrategyGenerationLaneProgressStateV1.Failed,
+            "Transient failure.",
+            rawResult));
+        viewModel.GenerationLaneProgressRows.Add(rawRow);
+        viewModel.SelectedGenerationLaneProgressRow = rawRow;
 
         viewModel.NewChatCommand.Execute(null);
 
@@ -168,6 +302,9 @@ public sealed class StrategyAuthoringFreshSessionTests
         viewModel.IsRegistered.Should().BeFalse();
         viewModel.AwaitingAnswer.Should().BeFalse();
         viewModel.ReviewOpen.Should().BeFalse();
+        viewModel.GenerationLaneProgressRows.Should().BeEmpty();
+        viewModel.SelectedGenerationLaneProgressRow.Should().BeNull(
+            "starting a new strategy must release transient raw provider output");
         viewModel.Files.Should().ContainSingle(file => file.Name == StrategyFile.DefaultName);
         viewModel.SelectedFile.Should().BeSameAs(viewModel.Files[0]);
     }
@@ -204,6 +341,7 @@ public sealed class StrategyAuthoringFreshSessionTests
         private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource<ParallelStrategyGenerationResultV1> _completion =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private IProgress<StrategyGenerationLaneProgressV1>? _progress;
 
         public Task Started => _started.Task;
 
@@ -213,6 +351,7 @@ public sealed class StrategyAuthoringFreshSessionTests
             CancellationToken ct = default,
             IProgress<StrategyGenerationLaneProgressV1>? progress = null)
         {
+            _progress = progress;
             foreach (var lane in StrategyGenerationLaneCatalogV1.Ordered)
             {
                 progress?.Report(new StrategyGenerationLaneProgressV1(
@@ -227,13 +366,39 @@ public sealed class StrategyAuthoringFreshSessionTests
             return _completion.Task;
         }
 
-        public void CompleteWithLateResult() => _completion.TrySetResult(
-            new ParallelStrategyGenerationResultV1(
+        public void CompleteWithLateResult()
+        {
+            var lane = StrategyGenerationLaneV1.VibePython;
+            var lateResult = new StrategyGenerationLaneResultV1(
+                lane,
+                StrategyGenerationReadinessV1.Failed,
+                null,
+                null,
+                [new StrategyCandidateGenerationIssueV1(
+                    StrategyCandidateGenerationIssueSeverityV1.Error,
+                    "LATE_RESULT",
+                    StrategyGenerationLaneCatalogV1.WireName(lane),
+                    "This result arrived after cancellation.")],
+                new StrategyGenerationAgentRunV1(
+                    "late-agent",
+                    "test-provider",
+                    null,
+                    false,
+                    "Late result.",
+                    "late raw response",
+                    CodegenUsage.None));
+            _progress?.Report(new StrategyGenerationLaneProgressV1(
+                lane,
+                StrategyGenerationLaneProgressStateV1.Failed,
+                "Late result.",
+                lateResult));
+            _completion.TrySetResult(new ParallelStrategyGenerationResultV1(
                 "late-strategy",
                 "late prompt",
                 "late hash",
                 [],
                 new CodegenUsage(700, 300, 200)));
+        }
     }
 
     private sealed class StubAiStrategyBuilder(IStrategyCodegenClient provider) : IAiStrategyBuilder

@@ -1,7 +1,7 @@
 # macOS symbol index
 
 Generated public/protected declaration surfaces for the macOS/Avalonia tree:
-**97 files / 7698 declaration lines**. Grep this directory before opening source:
+**97 files / 7708 declaration lines**. Grep this directory before opening source:
 
 ```sh
 rg -n "SubscribeTicksAsync" .claude/context/linux/symbols/

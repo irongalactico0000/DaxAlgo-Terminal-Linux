@@ -41,6 +41,13 @@ providers without making objects, arrays, or unknown properties valid. It does n
 typing inside the lane artifact: the Vibe, Declarative Rules, TradeIR, and CSP contracts below remain
 authoritative for their own documents.
 
+The response MUST contain one root JSON object. The host MAY recover exactly one unambiguous object
+from incidental prose or a Markdown fence. When parsing or deterministic validation fails, it MAY
+make one repair request containing the original host envelope and exact issue codes, paths, and
+messages. Multiple embedded objects, a second invalid response, cancellation, and provider failure
+MUST remain terminal failures. Recovery and repair do not weaken any lane contract or prove semantic
+fidelity.
+
 ## Vibe Python v1
 
 A Vibe Python artifact is one UTF-8 Python module. It MUST declare all of the following top-level

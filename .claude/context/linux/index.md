@@ -3,7 +3,7 @@
 Primary source map for `src/linux/` and `tests/linux/`. This repository has no Windows tree.
 Paths are relative to the repository root.
 
-Generated from source fingerprint `cb463a404ff1`: **56 projects / 1099 files / 172468 LOC**.
+Generated from source fingerprint `3b8482429c18`: **56 projects / 1099 files / 173786 LOC**.
 Indexed extensions: `.cs`, `.xaml`, `.axaml`. Regenerate with `bash .claude/context/gen-context-linux.sh`.
 
 ## Groups
@@ -26,11 +26,11 @@ Indexed extensions: `.cs`, `.xaml`, `.axaml`. Regenerate with `bash .claude/cont
 | Project | Group | Role | LOC | Files |
 |---|---|---|---:|---:|
 | TradingTerminal.Core | Core | product | 26384 | 285 |
+| TradingTerminal.Tests.Headless | Tests | test | 19373 | 111 |
 | TradingTerminal.Infrastructure | Pipeline | product | 19180 | 122 |
-| TradingTerminal.Tests.Headless | Tests | test | 19111 | 111 |
-| TradingTerminal.App.Avalonia | Shell | product | 8794 | 71 |
-| DaxAlgo.Codegen | Tools | product | 7604 | 25 |
-| TradingTerminal.Settings | UI | product | 7168 | 18 |
+| TradingTerminal.App.Avalonia | Shell | product | 8969 | 71 |
+| DaxAlgo.Codegen | Tools | product | 7850 | 25 |
+| TradingTerminal.Settings | UI | product | 7281 | 18 |
 | TradingTerminal.Ai.Coordinator | AI | product | 6087 | 18 |
 | TradingTerminal.MarketData | Pipeline | product | 5929 | 38 |
 | DaxAlgo.Daxq.Host | AI | product | 5348 | 15 |
@@ -39,8 +39,8 @@ Indexed extensions: `.cs`, `.xaml`, `.axaml`. Regenerate with `bash .claude/cont
 | DaxAlgo.Strategy.Bundle | Sdk | product | 4055 | 15 |
 | TradingTerminal.Login | Shell | product | 3949 | 49 |
 | DaxAlgo.Daxq.Vm | AI | product | 3683 | 5 |
+| TradingTerminal.App.Avalonia.Tests | Tests | test | 3200 | 8 |
 | TradingTerminal.UI.Core | UI | product | 2889 | 27 |
-| TradingTerminal.App.Avalonia.Tests | Tests | test | 2678 | 8 |
 | TradingTerminal.Accounts | Shell | product | 2071 | 10 |
 | TradingTerminal.SurfaceLab | Charts | product | 2044 | 8 |
 | DaxAlgo.Daxq.Vm.Tests | Tests | test | 2028 | 8 |

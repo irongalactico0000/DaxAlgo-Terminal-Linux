@@ -25,12 +25,14 @@ public enum StrategyGenerationLaneProgressStateV1
     Completed = 6,
     Failed = 7,
     Canceled = 8,
+    RepairingResponse = 9,
 }
 
 public sealed record StrategyGenerationLaneProgressV1(
     StrategyGenerationLaneV1 Lane,
     StrategyGenerationLaneProgressStateV1 State,
-    string? Detail = null);
+    string? Detail = null,
+    StrategyGenerationLaneResultV1? Result = null);
 
 public enum StrategyGenerationArtifactKindV1
 {

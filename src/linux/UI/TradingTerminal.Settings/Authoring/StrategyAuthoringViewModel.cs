@@ -264,6 +264,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [ObservableProperty] private string? _candidateContentHash;
     [ObservableProperty] private string? _candidateStatusText;
     [ObservableProperty] private string? _candidateRestoreWarning;
+    [ObservableProperty] private bool _candidateBatchRestored;
+    [ObservableProperty] private StrategyGenerationLaneProgressRow? _selectedGenerationLaneProgressRow;
     [ObservableProperty] private StrategyGenerationCandidateOption? _selectedGeneratedCandidateOption;
     [ObservableProperty] private string? _chosenGeneratedCandidateHash;
 
@@ -304,7 +306,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     public bool HasRetainedCandidateBatchDuringGeneration => IsGeneratingCandidates && HasGeneratedCandidates;
     public bool CanChooseGeneratedCandidate =>
         !HasPendingFourLanePrompt &&
+        _parallelCandidateBatch is not null &&
         SelectedGeneratedCandidateOption is { Result.Selectable: true } selected &&
+        GeneratedCandidateOptions.Contains(selected) &&
+        _parallelCandidateBatch.Lanes.Any(lane => ReferenceEquals(lane, selected.Result)) &&
         !string.Equals(
             selected.CandidateHashSha256,
             ChosenGeneratedCandidateHash,
@@ -320,13 +325,24 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         !IsGenerating;
     public bool CanConfirmCandidate => CurrentCandidate is not null && CandidateContentHash is not null &&
         StrategyCandidateConfirmationV1.Confirm(CurrentCandidate, CandidateContentHash).Success;
-    public string GenerationModeLabel => GenerateCandidateFirst ? "FOUR AI LANES" : "EXPERT CODE";
-    public string GenerationModeActionText => GenerateCandidateFirst ? "Use Expert code" : "Back to 4 candidates";
+    public string GenerationModeLabel => GenerateCandidateFirst ? "FOUR AI LANES" : "EXPERT C#";
+    public string GenerationModeActionText => GenerateCandidateFirst
+        ? "Use Expert C#"
+        : "Return to Four AI candidates";
     public string GenerationLaneText => GenerateCandidateFirst ? "4 AI strategy lanes" : "Expert code";
     public string SendButtonText => GenerateCandidateFirst ? "Check & generate  ⌘↵" : "Generate code  ⌘↵";
     public string AuthoringBoundaryText => GenerateCandidateFirst
         ? "generation only · choose before package"
-        : "reviewed code runs in-process";
+        : HasNonCSharpExpertArtifact
+            ? "source review only · no importer/runtime"
+            : "reviewed C# runs in-process";
+    public bool HasExpertCSharpFiles =>
+        !GenerateCandidateFirst &&
+        Files.Count > 0 &&
+        Files.All(static file => file.Name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase));
+    public bool HasNonCSharpExpertArtifact =>
+        !GenerateCandidateFirst &&
+        Files.Any(static file => !file.Name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase));
     public string CandidateActionText => SelectedGeneratedCandidateOption is { CandidateHashSha256: { } selectedHash } &&
         string.Equals(selectedHash, ChosenGeneratedCandidateHash, StringComparison.Ordinal)
             ? "Using this candidate"
@@ -370,6 +386,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         OnPropertyChanged(nameof(GenerationLaneText));
         OnPropertyChanged(nameof(SendButtonText));
         OnPropertyChanged(nameof(AuthoringBoundaryText));
+        OnPropertyChanged(nameof(HasExpertCSharpFiles));
+        OnPropertyChanged(nameof(HasNonCSharpExpertArtifact));
         RegenerateRecoveredCandidatesCommand.NotifyCanExecuteChanged();
         RegenerateFourCandidatesCommand.NotifyCanExecuteChanged();
         AiStatus = value
@@ -378,7 +396,16 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     }
 
     [RelayCommand]
-    private void ToggleGenerationMode() => GenerateCandidateFirst = !GenerateCandidateFirst;
+    private void ToggleGenerationMode()
+    {
+        GenerateCandidateFirst = !GenerateCandidateFirst;
+        WorkbenchTab = GenerateCandidateFirst ? 3 : 0;
+        Status = GenerateCandidateFirst
+            ? "Four AI candidate comparison is visible. Select a lane or generate a fresh batch."
+            : HasNonCSharpExpertArtifact
+                ? "Expert C# mode is open, but the current file is a source-review artifact and cannot be compiled here."
+                : "Expert C# mode is open. Review C# before compiling and registering it.";
+    }
 
     partial void OnCurrentCandidateChanged(StrategyCandidateV1? value)
     {
@@ -497,6 +524,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Files.Add(file);
         SelectedFile = file;
         _filesEditedByUser = true;
+        NotifyEditorFileModeChanged();
         InvalidateEditorProofs("The file set changed; prior compile, registration, and candidate-hash proofs were cleared.");
     }
 
@@ -509,6 +537,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Files.Remove(file);
         SelectedFile = Files.FirstOrDefault();
         _filesEditedByUser = true;
+        NotifyEditorFileModeChanged();
         InvalidateEditorProofs("The file set changed; prior compile, registration, and candidate-hash proofs were cleared.");
     }
 
@@ -1499,6 +1528,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private void ResetGenerationLaneProgress()
     {
+        SelectedGenerationLaneProgressRow = null;
         GenerationLaneProgressRows.Clear();
         foreach (var lane in StrategyGenerationLaneCatalogV1.Ordered)
             GenerationLaneProgressRows.Add(new StrategyGenerationLaneProgressRow(lane));
@@ -1510,6 +1540,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         var row = GenerationLaneProgressRows.FirstOrDefault(candidate => candidate.Lane == progress.Lane);
         if (row is null) return;
         row.Apply(progress);
+        if (progress.Result is not null &&
+            (SelectedGenerationLaneProgressRow is null || !SelectedGenerationLaneProgressRow.HasResult))
+        {
+            SelectedGenerationLaneProgressRow = row;
+        }
         NotifyGenerationProgressChanged();
     }
 
@@ -1521,7 +1556,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 StrategyGenerationReadinessV1.PackageValid or StrategyGenerationReadinessV1.TestPassed
                     ? StrategyGenerationLaneProgressStateV1.Completed
                     : StrategyGenerationLaneProgressStateV1.Failed;
-            ApplyGenerationLaneProgress(new StrategyGenerationLaneProgressV1(lane.Lane, state));
+            ApplyGenerationLaneProgress(new StrategyGenerationLaneProgressV1(
+                lane.Lane,
+                state,
+                Result: lane));
         }
     }
 
@@ -1531,7 +1569,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (IsGeneratingCandidates) StepText = GenerationProgressSummary;
     }
 
-    private void ApplyParallelCandidateBatch(ParallelStrategyGenerationResultV1 result)
+    private void ApplyParallelCandidateBatch(
+        ParallelStrategyGenerationResultV1 result,
+        bool restored = false)
     {
         if (!string.Equals(result.StrategyId, StrategyId.Trim(), StringComparison.Ordinal))
             throw new InvalidOperationException(
@@ -1550,6 +1590,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ClearGeneratedCandidateOptionFlags();
         GeneratedCandidateOptions.Clear();
         _parallelCandidateBatch = result;
+        CandidateBatchRestored = restored;
         foreach (var lane in result.Lanes) GeneratedCandidateOptions.Add(new StrategyGenerationCandidateOption(lane));
         SelectedGeneratedCandidateOption = GeneratedCandidateOptions.FirstOrDefault(static option => option.Result.Selectable)
             ?? GeneratedCandidateOptions.FirstOrDefault();
@@ -2280,7 +2321,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     if (string.IsNullOrWhiteSpace(recoveryPrompt) &&
                         !string.IsNullOrWhiteSpace(restoredBatch.UserPrompt))
                         recoveryPrompt = restoredBatch.UserPrompt;
-                    ApplyParallelCandidateBatch(restoredBatch);
+                    ApplyParallelCandidateBatch(restoredBatch, restored: true);
 
                     // The editor base survives hand-edits even after the selected-candidate proof
                     // is cleared. Persist it separately so an invalid edit can be repaired and revalidated
@@ -2796,10 +2837,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ClearTradeIrSynthesis();
         SetEditorBaseGeneratedCandidateHash(null);
         _parallelCandidateBatch = null;
+        CandidateBatchRestored = false;
         SelectedGeneratedCandidateOption = null;
         ChosenGeneratedCandidateHash = null;
         ClearGeneratedCandidateOptionFlags();
         GeneratedCandidateOptions.Clear();
+        SelectedGenerationLaneProgressRow = null;
         GenerationLaneProgressRows.Clear();
         NotifyGenerationProgressChanged();
         NotifyParallelCandidateStateChanged();
@@ -2863,6 +2906,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             Files.Add(Track(new AuthoredFile(file.Name, file.Content)));
 
         SelectedFile = Files.FirstOrDefault();
+        NotifyEditorFileModeChanged();
         _session?.SyncEditedFiles(files);
     }
 
@@ -2877,9 +2921,17 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (e.PropertyName is nameof(AuthoredFile.Content) or nameof(AuthoredFile.Name))
         {
             _filesEditedByUser = true;
+            if (e.PropertyName == nameof(AuthoredFile.Name)) NotifyEditorFileModeChanged();
             InvalidateLoadedTradeIrSynthesisProof();
             InvalidateEditorProofs("The editor changed; prior compile, registration, and candidate-hash proofs were cleared.");
         }
+    }
+
+    private void NotifyEditorFileModeChanged()
+    {
+        OnPropertyChanged(nameof(HasExpertCSharpFiles));
+        OnPropertyChanged(nameof(HasNonCSharpExpertArtifact));
+        OnPropertyChanged(nameof(AuthoringBoundaryText));
     }
 
     private void SetEditorBaseGeneratedCandidateHash(string? hash)
@@ -3241,7 +3293,9 @@ public sealed partial class StrategyGenerationCandidateOption : ObservableObject
     public StrategyGenerationLaneResultV1 Result { get; }
 
     [ObservableProperty] private bool _isPreviewed;
-    [ObservableProperty] private bool _isChosen;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PreviewStateText))]
+    private bool _isChosen;
 
     public StrategyGenerationCandidateV1? Candidate => Result.Candidate;
     public string? CandidateHashSha256 => Result.CandidateHashSha256;
@@ -3310,10 +3364,35 @@ public sealed partial class StrategyGenerationCandidateOption : ObservableObject
         ?? "The lane did not return diagnostic detail.";
     public string ErrorText => string.Join(Environment.NewLine, Result.Issues.Select(issue =>
         $"{issue.Code} · {issue.Path}: {issue.Message}"));
+    public string RecoveryText => FirstIssueCode switch
+    {
+        "LANE_JSON_INVALID" =>
+            "The model answered, but its candidate wrapper was not valid JSON for this lane. A fresh generation can repair the response; this saved result cannot be repaired in place.",
+        "LANE_ARTIFACT_VALIDATION_FAILED" or "GRAPH_INVALID" =>
+            "The candidate JSON parsed, but the lane artifact violated its deterministic contract. A fresh generation receives the exact failing field and can repair it once.",
+        "LANE_PROVIDER_FAILED" or "LANE_PROVIDER_EXCEPTION" =>
+            "The AI provider failed before a candidate could be validated. Check provider availability, then regenerate.",
+        _ when Result.Readiness == StrategyGenerationReadinessV1.Invalid =>
+            "The AI response failed a deterministic lane check. Regenerate to run one validation-aware repair pass; the current saved result remains read-only evidence.",
+        _ => "Regenerate this batch after resolving the provider error.",
+    };
     public string ArtifactPreview => Candidate?.Artifact.Source
         ?? (Candidate?.Artifact.Document is { } document
             ? JsonSerializer.Serialize(document, new JsonSerializerOptions { WriteIndented = true })
             : string.Empty);
+    public string InspectablePreview => !string.IsNullOrWhiteSpace(ArtifactPreview)
+        ? ArtifactPreview
+        : !string.IsNullOrWhiteSpace(Result.AgentRun.RawResponse)
+            ? Result.AgentRun.RawResponse!
+            : ErrorText;
+    public string PreviewHeading => !string.IsNullOrWhiteSpace(ArtifactPreview) && Candidate?.Artifact is { } artifact
+        ? $"{artifact.FileName} · exact generated artifact"
+        : !string.IsNullOrWhiteSpace(Result.AgentRun.RawResponse)
+            ? "Raw model response · candidate envelope invalid"
+            : $"{LaneName} · generation diagnostic";
+    public string PreviewStateText => IsChosen
+        ? "ACTIVE IN EDITOR · EXACT HASH"
+        : "PREVIEW ONLY · NOT ACTIVE";
     public string FlexibilityText => Candidate is null
         ? string.Empty
         : $"{Candidate.Parameters.Count} proposed parameters · {Candidate.VariationAxes.Count} proposed forks";
@@ -3371,15 +3450,43 @@ public sealed partial class StrategyGenerationLaneProgressRow : ObservableObject
     [NotifyPropertyChangedFor(nameof(StateDetail))]
     private string? _detail;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasResult))]
+    [NotifyPropertyChangedFor(nameof(InspectablePreview))]
+    [NotifyPropertyChangedFor(nameof(PreviewHeading))]
+    private StrategyGenerationCandidateOption? _resultOption;
+
+    public bool HasResult => ResultOption is not null;
+    public string InspectablePreview => ResultOption?.InspectablePreview ?? string.Empty;
+    public string PreviewHeading => ResultOption?.PreviewHeading ?? $"{ArtifactName} · waiting for result";
+
     public void Apply(StrategyGenerationLaneProgressV1 progress)
     {
         if (progress.Lane != Lane)
             throw new ArgumentException("Progress belongs to a different generation lane.", nameof(progress));
 
-        if (IsTerminal(State)) return;
-        if (!IsTerminal(progress.State) && progress.State < State) return;
+        if (progress.Result is not null)
+        {
+            if (progress.Result.Lane != Lane)
+                throw new ArgumentException("The terminal result belongs to a different generation lane.", nameof(progress));
+            if (!IsTerminal(progress.State))
+                throw new ArgumentException("A lane result can only accompany terminal progress.", nameof(progress));
+        }
+
+        if (IsTerminal(State))
+        {
+            if (ResultOption is null && progress.Result is not null && progress.State == State)
+                ResultOption = new StrategyGenerationCandidateOption(progress.Result);
+            return;
+        }
+        var parsingRepairedResponse =
+            State == StrategyGenerationLaneProgressStateV1.RepairingResponse &&
+            progress.State == StrategyGenerationLaneProgressStateV1.ParsingResponse;
+        if (!IsTerminal(progress.State) && progress.State < State && !parsingRepairedResponse) return;
         if (!IsTerminal(progress.State)) _lastActiveState = progress.State;
 
+        if (progress.Result is not null)
+            ResultOption = new StrategyGenerationCandidateOption(progress.Result);
         Detail = progress.Detail;
         State = progress.State;
     }
@@ -3391,6 +3498,7 @@ public sealed partial class StrategyGenerationLaneProgressRow : ObservableObject
         StrategyGenerationLaneProgressStateV1.WaitingForModel => "WAITING FOR MODEL",
         StrategyGenerationLaneProgressStateV1.ParsingResponse => "PARSING RESPONSE",
         StrategyGenerationLaneProgressStateV1.ValidatingArtifact => "VALIDATING",
+        StrategyGenerationLaneProgressStateV1.RepairingResponse => "REPAIRING RESPONSE",
         StrategyGenerationLaneProgressStateV1.Completed => "READY",
         StrategyGenerationLaneProgressStateV1.Failed => "BLOCKED",
         StrategyGenerationLaneProgressStateV1.Canceled => "CANCELED",
@@ -3403,6 +3511,8 @@ public sealed partial class StrategyGenerationLaneProgressRow : ObservableObject
         StrategyGenerationLaneProgressStateV1.WaitingForModel => "Request sent; waiting for the model response",
         StrategyGenerationLaneProgressStateV1.ParsingResponse => "Response received; parsing the candidate envelope",
         StrategyGenerationLaneProgressStateV1.ValidatingArtifact => $"Checking {ValidationPlanText}",
+        StrategyGenerationLaneProgressStateV1.RepairingResponse =>
+            Detail ?? "First response failed validation; waiting for one bounded repair",
         StrategyGenerationLaneProgressStateV1.Completed => Detail ?? "Artifact returned and checks finished",
         StrategyGenerationLaneProgressStateV1.Failed => Detail is { Length: > 0 }
             ? $"Stopped at {FailureStageLabel}: {Detail}"
@@ -3417,6 +3527,7 @@ public sealed partial class StrategyGenerationLaneProgressRow : ObservableObject
         StrategyGenerationLaneProgressStateV1.WaitingForModel => "✓ PREPARE   ● MODEL   ○ PARSE   ○ CHECK",
         StrategyGenerationLaneProgressStateV1.ParsingResponse => "✓ PREPARE   ✓ MODEL   ● PARSE   ○ CHECK",
         StrategyGenerationLaneProgressStateV1.ValidatingArtifact => "✓ PREPARE   ✓ MODEL   ✓ PARSE   ● CHECK",
+        StrategyGenerationLaneProgressStateV1.RepairingResponse => "✓ PREPARE   ! CHECK   ● REPAIR",
         StrategyGenerationLaneProgressStateV1.Completed => "✓ PREPARE   ✓ MODEL   ✓ PARSE   ✓ CHECK",
         StrategyGenerationLaneProgressStateV1.Failed => FailurePipelineText,
         StrategyGenerationLaneProgressStateV1.Canceled => "■ STOPPED",
@@ -3429,6 +3540,7 @@ public sealed partial class StrategyGenerationLaneProgressRow : ObservableObject
         StrategyGenerationLaneProgressStateV1.WaitingForModel => "model response",
         StrategyGenerationLaneProgressStateV1.ParsingResponse => "response parsing",
         StrategyGenerationLaneProgressStateV1.ValidatingArtifact => "contract validation",
+        StrategyGenerationLaneProgressStateV1.RepairingResponse => "repair response",
         _ => "generation",
     };
 
@@ -3438,6 +3550,7 @@ public sealed partial class StrategyGenerationLaneProgressRow : ObservableObject
         StrategyGenerationLaneProgressStateV1.WaitingForModel => "✓ PREPARE   ! MODEL   ○ PARSE   ○ CHECK",
         StrategyGenerationLaneProgressStateV1.ParsingResponse => "✓ PREPARE   ✓ MODEL   ! PARSE   ○ CHECK",
         StrategyGenerationLaneProgressStateV1.ValidatingArtifact => "✓ PREPARE   ✓ MODEL   ✓ PARSE   ! CHECK",
+        StrategyGenerationLaneProgressStateV1.RepairingResponse => "✓ PREPARE   ✓ MODEL   ! REPAIR",
         _ => "! GENERATION BLOCKED",
     };
 

@@ -59,7 +59,11 @@ non-worker-isolated. See the [four-lane workflow](docs/vibe-quant-four-lane-work
 
 Four-lane follow-ups retain the original strategy brief instead of replacing it. Backtest-navigation
 messages open the separate test guidance without starting four new model calls or changing candidate
-hashes.
+hashes. In Candidate, every lane becomes inspectable as soon as its own request finishes; these live
+source/JSON previews remain read-only until the complete ordered four-lane batch validates.
+Each turn starts four concurrent initial requests. An invalid lane may make one bounded,
+validation-aware repair request; restored results are explicitly labeled and never masquerade as a
+new run.
 
 For the shortest supported trial, open **New strategy**, search for `smoke`, choose
 **QuoteL1 EMA crossover · smoke compatible**, generate the four lanes, then choose
