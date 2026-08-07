@@ -4,6 +4,41 @@ Vibe Quant can ask four independent generation agents to express one strategy br
 different authoring formats. This is an authoring and comparison workflow. It does not silently
 compile, import, backtest, register, or run any generated artifact.
 
+The current implementation status and exact first missing boundary for every lane are recorded in
+the [honest Done / Not Done matrix](vibe-quant-four-lane-done-matrix.md).
+
+## Where the strategy builder sits in the trading workflow
+
+The four lanes are the **representation/build step**, not the whole strategy-design process. The
+fixed workflow must stay abstract enough for directional, relative-value, portfolio, liquidity,
+execution, hedging, derivatives, event, and model-driven strategies:
+
+```text
+objective
+  -> instrument or universe + point-in-time data
+  -> decision model and clock
+  -> portfolio / position / quote intent
+  -> execution policy
+  -> state, risk, and lifecycle
+  -> build four inspectable representations
+  -> validate, evaluate, review, and approve
+```
+
+The details inside those slots vary by family. A directional long/short strategy may detect a jump
+or overheated move, confirm it with metrics and indicators, choose buy/sell/no-trade, then define
+entry timing, market versus limit behavior, size, stops, and exits. A pairs strategy instead defines
+relative mispricing and coordinated legs; rotation ranks a universe and rebalances; market making
+quotes both sides and manages inventory; arbitrage coordinates simultaneous legs; TWAP/VWAP/POV is
+an execution objective rather than an alpha signal; hedging manages exposure; and options strategies
+may manage Greeks, expiry, and multi-leg structures.
+
+The current product is strongest at building the four representations and deterministic parts of
+validation. It can encode many family-specific details in the brief, parameters, data requirements,
+graph/state, outputs, and risk/execution policies, but it does not yet force every strategy through a
+family-aware completeness interview. The UI must ask only applicable questions while still closing
+every required slot for the chosen family; it must not force all strategies into a “stock jumps, buy,
+then sell” template or invent unresolved facts.
+
 The exact format rules and their owners are defined in the
 [Vibe Quant lane contracts v1](vibe-quant-lane-contracts.md). The machine-readable Declarative
 Rules contract is [JSON Schema Draft 2020-12](schemas/vibe-quant-declarative-rules-v1.schema.json).

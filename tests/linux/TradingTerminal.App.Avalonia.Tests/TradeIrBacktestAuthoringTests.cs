@@ -215,6 +215,39 @@ public sealed class TradeIrBacktestAuthoringTests
         option.SyntheticTestCapabilityText.Should().ContainAll("Not testable", expectedBoundary);
     }
 
+    [Theory]
+    [InlineData(StrategyGenerationLaneV1.VibePython, "Vibe Python authoring profile", "Python-to-TradeIR", "Python runtime")]
+    [InlineData(StrategyGenerationLaneV1.DeclarativeSpec, "Closed Rules v1 schema", "Rules-to-TradeIR", "no independent executable runtime")]
+    [InlineData(StrategyGenerationLaneV1.CspPython, "Inert CSP authoring profile", "CSP-to-TradeIR", "CSP runtime host")]
+    public void Source_review_readiness_names_passed_native_validation_and_first_missing_execution_stage(
+        StrategyGenerationLaneV1 lane,
+        string validationTitle,
+        string missingLowerer,
+        string missingRuntime)
+    {
+        using var viewModel = new StrategyAuthoringViewModel(
+            new StubCompiler(),
+            new StubRegistry(),
+            NullLogger<StrategyAuthoringViewModel>.Instance,
+            sessionRepository: new MemoryAuthoringSessionRepository(),
+            tradeIrSimulatedBacktestRunner: new RecordingSmokeRunner());
+        var option = ValidSourceReviewOption(lane);
+        viewModel.GeneratedCandidateOptions.Add(option);
+        viewModel.SelectedGeneratedCandidateOption = option;
+        viewModel.ChosenGeneratedCandidateHash = option.CandidateHashSha256;
+
+        var stages = viewModel.BacktestReadinessStages;
+
+        stages.Should().HaveCount(4);
+        stages[1].Title.Should().Be(validationTitle);
+        stages[1].Status.Should().Be("PASSED");
+        stages[1].Detail.Should().Contain("validation evidence, not execution evidence");
+        stages[2].Status.Should().Be("MISSING");
+        stages[2].Detail.Should().Contain(missingLowerer);
+        stages[3].Status.Should().Be("LOCKED");
+        stages[3].Detail.Should().Contain(missingRuntime);
+    }
+
     [Fact]
     public void Missing_smoke_runner_has_an_explicit_disabled_reason()
     {
@@ -339,6 +372,49 @@ public sealed class TradeIrBacktestAuthoringTests
             CodegenUsage.None);
         StrategyGenerationBatchValidationV1.Validate(batch).Should().BeEmpty();
         return (batch, module, candidateHash);
+    }
+
+    private static StrategyGenerationCandidateOption ValidSourceReviewOption(StrategyGenerationLaneV1 lane)
+    {
+        const string strategyId = "source-review-readiness";
+        const string prompt = "Build a deterministic source-review fixture.";
+        var candidateId = $"{strategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        JsonElement? document = null;
+        string? source = "# lane-native source validated before this committed fixture";
+        if (lane == StrategyGenerationLaneV1.DeclarativeSpec)
+        {
+            using var parsed = JsonDocument.Parse("{}");
+            document = parsed.RootElement.Clone();
+            source = null;
+        }
+
+        var candidate = new StrategyGenerationCandidateV1(
+            StrategyGenerationCandidateV1.CurrentSchemaVersion,
+            candidateId,
+            lane,
+            StrategyGenerationCandidateCanonicalJsonV1.RequestHash(strategyId, prompt, lane),
+            StrategyGenerationPackageCatalogV1.RequireBinding(lane),
+            "Source review fixture",
+            "Inspect the lane boundary.",
+            [],
+            [],
+            [],
+            [],
+            new StrategyGenerationArtifactV1(
+                StrategyGenerationLaneCatalogV1.ArtifactKind(lane),
+                StrategyGenerationPackageCatalogV1.ArtifactFileName(lane),
+                StrategyGenerationPackageCatalogV1.ArtifactLanguage(lane),
+                source,
+                document),
+            "Committed validation-state fixture.",
+            []);
+        return new StrategyGenerationCandidateOption(new StrategyGenerationLaneResultV1(
+            lane,
+            StrategyGenerationReadinessV1.Generated,
+            candidate,
+            StrategyGenerationCandidateCanonicalJsonV1.Hash(candidate),
+            [],
+            Run(lane, success: true)));
     }
 
     private static OperatorGraphModuleV1 CreateModule(string strategyId)

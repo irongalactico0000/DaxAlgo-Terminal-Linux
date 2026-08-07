@@ -214,6 +214,9 @@ public sealed partial class StrategyAuthoringViewModel
 
             var generated = hasTradeIr || chosen?.Result.Generated == true;
             var packageValid = hasTradeIr || chosen?.Result.PackageValid == true;
+            if (!hasTradeIr && chosen is { Result.Lane: not StrategyGenerationLaneV1.TypedGraph })
+                return SourceReviewReadinessStages(chosen, generated);
+
             return
             [
                 new CandidateReadinessStageRow(
@@ -236,6 +239,53 @@ public sealed partial class StrategyAuthoringViewModel
                     "Runs the real evaluator, risk gateway, simulated order book, and portfolio in-process. It does not use historical data or an isolated worker."),
             ];
         }
+    }
+
+    private static IReadOnlyList<CandidateReadinessStageRow> SourceReviewReadinessStages(
+        StrategyGenerationCandidateOption chosen,
+        bool generated)
+    {
+        var (validationTitle, missingBoundary, runtimeBoundary) = chosen.Result.Lane switch
+        {
+            StrategyGenerationLaneV1.VibePython => (
+                "Vibe Python authoring profile",
+                "No deterministic Python-to-TradeIR lowerer or registered importer is installed.",
+                "No constrained Python runtime package is registered."),
+            StrategyGenerationLaneV1.DeclarativeSpec => (
+                "Closed Rules v1 schema",
+                "No deterministic Rules-to-TradeIR lowerer is installed.",
+                "Rules JSON has no independent executable runtime target."),
+            StrategyGenerationLaneV1.CspPython => (
+                "Inert CSP authoring profile",
+                "No CSP-to-TradeIR lowerer or registered importer is installed; Point72 CSP compatibility is unverified.",
+                "No CSP runtime host or pinned CSP dependency is registered."),
+            _ => throw new ArgumentOutOfRangeException(nameof(chosen)),
+        };
+
+        // A committed Generated lane reached this state only after its lane-native validator ran.
+        // Do not require canonical selectability here: source-review lanes deliberately stop before
+        // a package/importer boundary, which is the next stage this panel must expose.
+        var validationPassed = generated &&
+            chosen.Result.Readiness == StrategyGenerationReadinessV1.Generated;
+        return
+        [
+            new CandidateReadinessStageRow(
+                "1", "Exact generated hash", generated ? "READY" : "BLOCKED",
+                generated
+                    ? "The active editor artifact still matches its generated candidate hash."
+                    : "No active generated artifact is bound to the editor."),
+            new CandidateReadinessStageRow(
+                "2", validationTitle, validationPassed ? "PASSED" : "BLOCKED",
+                validationPassed
+                    ? "The lane-native deterministic authoring validator accepted the exact artifact. This is validation evidence, not execution evidence."
+                    : $"The lane-native validator stopped at {chosen.FirstIssuePath}: {chosen.FirstIssueCode} — {chosen.FirstIssueMessage}"),
+            new CandidateReadinessStageRow(
+                "3", "Canonical lowering / import", "MISSING",
+                missingBoundary),
+            new CandidateReadinessStageRow(
+                "4", "Native runtime / test", "LOCKED",
+                runtimeBoundary),
+        ];
     }
 
     public string TradeIrBacktestStatusText => TradeIrBacktestResult switch
