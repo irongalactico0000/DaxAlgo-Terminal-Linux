@@ -1,6 +1,6 @@
 # macOS index / Core
 
-Generated from source fingerprint `8af92ffea5ea`. macOS/Avalonia source only.
+Generated from source fingerprint `3026999d8534`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
@@ -258,6 +258,7 @@ Generated from source fingerprint `8af92ffea5ea`. macOS/Avalonia source only.
 | `src/linux/Core/TradingTerminal.Core/Strategies/Definition/TradeIrDataContracts.cs` | 205 | linux | TradingTerminal.Core | product | Y | The closed set of canonical input families understood by TradeIR v1 authoring. |
 | `src/linux/Core/TradingTerminal.Core/Strategies/Definition/TradeIrModuleValidatorV1.cs` | 193 | linux | TradingTerminal.Core | product | Y | Pure pre-compilation validation for module identity, interface, determinism, and requested |
 | `src/linux/Core/TradingTerminal.Core/Strategies/Definition/TradeIrModules.cs` | 156 | linux | TradingTerminal.Core | product | Y | A location-independent content identity for source, model, schema, or runtime bytes. |
+| `src/linux/Core/TradingTerminal.Core/Strategies/Generation/ConfirmedStrategyIntentV1.cs` | 1327 | linux | TradingTerminal.Core | product | Y | The shape of decision output. Families remain classification lenses over these topologies. |
 | `src/linux/Core/TradingTerminal.Core/Strategies/Generation/StrategyCandidateCompositionV1.cs` | 370 | linux | TradingTerminal.Core | product | Y | The intake result: a user-visible candidate plus only the specialist work it |
 | `src/linux/Core/TradingTerminal.Core/Strategies/Generation/StrategyCandidateConfirmationV1.cs` | 124 | linux | TradingTerminal.Core | product | Y | Result of confirming the exact candidate revision the user reviewed. Confirmation accepts |
 | `src/linux/Core/TradingTerminal.Core/Strategies/Generation/StrategyCandidateLoweringRequestV1.cs` | 60 | linux | TradingTerminal.Core | product | Y | Immutable handoff from strategy generation to the separately owned executable-definition |
@@ -272,7 +273,7 @@ Generated from source fingerprint `8af92ffea5ea`. macOS/Avalonia source only.
 | `src/linux/Core/TradingTerminal.Core/Strategies/Parameters/StrategyParameters.cs` | 162 | linux | TradingTerminal.Core | product | Y | Sets a value, coercing and clamping it against the parameter declaration. |
 | `src/linux/Core/TradingTerminal.Core/Strategies/PluginFaultEvents.cs` | 21 | linux | TradingTerminal.Core | product | Y | Relays strategy callback failures that a host catches to keep its stream |
 | `src/linux/Core/TradingTerminal.Core/Strategies/Specification/StrategyCapabilityProfile.cs` | 267 | linux | TradingTerminal.Core | product | Y | One runtime semantic required for faithful execution, with an audit-friendly reason. |
-| `src/linux/Core/TradingTerminal.Core/Strategies/Specification/StrategySpec.cs` | 425 | linux | TradingTerminal.Core | product | Y | The primary job the strategy is intended to perform. |
+| `src/linux/Core/TradingTerminal.Core/Strategies/Specification/StrategySpec.cs` | 444 | linux | TradingTerminal.Core | product | Y | The primary job the strategy is intended to perform. |
 | `src/linux/Core/TradingTerminal.Core/Strategies/StrategyAssetScope.cs` | 22 | linux | TradingTerminal.Core | product | Y | Whether a strategy operates on a single instrument at a time or |
 | `src/linux/Core/TradingTerminal.Core/Strategies/StrategyBrokerCapability.cs` | 54 | linux | TradingTerminal.Core | product | Y | The broker capability matrix that backs 's default: |
 | `src/linux/Core/TradingTerminal.Core/Strategies/StrategyDataRequirement.cs` | 38 | linux | TradingTerminal.Core | product | Y | No declared requirement. |

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Definition;
+using TradingTerminal.Core.Strategies.Generation;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
@@ -236,14 +237,27 @@ public sealed record StrategyGenerationCandidateV1(
     IReadOnlyList<StrategyVariationAxisV1> VariationAxes,
     StrategyGenerationArtifactV1 Artifact,
     string Explanation,
-    IReadOnlyList<string> ProposedTests)
+    IReadOnlyList<string> ProposedTests,
+    string? ConfirmedIntentHashSha256 = null)
 {
-    public const string CurrentSchemaVersion = "strategy-generation-candidate/v2";
+    public const string CurrentSchemaVersion = "strategy-generation-candidate/v3";
 }
+
+/// <summary>
+/// Exact host-side evidence used to re-run confirmation before any provider request. These bytes
+/// are validation context only; lane prompts receive the smaller confirmed-intent payload.
+/// </summary>
+public sealed record StrategyGenerationConfirmedIntentContextV1(
+    string CandidateCanonicalJson,
+    string ResearchCaseCanonicalJson,
+    string ClassificationCanonicalJson);
 
 public sealed record ParallelStrategyGenerationRequestV1(
     string StrategyId,
-    string UserPrompt);
+    string UserPrompt,
+    string? ConfirmedIntentCanonicalJson = null,
+    string? ConfirmedIntentHashSha256 = null,
+    StrategyGenerationConfirmedIntentContextV1? ConfirmedIntentContext = null);
 
 public sealed record StrategyGenerationLaneResultV1(
     StrategyGenerationLaneV1 Lane,
@@ -344,7 +358,9 @@ public sealed record ParallelStrategyGenerationResultV1(
     string UserPrompt,
     string PromptHashSha256,
     IReadOnlyList<StrategyGenerationLaneResultV1> Lanes,
-    CodegenUsage Usage)
+    CodegenUsage Usage,
+    string? ConfirmedIntentCanonicalJson = null,
+    string? ConfirmedIntentHashSha256 = null)
 {
     public bool HasPackageValidCandidate =>
         StrategyGenerationBatchValidationV1.Validate(this).Count == 0 &&
@@ -412,6 +428,17 @@ public static class StrategyGenerationCandidateCanonicalJsonV1
     public static string PromptHash(string strategyId, string userPrompt) =>
         ExecutableStrategyDefinitionCanonicalJson.Hash(BuildPromptIdentity(strategyId, userPrompt));
 
+    public static string PromptHash(
+        string strategyId,
+        string userPrompt,
+        string confirmedIntentCanonicalJson,
+        string confirmedIntentHashSha256) =>
+        ExecutableStrategyDefinitionCanonicalJson.Hash(BuildPromptIdentity(
+            strategyId,
+            userPrompt,
+            confirmedIntentCanonicalJson,
+            confirmedIntentHashSha256));
+
     public static string RequestHash(
         string strategyId,
         string userPrompt,
@@ -425,10 +452,50 @@ public static class StrategyGenerationCandidateCanonicalJsonV1
             ParallelStrategyGenerationPromptV1.AgentId(lane),
             ParallelStrategyGenerationPromptV1.SystemContext(lane)));
 
+    public static string RequestHash(
+        string strategyId,
+        string userPrompt,
+        string confirmedIntentCanonicalJson,
+        string confirmedIntentHashSha256,
+        StrategyGenerationLaneV1 lane) =>
+        ExecutableStrategyDefinitionCanonicalJson.Hash(new StrategyLaneRequestIdentityV1(
+            StrategyGenerationCandidateV1.CurrentSchemaVersion,
+            strategyId.Trim(),
+            userPrompt,
+            lane,
+            $"{strategyId.Trim()}/{StrategyGenerationLaneCatalogV1.WireName(lane)}",
+            ParallelStrategyGenerationPromptV1.AgentId(lane),
+            ParallelStrategyGenerationPromptV1.SystemContext(lane),
+            confirmedIntentCanonicalJson,
+            confirmedIntentHashSha256));
+
     private static StrategyPromptIdentityV1 BuildPromptIdentity(string strategyId, string userPrompt)
     {
         var trimmedId = strategyId.Trim();
         var request = new ParallelStrategyGenerationRequestV1(trimmedId, userPrompt);
+        var lanes = StrategyGenerationLaneCatalogV1.Ordered.Select(lane =>
+        {
+            return new StrategyLanePromptIdentityV1(
+                lane,
+                ParallelStrategyGenerationPromptV1.AgentId(lane),
+                ParallelStrategyGenerationPromptV1.SystemContext(lane),
+                ParallelStrategyGenerationPromptV1.UserMessage(request));
+        }).ToArray();
+        return new StrategyPromptIdentityV1(trimmedId, userPrompt, lanes);
+    }
+
+    private static StrategyPromptIdentityV1 BuildPromptIdentity(
+        string strategyId,
+        string userPrompt,
+        string confirmedIntentCanonicalJson,
+        string confirmedIntentHashSha256)
+    {
+        var trimmedId = strategyId.Trim();
+        var request = new ParallelStrategyGenerationRequestV1(
+            trimmedId,
+            userPrompt,
+            confirmedIntentCanonicalJson,
+            confirmedIntentHashSha256);
         var lanes = StrategyGenerationLaneCatalogV1.Ordered.Select(lane =>
         {
             return new StrategyLanePromptIdentityV1(
@@ -458,7 +525,180 @@ public static class StrategyGenerationCandidateCanonicalJsonV1
         StrategyGenerationLaneV1 Lane,
         string CandidateId,
         string AgentId,
-        string SystemContext);
+        string SystemContext,
+        string? ConfirmedIntentCanonicalJson = null,
+        string? ConfirmedIntentHashSha256 = null);
+}
+
+/// <summary>
+/// Validates the immutable semantic payload before it can enter a provider prompt or a persisted
+/// four-lane batch. Full strategy-intent confirmation remains owned by Core and the authoring host;
+/// this boundary proves that every lane received the exact same canonical confirmed-intent bytes.
+/// </summary>
+internal static class StrategyGenerationConfirmedIntentBindingV1
+{
+    public const int MaxCanonicalJsonCharacters = 750_000;
+
+    public static bool TryValidate(
+        string? canonicalJson,
+        string? expectedHashSha256,
+        out ConfirmedStrategyIntentV1? intent,
+        out string error)
+    {
+        intent = null;
+        if (string.IsNullOrWhiteSpace(canonicalJson))
+        {
+            error = "The canonical confirmed-strategy intent is required.";
+            return false;
+        }
+        if (canonicalJson.Length > MaxCanonicalJsonCharacters)
+        {
+            error = $"The canonical confirmed-strategy intent exceeds {MaxCanonicalJsonCharacters:N0} characters.";
+            return false;
+        }
+        if (!IsSha256(expectedHashSha256))
+        {
+            error = "The confirmed-strategy intent hash must be a lowercase SHA-256 value.";
+            return false;
+        }
+
+        try
+        {
+            var parsed = StrategyIntentCanonicalJsonV1.DeserializeConfirmed(canonicalJson);
+            if (!string.Equals(parsed.SchemaVersion, ConfirmedStrategyIntentV1.CurrentSchemaVersion,
+                    StringComparison.Ordinal))
+            {
+                error = "The confirmed-strategy intent schema version is not supported.";
+                return false;
+            }
+            var exactCanonicalJson = StrategyIntentCanonicalJsonV1.Serialize(parsed);
+            if (!string.Equals(canonicalJson, exactCanonicalJson, StringComparison.Ordinal))
+            {
+                error = "The confirmed-strategy intent payload is not canonical JSON.";
+                return false;
+            }
+            var actualHash = StrategyIntentCanonicalJsonV1.Hash(parsed);
+            if (!string.Equals(expectedHashSha256, actualHash, StringComparison.Ordinal))
+            {
+                error = "The confirmed-strategy intent hash does not match its canonical payload.";
+                return false;
+            }
+
+            intent = parsed;
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception exception) when (exception is JsonException or ArgumentException or
+            FormatException or InvalidOperationException or NotSupportedException or OverflowException)
+        {
+            error = $"The confirmed-strategy intent cannot be decoded: {exception.Message}";
+            return false;
+        }
+    }
+
+    public static void ValidateOrThrow(
+        ParallelStrategyGenerationRequestV1 request,
+        IStrategyIntentExtensionRegistryV1? extensionRegistry = null)
+    {
+        if (!TryValidate(
+                request.ConfirmedIntentCanonicalJson,
+                request.ConfirmedIntentHashSha256,
+                out var intent,
+                out var error))
+            throw new ArgumentException(error, nameof(request));
+
+        if (!TryValidateConfirmationContext(
+                request.ConfirmedIntentContext,
+                intent!,
+                extensionRegistry,
+                out error))
+            throw new ArgumentException(error, nameof(request));
+    }
+
+    private static bool TryValidateConfirmationContext(
+        StrategyGenerationConfirmedIntentContextV1? context,
+        ConfirmedStrategyIntentV1 intent,
+        IStrategyIntentExtensionRegistryV1? extensionRegistry,
+        out string error)
+    {
+        if (context is null)
+        {
+            error = "The exact candidate, research case, and classification confirmation context is required.";
+            return false;
+        }
+
+        if (!HasBoundedCanonicalPayload(context.CandidateCanonicalJson) ||
+            !HasBoundedCanonicalPayload(context.ResearchCaseCanonicalJson) ||
+            !HasBoundedCanonicalPayload(context.ClassificationCanonicalJson))
+        {
+            error = "Every confirmed-intent context payload must be present and within the canonical size limit.";
+            return false;
+        }
+
+        try
+        {
+            var candidate = StrategyCandidateCanonicalJsonV1.Deserialize(context.CandidateCanonicalJson);
+            var researchCase = ResearchCaseCanonicalJsonV1.Deserialize(context.ResearchCaseCanonicalJson);
+            var classification = StrategySpecCanonicalJsonV1.Deserialize(context.ClassificationCanonicalJson);
+            if (!string.Equals(
+                    context.CandidateCanonicalJson,
+                    StrategyCandidateCanonicalJsonV1.Serialize(candidate),
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    context.ResearchCaseCanonicalJson,
+                    ResearchCaseCanonicalJsonV1.Serialize(researchCase),
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    context.ClassificationCanonicalJson,
+                    StrategySpecCanonicalJsonV1.Serialize(classification),
+                    StringComparison.Ordinal))
+            {
+                error = "The confirmed-intent validation context is not canonical JSON.";
+                return false;
+            }
+
+            var reconstructedDraft = new StrategyIntentDraftV1(
+                StrategyIntentDraftV1.CurrentSchemaVersion,
+                intent.IntentId,
+                intent.CandidateId,
+                intent.CandidateRevision,
+                intent.CandidateContentHashSha256,
+                intent.ResearchCaseHashSha256,
+                intent.Classification,
+                intent.IntentModel,
+                intent.RequirementCatalogVersion,
+                intent.Requirements);
+            var issues = StrategyIntentConfirmationV1.ValidateConfirmed(
+                intent,
+                candidate,
+                researchCase,
+                classification,
+                reconstructedDraft,
+                extensionRegistry);
+            if (issues.Count > 0)
+            {
+                var first = issues[0];
+                error = $"The confirmed strategy failed host confirmation: {first.Code} at {first.Path}: {first.Message}";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception exception) when (exception is JsonException or ArgumentException or
+            FormatException or InvalidOperationException or NotSupportedException or OverflowException)
+        {
+            error = $"The confirmed-intent validation context cannot be decoded: {exception.Message}";
+            return false;
+        }
+    }
+
+    private static bool HasBoundedCanonicalPayload(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && value.Length <= MaxCanonicalJsonCharacters;
+
+    private static bool IsSha256(string? value) =>
+        value is { Length: 64 } && value.All(static character =>
+            character is >= '0' and <= '9' or >= 'a' and <= 'f');
 }
 
 public sealed record StrategyGenerationSelectionResultV1(
@@ -495,11 +735,25 @@ public static class StrategyGenerationBatchValidationV1
         }
         var normalizedStrategyId = batch.StrategyId?.Trim() ?? string.Empty;
         var userPrompt = batch.UserPrompt ?? string.Empty;
+        var intentBindingValid = StrategyGenerationConfirmedIntentBindingV1.TryValidate(
+            batch.ConfirmedIntentCanonicalJson,
+            batch.ConfirmedIntentHashSha256,
+            out _,
+            out var intentBindingError);
+        if (!intentBindingValid)
+            issues.Add(Error(
+                "BATCH_CONFIRMED_INTENT_BINDING_INVALID",
+                "confirmedIntentHashSha256",
+                intentBindingError));
         if (string.IsNullOrWhiteSpace(normalizedStrategyId) || string.IsNullOrWhiteSpace(userPrompt))
             issues.Add(Error("BATCH_IDENTITY_INVALID", "$", "The batch strategy id and user prompt are required."));
-        else if (!string.Equals(
+        else if (intentBindingValid && !string.Equals(
                      batch.PromptHashSha256,
-                     StrategyGenerationCandidateCanonicalJsonV1.PromptHash(normalizedStrategyId, userPrompt),
+                     StrategyGenerationCandidateCanonicalJsonV1.PromptHash(
+                         normalizedStrategyId,
+                         userPrompt,
+                         batch.ConfirmedIntentCanonicalJson!,
+                         batch.ConfirmedIntentHashSha256!),
                      StringComparison.Ordinal))
             issues.Add(Error("BATCH_PROMPT_HASH_INVALID", "promptHashSha256", "The persisted prompt hash is stale."));
 
@@ -578,11 +832,15 @@ public static class StrategyGenerationBatchValidationV1
                     "A parsed generated artifact must preserve its candidate and exact hash together."));
                 continue;
             }
+            if (!intentBindingValid)
+                continue;
 
             var expectedId = $"{normalizedStrategyId}/{StrategyGenerationLaneCatalogV1.WireName(expectedLane)}";
             var expectedRequestHash = StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
                 normalizedStrategyId,
                 userPrompt,
+                batch.ConfirmedIntentCanonicalJson!,
+                batch.ConfirmedIntentHashSha256!,
                 expectedLane);
             IReadOnlyList<StrategyCandidateGenerationIssueV1> candidateIssues;
             try
@@ -591,7 +849,8 @@ public static class StrategyGenerationBatchValidationV1
                     result.Candidate,
                     expectedLane,
                     expectedId,
-                    expectedRequestHash);
+                    expectedRequestHash,
+                    batch.ConfirmedIntentHashSha256);
             }
             catch (Exception exception) when (IsDeterministicValidationException(exception))
             {
@@ -702,6 +961,8 @@ public static class StrategyGenerationBatchValidationV1
         var expectedRequestHash = StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
             batch.StrategyId,
             batch.UserPrompt,
+            batch.ConfirmedIntentCanonicalJson!,
+            batch.ConfirmedIntentHashSha256!,
             prior.Lane);
         IReadOnlyList<StrategyCandidateGenerationIssueV1> candidateIssues;
         try
@@ -710,7 +971,8 @@ public static class StrategyGenerationBatchValidationV1
                 candidate,
                 prior.Lane,
                 expectedId,
-                expectedRequestHash);
+                expectedRequestHash,
+                batch.ConfirmedIntentHashSha256);
         }
         catch (Exception exception) when (IsDeterministicValidationException(exception))
         {

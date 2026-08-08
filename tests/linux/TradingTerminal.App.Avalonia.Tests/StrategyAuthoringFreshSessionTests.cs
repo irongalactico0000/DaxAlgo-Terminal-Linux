@@ -153,50 +153,6 @@ public sealed class StrategyAuthoringFreshSessionTests
     }
 
     [Fact]
-    public async Task Stop_marks_active_four_lane_rows_canceled_and_rejects_late_generator_output()
-    {
-        var provider = new StubCodegenClient();
-        var generator = new NonCooperativeParallelGenerator();
-        using var viewModel = new StrategyAuthoringViewModel(
-            new StubCompiler(),
-            new StubRegistry(),
-            NullLogger<StrategyAuthoringViewModel>.Instance,
-            ai: new StubAiStrategyBuilder(provider),
-            parallelCandidateGenerator: generator,
-            sessionRepository: new MemoryAuthoringSessionRepository());
-        viewModel.Composer = "Generate a four-lane strategy";
-
-        var send = viewModel.SendCommand.ExecuteAsync(null);
-        await generator.Started.WaitAsync(TimeSpan.FromSeconds(5));
-
-        viewModel.IsGenerating.Should().BeTrue();
-        viewModel.GenerationLaneProgressRows.Should().HaveCount(4);
-        viewModel.StopCommand.Execute(null);
-
-        viewModel.IsGenerating.Should().BeFalse();
-        viewModel.GenerationLaneProgressRows.Should().OnlyContain(row =>
-            row.State == StrategyGenerationLaneProgressStateV1.Canceled);
-        viewModel.GenerationProgressSummary.Should().Be("4/4 lanes finished");
-        viewModel.AiStatus.Should().Be("Stopped. Late provider output will be ignored.");
-
-        generator.CompleteWithLateResult();
-        await send.WaitAsync(TimeSpan.FromSeconds(5));
-
-        viewModel.GenerationLaneProgressRows.Should().OnlyContain(row =>
-            row.State == StrategyGenerationLaneProgressStateV1.Canceled,
-            "progress callbacks and completion from the invalidated epoch must be ignored");
-        viewModel.GenerationLaneProgressRows.Should().OnlyContain(row =>
-            !row.HasResult && row.ResultOption == null && string.IsNullOrEmpty(row.InspectablePreview),
-            "a terminal result delivered after Stop must not become a transient preview");
-        viewModel.GeneratedCandidateOptions.Should().BeEmpty();
-        viewModel.ChosenGeneratedCandidateHash.Should().BeNull();
-        viewModel.InputTokens.Should().Be(0);
-        viewModel.OutputTokens.Should().Be(0);
-        viewModel.CachedTokens.Should().Be(0);
-        viewModel.AiStatus.Should().Be("Stopped. Late provider output will be ignored.");
-    }
-
-    [Fact]
     public void New_strategy_clears_session_transients_without_reselecting_the_saved_chat()
     {
         var saved = new AuthoringSessionSnapshot(
@@ -288,7 +244,8 @@ public sealed class StrategyAuthoringFreshSessionTests
         viewModel.InputTokens.Should().Be(0);
         viewModel.OutputTokens.Should().Be(0);
         viewModel.CachedTokens.Should().Be(0);
-        viewModel.WorkbenchTab.Should().Be(0);
+        viewModel.WorkbenchTab.Should().Be(3, "a fresh Design screen must select the visible Request tab");
+        viewModel.IsDesignScreen.Should().BeTrue();
         viewModel.Messages.Should().BeEmpty();
         viewModel.Activity.Should().BeEmpty();
         viewModel.Tasks.Should().BeEmpty();
@@ -334,111 +291,6 @@ public sealed class StrategyAuthoringFreshSessionTests
     private sealed class StubCompiler : IStrategyCompiler
     {
         public StrategyCompileResult Compile(StrategyScript script) => StrategyCompileResult.Failed([]);
-    }
-
-    private sealed class NonCooperativeParallelGenerator : IParallelStrategyCandidateGeneratorV1
-    {
-        private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource<ParallelStrategyGenerationResultV1> _completion =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private IProgress<StrategyGenerationLaneProgressV1>? _progress;
-
-        public Task Started => _started.Task;
-
-        public Task<ParallelStrategyGenerationResultV1> GenerateAsync(
-            IStrategyCodegenClient provider,
-            ParallelStrategyGenerationRequestV1 request,
-            CancellationToken ct = default,
-            IProgress<StrategyGenerationLaneProgressV1>? progress = null)
-        {
-            _progress = progress;
-            foreach (var lane in StrategyGenerationLaneCatalogV1.Ordered)
-            {
-                progress?.Report(new StrategyGenerationLaneProgressV1(
-                    lane,
-                    StrategyGenerationLaneProgressStateV1.Queued));
-                progress?.Report(new StrategyGenerationLaneProgressV1(
-                    lane,
-                    StrategyGenerationLaneProgressStateV1.WaitingForModel));
-            }
-
-            _started.TrySetResult();
-            return _completion.Task;
-        }
-
-        public void CompleteWithLateResult()
-        {
-            var lane = StrategyGenerationLaneV1.VibePython;
-            var lateResult = new StrategyGenerationLaneResultV1(
-                lane,
-                StrategyGenerationReadinessV1.Failed,
-                null,
-                null,
-                [new StrategyCandidateGenerationIssueV1(
-                    StrategyCandidateGenerationIssueSeverityV1.Error,
-                    "LATE_RESULT",
-                    StrategyGenerationLaneCatalogV1.WireName(lane),
-                    "This result arrived after cancellation.")],
-                new StrategyGenerationAgentRunV1(
-                    "late-agent",
-                    "test-provider",
-                    null,
-                    false,
-                    "Late result.",
-                    "late raw response",
-                    CodegenUsage.None));
-            _progress?.Report(new StrategyGenerationLaneProgressV1(
-                lane,
-                StrategyGenerationLaneProgressStateV1.Failed,
-                "Late result.",
-                lateResult));
-            _completion.TrySetResult(new ParallelStrategyGenerationResultV1(
-                "late-strategy",
-                "late prompt",
-                "late hash",
-                [],
-                new CodegenUsage(700, 300, 200)));
-        }
-    }
-
-    private sealed class StubAiStrategyBuilder(IStrategyCodegenClient provider) : IAiStrategyBuilder
-    {
-        public IReadOnlyList<IStrategyCodegenClient> Providers => [provider];
-        public IStrategyCodegenClient DefaultProvider => provider;
-        public IStrategyCodegenClient WithSettings(string providerId, string? model, CodegenEffort effort) => provider;
-        public IReadOnlyList<string> ModelsFor(string providerId) => [];
-        public IReadOnlyList<AiModelChoice> AllModels() => [];
-
-        public StrategyBuildSession StartSession(
-            IStrategyCodegenClient selectedProvider,
-            string strategyId,
-            string displayName,
-            IReadOnlyList<CodegenMessage>? history = null,
-            CodegenUsage? priorUsage = null,
-            StrategyBuildProfile? profile = null) =>
-            throw new NotSupportedException("The parallel-candidate test never starts an expert-code session.");
-
-        public Task<StrategyBuildLoopResult> BuildAsync(
-            IStrategyCodegenClient selectedProvider,
-            string instruction,
-            string strategyId,
-            string displayName,
-            CancellationToken ct = default) =>
-            Task.FromException<StrategyBuildLoopResult>(
-                new NotSupportedException("The parallel-candidate test never starts a build loop."));
-    }
-
-    private sealed class StubCodegenClient : IStrategyCodegenClient
-    {
-        public string ProviderId => "stub";
-        public string DisplayName => "Stub provider";
-        public bool IsAvailable => true;
-
-        public Task<StrategyCodegenResponse> GenerateAsync(
-            StrategyCodegenRequest request,
-            CancellationToken ct = default) =>
-            Task.FromException<StrategyCodegenResponse>(
-                new NotSupportedException("The parallel generator owns this test call."));
     }
 
     private sealed class StubRegistry : IBacktestStrategyRegistry

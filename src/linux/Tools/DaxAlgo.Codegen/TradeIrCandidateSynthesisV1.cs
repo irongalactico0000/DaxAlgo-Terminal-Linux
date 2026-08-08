@@ -20,6 +20,7 @@ public sealed record TradeIrSynthesisReceiptV1(
     string SynthesisId,
     string StrategyId,
     string BatchPromptHashSha256,
+    string ConfirmedIntentHashSha256,
     string RequestHashSha256,
     IReadOnlyList<StrategySynthesisSourceV1> Sources,
     StrategyGenerationPackageBindingV1 TargetBinding,
@@ -28,7 +29,7 @@ public sealed record TradeIrSynthesisReceiptV1(
     string ProviderId,
     string Model)
 {
-    public const string CurrentSchemaVersion = "trade-ir-candidate-synthesis-receipt/v1";
+    public const string CurrentSchemaVersion = "trade-ir-candidate-synthesis-receipt/v2";
 }
 
 public sealed record TradeIrCandidateSynthesisResultV1(
@@ -57,6 +58,7 @@ public static class TradeIrCandidateSynthesisCanonicalJsonV1
     public static string RequestHash(
         string strategyId,
         string batchPromptHashSha256,
+        string confirmedIntentHashSha256,
         IReadOnlyList<StrategySynthesisSourceV1> sources,
         StrategyGenerationPackageBindingV1 targetBinding,
         string providerId,
@@ -66,6 +68,7 @@ public static class TradeIrCandidateSynthesisCanonicalJsonV1
             SynthesisId(strategyId),
             strategyId.Trim(),
             batchPromptHashSha256,
+            confirmedIntentHashSha256,
             sources,
             targetBinding,
             AgentId,
@@ -80,6 +83,7 @@ public static class TradeIrCandidateSynthesisCanonicalJsonV1
         string SynthesisId,
         string StrategyId,
         string BatchPromptHashSha256,
+        string ConfirmedIntentHashSha256,
         IReadOnlyList<StrategySynthesisSourceV1> Sources,
         StrategyGenerationPackageBindingV1 TargetBinding,
         string AgentId,
@@ -134,6 +138,9 @@ public static class TradeIrCandidateSynthesisValidationV1
             issues.Add(Error("SYNTHESIS_RECEIPT_SCHEMA_INVALID", "receipt.schemaVersion", "Unsupported synthesis receipt schema."));
         if (!IsSha256(receipt.BatchPromptHashSha256))
             issues.Add(Error("SYNTHESIS_PROMPT_HASH_INVALID", "receipt.batchPromptHashSha256", "The batch prompt hash is invalid."));
+        if (!IsSha256(receipt.ConfirmedIntentHashSha256))
+            issues.Add(Error("SYNTHESIS_CONFIRMED_INTENT_HASH_INVALID", "receipt.confirmedIntentHashSha256",
+                "The confirmed-strategy-intent hash is invalid."));
         if (!IsSha256(receipt.RequestHashSha256))
             issues.Add(Error("SYNTHESIS_REQUEST_HASH_INVALID", "receipt.requestHashSha256", "The synthesis request hash is invalid."));
         if (!IsSha256(receipt.TargetCandidateHashSha256))
@@ -191,6 +198,7 @@ public static class TradeIrCandidateSynthesisValidationV1
 
         if (sourcesUsable && receipt.TargetBinding is not null &&
             !string.IsNullOrWhiteSpace(receipt.StrategyId) && IsSha256(receipt.BatchPromptHashSha256) &&
+            IsSha256(receipt.ConfirmedIntentHashSha256) &&
             !string.IsNullOrWhiteSpace(receipt.ProviderId) && receipt.Model is not null)
         {
             try
@@ -198,13 +206,14 @@ public static class TradeIrCandidateSynthesisValidationV1
                 var expectedRequestHash = TradeIrCandidateSynthesisCanonicalJsonV1.RequestHash(
                     receipt.StrategyId,
                     receipt.BatchPromptHashSha256,
+                    receipt.ConfirmedIntentHashSha256,
                     receipt.Sources!,
                     receipt.TargetBinding,
                     receipt.ProviderId,
                     receipt.Model);
                 if (!string.Equals(receipt.RequestHashSha256, expectedRequestHash, StringComparison.Ordinal))
                     issues.Add(Error("SYNTHESIS_REQUEST_HASH_CHANGED", "receipt.requestHashSha256",
-                        "The receipt is not bound to its exact sources, provider/model, target, and synthesis contract."));
+                        "The receipt is not bound to its exact confirmed intent, sources, provider/model, target, and synthesis contract."));
             }
             catch (Exception exception) when (IsMalformedStateException(exception))
             {
@@ -247,6 +256,13 @@ public static class TradeIrCandidateSynthesisValidationV1
             if (!string.Equals(result.Output.Candidate.RequestHashSha256, receipt.RequestHashSha256, StringComparison.Ordinal))
                 issues.Add(Error("SYNTHESIS_TARGET_REQUEST_HASH_CHANGED", "output.candidate.requestHashSha256",
                     "The target candidate is not bound to the synthesis request."));
+            if (!string.Equals(
+                    result.Output.Candidate.ConfirmedIntentHashSha256,
+                    receipt.ConfirmedIntentHashSha256,
+                    StringComparison.Ordinal))
+                issues.Add(Error("SYNTHESIS_TARGET_CONFIRMED_INTENT_HASH_CHANGED",
+                    "output.candidate.confirmedIntentHashSha256",
+                    "The synthesized target is not bound to the receipt's confirmed strategy intent."));
             if (!string.Equals(result.Output.CandidateHashSha256, receipt.TargetCandidateHashSha256, StringComparison.Ordinal))
                 issues.Add(Error("SYNTHESIS_TARGET_HASH_CHANGED", "receipt.targetCandidateHashSha256",
                     "The receipt target hash does not match the synthesized candidate."));
@@ -264,7 +280,11 @@ public static class TradeIrCandidateSynthesisValidationV1
     {
         if (StrategyGenerationBatchValidationV1.Validate(batch).Count > 0 ||
             !string.Equals(receipt.StrategyId, batch.StrategyId.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(receipt.BatchPromptHashSha256, batch.PromptHashSha256, StringComparison.Ordinal))
+            !string.Equals(receipt.BatchPromptHashSha256, batch.PromptHashSha256, StringComparison.Ordinal) ||
+            !string.Equals(
+                receipt.ConfirmedIntentHashSha256,
+                batch.ConfirmedIntentHashSha256,
+                StringComparison.Ordinal))
         {
             issues.Add(Error("SYNTHESIS_SOURCE_BATCH_CHANGED", "receipt.sources",
                 "The source batch no longer matches this synthesis receipt."));
@@ -318,6 +338,7 @@ public sealed class TradeIrCandidateSynthesizerV1 : ITradeIrCandidateSynthesizer
         var synthesisRequestHash = TradeIrCandidateSynthesisCanonicalJsonV1.RequestHash(
             strategyId,
             batch.PromptHashSha256,
+            batch.ConfirmedIntentHashSha256!,
             sources,
             targetBinding,
             provider.ProviderId,
@@ -361,6 +382,7 @@ public sealed class TradeIrCandidateSynthesizerV1 : ITradeIrCandidateSynthesizer
                 draft,
                 expectedCandidateId,
                 synthesisRequestHash,
+                batch.ConfirmedIntentHashSha256!,
                 strategyId,
                 out var candidate,
                 out parseError) ||
@@ -374,7 +396,8 @@ public sealed class TradeIrCandidateSynthesizerV1 : ITradeIrCandidateSynthesizer
                 candidate,
                 StrategyGenerationLaneV1.TypedGraph,
                 expectedCandidateId,
-                synthesisRequestHash);
+                synthesisRequestHash,
+                batch.ConfirmedIntentHashSha256);
         }
         catch (Exception exception) when (exception is System.Text.Json.JsonException or ArgumentException or
             FormatException or InvalidOperationException or NotSupportedException or OverflowException)
@@ -397,6 +420,7 @@ public sealed class TradeIrCandidateSynthesizerV1 : ITradeIrCandidateSynthesizer
             TradeIrCandidateSynthesisCanonicalJsonV1.SynthesisId(strategyId),
             strategyId,
             batch.PromptHashSha256,
+            batch.ConfirmedIntentHashSha256!,
             synthesisRequestHash,
             sources,
             targetBinding,
@@ -549,11 +573,15 @@ internal static class TradeIrCandidateSynthesisPromptV1
         "Synthesize one Typed Graph proposal from these host-owned source references. Return exactly " +
         "one slim Graph lane-draft JSON object and no prose. Never echo or invent candidate identity, " +
         "request hash, package binding, artifact metadata, strategy id, or operator catalog; the host " +
-        "binds them after parsing.\n" +
+        "binds them after parsing. The confirmedIntentCanonicalJson string is the exact user-approved " +
+        "strategy authority; implement it without replacing it with an interpretation of userPrompt " +
+        "or the source candidates.\n" +
         ExecutableStrategyDefinitionCanonicalJson.Serialize(new SynthesisEnvelopeV1(
             batch.StrategyId.Trim(),
             batch.UserPrompt,
             batch.PromptHashSha256,
+            batch.ConfirmedIntentCanonicalJson!,
+            batch.ConfirmedIntentHashSha256!,
             sources,
             candidates));
 
@@ -561,6 +589,8 @@ internal static class TradeIrCandidateSynthesisPromptV1
         string StrategyId,
         string UserPrompt,
         string BatchPromptHashSha256,
+        string ConfirmedIntentCanonicalJson,
+        string ConfirmedIntentHashSha256,
         IReadOnlyList<StrategySynthesisSourceV1> Sources,
         IReadOnlyList<StrategyGenerationCandidateV1> SourceCandidates);
 }

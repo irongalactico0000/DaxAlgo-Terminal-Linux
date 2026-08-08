@@ -3,7 +3,7 @@
 Primary source map for `src/linux/` and `tests/linux/`. This repository has no Windows tree.
 Paths are relative to the repository root.
 
-Generated from source fingerprint `8af92ffea5ea`: **56 projects / 1099 files / 174375 LOC**.
+Generated from source fingerprint `3026999d8534`: **56 projects / 1104 files / 180967 LOC**.
 Indexed extensions: `.cs`, `.xaml`, `.axaml`. Regenerate with `bash .claude/context/gen-context-linux.sh`.
 
 ## Groups
@@ -13,33 +13,33 @@ Indexed extensions: `.cs`, `.xaml`, `.axaml`. Regenerate with `bash .claude/cont
 | [AI](index/AI.md) | 88 | DaxAlgo.Daxq.Contracts, DaxAlgo.Daxq.Host, DaxAlgo.Daxq.Vm, DaxAlgo.FootprintTransformer, TradingTerminal.Ai, TradingTerminal.Ai.BacktestAnalysis, TradingTerminal.Ai.Coordinator, TradingTerminal.Ai.Coordinator.Client, TradingTerminal.Ai.Coordinator.Contracts, TradingTerminal.Ai.FactorResearch, TradingTerminal.Ai.MarketAnalyst, TradingTerminal.Ai.MlFeatures, TradingTerminal.Ai.PaperLab |
 | [Backtest](index/Backtest.md) | 57 | TradingTerminal.Backtest.Cli, TradingTerminal.Backtest.Client, TradingTerminal.Backtest.Engine, TradingTerminal.Backtest.Protocol, TradingTerminal.Backtest.Worker, TradingTerminal.TradeIr.Runtime |
 | [Charts](index/Charts.md) | 44 | TradingTerminal.BubbleChart, TradingTerminal.Charts, TradingTerminal.Heatmap, TradingTerminal.OrderBook, TradingTerminal.SurfaceLab, TradingTerminal.VolumeFootprint |
-| [Core](index/Core.md) | 285 | TradingTerminal.Core |
+| [Core](index/Core.md) | 286 | TradingTerminal.Core |
 | [Pipeline](index/Pipeline.md) | 160 | TradingTerminal.Infrastructure, TradingTerminal.MarketData |
 | [Sdk](index/Sdk.md) | 20 | DaxAlgo.Sdk, DaxAlgo.Strategy.Bundle |
 | [Shell](index/Shell.md) | 130 | TradingTerminal.Accounts, TradingTerminal.App.Avalonia, TradingTerminal.Login |
-| [Tests](index/Tests.md) | 141 | DaxAlgo.Daxq.Compiler.Tests, DaxAlgo.Daxq.Contracts.Tests, DaxAlgo.Daxq.Host.Tests, DaxAlgo.Daxq.Vm.Tests, DaxAlgo.SamplePlugin, TradingTerminal.App.Avalonia.Tests, TradingTerminal.Tests.Headless |
+| [Tests](index/Tests.md) | 143 | DaxAlgo.Daxq.Compiler.Tests, DaxAlgo.Daxq.Contracts.Tests, DaxAlgo.Daxq.Host.Tests, DaxAlgo.Daxq.Vm.Tests, DaxAlgo.SamplePlugin, TradingTerminal.App.Avalonia.Tests, TradingTerminal.Tests.Headless |
 | [Tools](index/Tools.md) | 117 | DaxAlgo.Codegen, DaxAlgo.Coordinator.Cli, DaxAlgo.Daxq.Compiler, DaxAlgo.Strategy.BundleTool, DaxAlgo.StrategyTool, TradingTerminal.AdvancedMarketRegime, TradingTerminal.Backtest, TradingTerminal.BacktestStudio, TradingTerminal.Correlation, TradingTerminal.LseBacktest, TradingTerminal.QuantConnect, TradingTerminal.Recording |
-| [UI](index/UI.md) | 57 | TradingTerminal.Settings, TradingTerminal.StrategyComposer, TradingTerminal.UI.Avalonia, TradingTerminal.UI.Core |
+| [UI](index/UI.md) | 59 | TradingTerminal.Settings, TradingTerminal.StrategyComposer, TradingTerminal.UI.Avalonia, TradingTerminal.UI.Core |
 
 ## Project rollup
 
 | Project | Group | Role | LOC | Files |
 |---|---|---|---:|---:|
-| TradingTerminal.Core | Core | product | 26384 | 285 |
-| TradingTerminal.Tests.Headless | Tests | test | 19665 | 111 |
+| TradingTerminal.Core | Core | product | 27730 | 286 |
+| TradingTerminal.Tests.Headless | Tests | test | 21224 | 112 |
 | TradingTerminal.Infrastructure | Pipeline | product | 19180 | 122 |
-| TradingTerminal.App.Avalonia | Shell | product | 8969 | 71 |
-| DaxAlgo.Codegen | Tools | product | 8145 | 25 |
-| TradingTerminal.Settings | UI | product | 7283 | 18 |
+| TradingTerminal.App.Avalonia | Shell | product | 9258 | 71 |
+| TradingTerminal.Settings | UI | product | 9170 | 20 |
+| DaxAlgo.Codegen | Tools | product | 8528 | 25 |
 | TradingTerminal.Ai.Coordinator | AI | product | 6087 | 18 |
 | TradingTerminal.MarketData | Pipeline | product | 5929 | 38 |
 | DaxAlgo.Daxq.Host | AI | product | 5348 | 15 |
 | DaxAlgo.Daxq.Compiler | Tools | product | 4860 | 17 |
+| TradingTerminal.App.Avalonia.Tests | Tests | test | 4328 | 9 |
 | TradingTerminal.Backtest.Engine | Backtest | product | 4091 | 31 |
 | DaxAlgo.Strategy.Bundle | Sdk | product | 4055 | 15 |
 | TradingTerminal.Login | Shell | product | 3949 | 49 |
 | DaxAlgo.Daxq.Vm | AI | product | 3683 | 5 |
-| TradingTerminal.App.Avalonia.Tests | Tests | test | 3200 | 8 |
 | TradingTerminal.UI.Core | UI | product | 2889 | 27 |
 | TradingTerminal.Accounts | Shell | product | 2071 | 10 |
 | TradingTerminal.SurfaceLab | Charts | product | 2044 | 8 |

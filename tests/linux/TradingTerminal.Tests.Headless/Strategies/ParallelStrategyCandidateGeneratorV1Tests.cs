@@ -5,6 +5,8 @@ using FluentAssertions;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Definition;
+using TradingTerminal.Core.Strategies.Generation;
+using TradingTerminal.Core.Strategies.Specification;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
 
@@ -12,8 +14,20 @@ namespace TradingTerminal.Tests.Strategies;
 
 public sealed class ParallelStrategyCandidateGeneratorV1Tests
 {
+    private static readonly ConfirmedGenerationFixture ConfirmationFixture =
+        CreateConfirmedGenerationFixture();
+    private static readonly ConfirmedStrategyIntentV1 ConfirmedIntent = ConfirmationFixture.Intent;
+    private static readonly string ConfirmedIntentCanonicalJson =
+        StrategyIntentCanonicalJsonV1.Serialize(ConfirmedIntent);
+    private static readonly string ConfirmedIntentHashSha256 =
+        StrategyIntentCanonicalJsonV1.Hash(ConfirmedIntent);
     private static readonly ParallelStrategyGenerationRequestV1 Request =
-        new("ema-cross", "Trade a causal fast/slow EMA cross with fixed sizing.");
+        new(
+            "ema-cross",
+            "Trade a causal fast/slow EMA cross with fixed sizing.",
+            ConfirmedIntentCanonicalJson,
+            ConfirmedIntentHashSha256,
+            ConfirmationFixture.Context);
 
     [Fact]
     public async Task Starts_all_four_lanes_before_any_lane_completes()
@@ -146,6 +160,59 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
     }
 
     [Fact]
+    public async Task Missing_mismatched_or_noncanonical_confirmed_intent_stops_before_any_provider_call()
+    {
+        var incompleteDraft = new StrategyIntentDraftV1(
+            StrategyIntentDraftV1.CurrentSchemaVersion,
+            ConfirmedIntent.IntentId,
+            ConfirmedIntent.CandidateId,
+            ConfirmedIntent.CandidateRevision,
+            ConfirmedIntent.CandidateContentHashSha256,
+            ConfirmedIntent.ResearchCaseHashSha256,
+            ConfirmedIntent.Classification,
+            ConfirmedIntent.IntentModel,
+            ConfirmedIntent.RequirementCatalogVersion,
+            []);
+        var forgedIncompleteIntent = ConfirmedIntent with
+        {
+            Requirements = [],
+            ReviewedDraftContentHashSha256 = StrategyIntentCanonicalJsonV1.Hash(incompleteDraft),
+        };
+        var forgedIncompleteJson = StrategyIntentCanonicalJsonV1.Serialize(forgedIncompleteIntent);
+        var invalidRequests = new[]
+        {
+            Request with { ConfirmedIntentCanonicalJson = null },
+            Request with { ConfirmedIntentHashSha256 = null },
+            Request with { ConfirmedIntentHashSha256 = new string('0', 64) },
+            Request with { ConfirmedIntentCanonicalJson = " " + ConfirmedIntentCanonicalJson },
+            Request with { ConfirmedIntentContext = null },
+            Request with
+            {
+                ConfirmedIntentContext = ConfirmationFixture.Context with
+                {
+                    CandidateCanonicalJson = " " + ConfirmationFixture.Context.CandidateCanonicalJson,
+                },
+            },
+            Request with
+            {
+                ConfirmedIntentCanonicalJson = forgedIncompleteJson,
+                ConfirmedIntentHashSha256 = StrategyIntentCanonicalJsonV1.Hash(forgedIncompleteIntent),
+            },
+        };
+
+        foreach (var invalidRequest in invalidRequests)
+        {
+            var provider = new FourLaneArtifactProvider();
+
+            var act = async () => await ProductionGenerator().GenerateAsync(provider, invalidRequest);
+
+            await act.Should().ThrowAsync<ArgumentException>();
+            provider.CallCount.Should().Be(0);
+            provider.Requests.Should().BeEmpty();
+        }
+    }
+
+    [Fact]
     public async Task Non_cooperative_lanes_cannot_turn_a_canceled_generation_into_success()
     {
         var agents = StrategyGenerationLaneCatalogV1.Ordered
@@ -185,7 +252,9 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
 
         result.StrategyId.Should().Be(Request.StrategyId);
         result.PromptHashSha256.Should().Be(
-            StrategyGenerationCandidateCanonicalJsonV1.PromptHash(Request.StrategyId, Request.UserPrompt));
+            PromptHashFor(Request));
+        result.ConfirmedIntentCanonicalJson.Should().Be(ConfirmedIntentCanonicalJson);
+        result.ConfirmedIntentHashSha256.Should().Be(ConfirmedIntentHashSha256);
         provider.CallCount.Should().Be(4);
         provider.Requests.Should().HaveCount(4);
         provider.Requests.Should().OnlyContain(modelRequest =>
@@ -255,20 +324,22 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             var prompt = PromptFor(provider, lane);
             var binding = ExecutableStrategyDefinitionCanonicalJson.Serialize(
                 StrategyGenerationPackageCatalogV1.RequireBinding(lane));
-            prompt.Should().NotContain("\"candidateId\"");
             prompt.Should().NotContain("\"requestHashSha256\"");
             prompt.Should().NotContain("\"packageBinding\"");
             prompt.Should().NotContain(binding);
             prompt.Should().Contain("The host derives and binds all of those values after parsing this draft");
             prompt.Should().Contain("direct Python source string OR the direct lane JSON document object");
             prompt.Should().Contain($"\"strategyId\":\"{Request.StrategyId}\"");
+            prompt.Should().Contain($"\"confirmedIntentHashSha256\":\"{ConfirmedIntentHashSha256}\"");
+            prompt.Should().Contain("\"confirmedIntent\":{");
+            prompt.Should().Contain("confirmedIntent is the authoritative reviewed strategy meaning");
             prompt.Should().Contain("never claim a backtest, metric, or package check passed");
             prompt.Should().Contain("every explicit user clause about direction, thresholds, lookbacks, filters, exits");
             prompt.Should().Contain("that has not been superseded by a later refinement as mandatory");
             prompt.Should().Contain("Artifact defaults must preserve those non-superseded clauses exactly");
             prompt.Should().Contain("Variation axes may offer alternatives only after");
             prompt.Should().Contain("cross-check the interpretation, parameter defaults, and artifact logic");
-            prompt.Should().Contain("every explicit clause in userPrompt that has not been superseded");
+            prompt.Should().Contain("every applicable semantic requirement in confirmedIntent");
             prompt.Should().Contain("defaultValue may be a JSON string, number,");
             prompt.Should().Contain("or boolean scalar");
         }
@@ -295,10 +366,8 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             candidate.CandidateId.Should().Be(
                 $"{Request.StrategyId}/{StrategyGenerationLaneCatalogV1.WireName(result.Lane)}");
             candidate.RequestHashSha256.Should().Be(
-                StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
-                    Request.StrategyId,
-                    Request.UserPrompt,
-                    result.Lane));
+                RequestHashFor(Request, result.Lane));
+            candidate.ConfirmedIntentHashSha256.Should().Be(ConfirmedIntentHashSha256);
             candidate.PackageBinding.Should().Be(
                 StrategyGenerationPackageCatalogV1.RequireBinding(result.Lane));
             candidate.PackageBinding.PackageImplementationHashSha256.Should().MatchRegex("^[0-9a-f]{64}$");
@@ -313,6 +382,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             draft.RootElement.TryGetProperty("candidateId", out _).Should().BeFalse();
             draft.RootElement.TryGetProperty("lane", out _).Should().BeFalse();
             draft.RootElement.TryGetProperty("requestHashSha256", out _).Should().BeFalse();
+            draft.RootElement.TryGetProperty("confirmedIntentHashSha256", out _).Should().BeFalse();
             draft.RootElement.TryGetProperty("packageBinding", out _).Should().BeFalse();
             draft.RootElement.GetProperty("artifact").ValueKind.Should().Be(
                 result.Lane is StrategyGenerationLaneV1.VibePython or StrategyGenerationLaneV1.CspPython
@@ -349,6 +419,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             CandidateId = "attacker/rebound-id",
             Lane = otherLane,
             RequestHashSha256 = new string('0', 64),
+            ConfirmedIntentHashSha256 = new string('0', 64),
             PackageBinding = StrategyGenerationPackageCatalogV1.RequireBinding(otherLane),
             Artifact = expected.Artifact with
             {
@@ -830,10 +901,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         graph.Candidate.PackageBinding.ArtifactContractVersion.Should().Be(TradeIrModuleV1.CurrentSchemaVersion);
         graph.Candidate.PackageBinding.PackageImplementationHashSha256.Should().MatchRegex("^[0-9a-f]{64}$");
         graph.Candidate.RequestHashSha256.Should().Be(
-            StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
-                Request.StrategyId,
-                Request.UserPrompt,
-                StrategyGenerationLaneV1.TypedGraph));
+            RequestHashFor(Request, StrategyGenerationLaneV1.TypedGraph));
         graph.Candidate.Artifact.Document!.Value.GetRawText().Should().NotContain("typedInputs");
         graph.Candidate.Artifact.Document!.Value.GetRawText().Should().NotContain("typedOutputs");
     }
@@ -931,10 +999,8 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             legacy,
             StrategyGenerationLaneV1.TypedGraph,
             candidateId,
-            StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
-                Request.StrategyId,
-                Request.UserPrompt,
-                StrategyGenerationLaneV1.TypedGraph));
+            RequestHashFor(Request, StrategyGenerationLaneV1.TypedGraph),
+            ConfirmedIntentHashSha256);
 
         issues.Should().Contain(issue => issue.Code == "LANE_TRADEIR_JSON_INVALID");
     }
@@ -956,10 +1022,8 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             tampered,
             StrategyGenerationLaneV1.TypedGraph,
             candidateId,
-            StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
-                Request.StrategyId,
-                Request.UserPrompt,
-                StrategyGenerationLaneV1.TypedGraph));
+            RequestHashFor(Request, StrategyGenerationLaneV1.TypedGraph),
+            ConfirmedIntentHashSha256);
 
         issues.Should().Contain(issue => issue.Code == "LANE_PACKAGE_BINDING_CHANGED");
     }
@@ -1163,8 +1227,89 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         restored.Lanes.Select(lane => lane.Readiness).Should().Equal(original.Lanes.Select(lane => lane.Readiness));
         restored.Lanes.Select(lane => lane.PackageValidationAvailable)
             .Should().Equal(original.Lanes.Select(lane => lane.PackageValidationAvailable));
+        restored.ConfirmedIntentCanonicalJson.Should().Be(ConfirmedIntentCanonicalJson);
+        restored.ConfirmedIntentHashSha256.Should().Be(ConfirmedIntentHashSha256);
+        restored.Lanes.Should().OnlyContain(lane =>
+            lane.Candidate!.ConfirmedIntentHashSha256 == ConfirmedIntentHashSha256);
         selected.Success.Should().BeTrue(Describe(selected.Issues));
         selected.Candidate!.Lane.Should().Be(StrategyGenerationLaneV1.VibePython);
+    }
+
+    [Fact]
+    public async Task Legacy_batch_without_confirmed_intent_binding_is_non_actionable()
+    {
+        var original = await ProductionGenerator().GenerateAsync(new FourLaneArtifactProvider(), Request);
+        var legacy = original with
+        {
+            ConfirmedIntentCanonicalJson = null,
+            ConfirmedIntentHashSha256 = null,
+        };
+
+        var issues = StrategyGenerationBatchValidationV1.Validate(legacy);
+        var selected = StrategyGenerationBatchValidationV1.Select(
+            legacy,
+            legacy.Lanes[0].CandidateHashSha256);
+
+        issues.Should().Contain(issue => issue.Code == "BATCH_CONFIRMED_INTENT_BINDING_INVALID");
+        selected.Success.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Changing_the_confirmed_intent_invalidates_every_lane_and_selection()
+    {
+        var original = await ProductionGenerator().GenerateAsync(new FourLaneArtifactProvider(), Request);
+        var changedIntent = ConfirmedIntent with { IntentId = "ema-cross/changed-intent" };
+        var changedCanonicalJson = StrategyIntentCanonicalJsonV1.Serialize(changedIntent);
+        var changedHash = StrategyIntentCanonicalJsonV1.Hash(changedIntent);
+        var changedPromptHash = StrategyGenerationCandidateCanonicalJsonV1.PromptHash(
+            original.StrategyId,
+            original.UserPrompt,
+            changedCanonicalJson,
+            changedHash);
+        var changed = original with
+        {
+            ConfirmedIntentCanonicalJson = changedCanonicalJson,
+            ConfirmedIntentHashSha256 = changedHash,
+            PromptHashSha256 = changedPromptHash,
+        };
+
+        var issues = StrategyGenerationBatchValidationV1.Validate(changed);
+        var selected = StrategyGenerationBatchValidationV1.Select(
+            changed,
+            changed.Lanes[0].CandidateHashSha256);
+
+        issues.Should().Contain(issue =>
+            issue.Code == "BATCH_LANE_VALIDATION_ISSUES_STALE" &&
+            issue.Message.Contains("LANE_REQUEST_HASH_CHANGED", StringComparison.Ordinal));
+        selected.Success.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Candidate_with_a_different_confirmed_intent_hash_is_not_selectable()
+    {
+        var original = await ProductionGenerator().GenerateAsync(new FourLaneArtifactProvider(), Request);
+        var lanes = original.Lanes.ToArray();
+        var index = Array.FindIndex(lanes, lane => lane.Lane == StrategyGenerationLaneV1.VibePython);
+        var changedCandidate = lanes[index].Candidate! with
+        {
+            ConfirmedIntentHashSha256 = new string('0', 64),
+        };
+        lanes[index] = lanes[index] with
+        {
+            Candidate = changedCandidate,
+            CandidateHashSha256 = StrategyGenerationCandidateCanonicalJsonV1.Hash(changedCandidate),
+        };
+        var changed = original with { Lanes = lanes };
+
+        var issues = StrategyGenerationBatchValidationV1.Validate(changed);
+        var selected = StrategyGenerationBatchValidationV1.Select(
+            changed,
+            lanes[index].CandidateHashSha256);
+
+        issues.Should().Contain(issue =>
+            issue.Code == "BATCH_LANE_VALIDATION_ISSUES_STALE" &&
+            issue.Message.Contains("LANE_CONFIRMED_INTENT_HASH_CHANGED", StringComparison.Ordinal));
+        selected.Success.Should().BeFalse();
     }
 
     [Fact]
@@ -1344,8 +1489,10 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         result.Output.PackageValid.Should().BeTrue(Describe(result.Output.Issues));
         result.Receipt!.Sources.Select(static source => source.Lane)
             .Should().Equal(StrategyGenerationLaneCatalogV1.Ordered);
+        result.Receipt.ConfirmedIntentHashSha256.Should().Be(ConfirmedIntentHashSha256);
         result.Receipt.TargetCandidateHashSha256.Should().Be(result.Output.CandidateHashSha256);
         result.Output.Candidate!.RequestHashSha256.Should().Be(result.Receipt.RequestHashSha256);
+        result.Output.Candidate.ConfirmedIntentHashSha256.Should().Be(ConfirmedIntentHashSha256);
         result.ReceiptHashSha256.Should().Be(TradeIrCandidateSynthesisCanonicalJsonV1.ReceiptHash(result.Receipt));
         result.Receipt.ProviderId.Should().Be(provider.ProviderId);
         result.Receipt.Model.Should().Be(provider.Model);
@@ -1354,6 +1501,10 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         prompt.Should().Contain("AI synthesis, not deterministic semantic compilation");
         var userMessage = provider.LastRequest.Messages.Last().Content;
         using var synthesisInput = JsonDocument.Parse(userMessage[userMessage.IndexOf('{')..]);
+        synthesisInput.RootElement.GetProperty("confirmedIntentCanonicalJson").GetString()
+            .Should().Be(ConfirmedIntentCanonicalJson);
+        synthesisInput.RootElement.GetProperty("confirmedIntentHashSha256").GetString()
+            .Should().Be(ConfirmedIntentHashSha256);
         synthesisInput.RootElement.TryGetProperty("expectedCandidateId", out _).Should().BeFalse();
         synthesisInput.RootElement.TryGetProperty("expectedRequestHashSha256", out _).Should().BeFalse();
         synthesisInput.RootElement.TryGetProperty("expectedTargetBinding", out _).Should().BeFalse();
@@ -1398,6 +1549,32 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         var issues = TradeIrCandidateSynthesisValidationV1.Validate(mutated, batch);
         issues.Should().Contain(issue => issue.Code == "SYNTHESIS_REQUEST_HASH_CHANGED");
         issues.Should().Contain(issue => issue.Code == "SYNTHESIS_PROVIDER_RUN_CHANGED");
+        mutated.Success.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Synthesis_rejects_a_receipt_bound_to_a_different_confirmed_intent()
+    {
+        var batch = await ProductionGenerator().GenerateAsync(new FourLaneArtifactProvider(), Request);
+        var provider = new SynthesisProvider(Request);
+        var result = await new TradeIrCandidateSynthesizerV1().SynthesizeAsync(
+            provider,
+            new TradeIrCandidateSynthesisRequestV1(
+                batch,
+                batch.Lanes.Where(static lane => lane.Selectable)
+                    .Select(static lane => lane.CandidateHashSha256!).ToArray()));
+        var changedReceipt = result.Receipt! with { ConfirmedIntentHashSha256 = new string('0', 64) };
+        var mutated = result with
+        {
+            Receipt = changedReceipt,
+            ReceiptHashSha256 = TradeIrCandidateSynthesisCanonicalJsonV1.ReceiptHash(changedReceipt),
+        };
+
+        var issues = TradeIrCandidateSynthesisValidationV1.Validate(mutated, batch);
+
+        issues.Should().Contain(issue => issue.Code == "SYNTHESIS_REQUEST_HASH_CHANGED");
+        issues.Should().Contain(issue => issue.Code == "SYNTHESIS_TARGET_CONFIRMED_INTENT_HASH_CHANGED");
+        issues.Should().Contain(issue => issue.Code == "SYNTHESIS_SOURCE_BATCH_CHANGED");
         mutated.Success.Should().BeFalse();
     }
 
@@ -1482,6 +1659,23 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
         StrategyGenerationLaneCatalogV1.Ordered.Select(lane =>
             (IStrategyGenerationLaneAgentV1)new StrategyGenerationLaneAgentV1(lane)));
 
+    private static string PromptHashFor(ParallelStrategyGenerationRequestV1 request) =>
+        StrategyGenerationCandidateCanonicalJsonV1.PromptHash(
+            request.StrategyId,
+            request.UserPrompt,
+            request.ConfirmedIntentCanonicalJson!,
+            request.ConfirmedIntentHashSha256!);
+
+    private static string RequestHashFor(
+        ParallelStrategyGenerationRequestV1 request,
+        StrategyGenerationLaneV1 lane) =>
+        StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
+            request.StrategyId,
+            request.UserPrompt,
+            request.ConfirmedIntentCanonicalJson!,
+            request.ConfirmedIntentHashSha256!,
+            lane);
+
     private static StrategyGenerationLaneResultV1 CoherentResult(
         StrategyGenerationLaneV1 lane,
         string candidateId)
@@ -1491,10 +1685,8 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             candidate,
             lane,
             candidateId,
-            StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
-                Request.StrategyId,
-                Request.UserPrompt,
-                lane));
+            RequestHashFor(Request, lane),
+            Request.ConfirmedIntentHashSha256);
         return new StrategyGenerationLaneResultV1(
             lane,
             lane == StrategyGenerationLaneV1.TypedGraph
@@ -1529,10 +1721,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
                 StrategyGenerationCandidateV1.CurrentSchemaVersion,
                 candidateId,
                 lane,
-                StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
-                    request.StrategyId,
-                    request.UserPrompt,
-                    lane),
+                RequestHashFor(request, lane),
                 StrategyGenerationPackageCatalogV1.RequireBinding(lane),
                 $"{StrategyGenerationLaneCatalogV1.DisplayName(lane)} EMA cross",
                 "Compare causal fast and slow EMAs and emit an inert signal and target.",
@@ -1550,7 +1739,8 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
                     ["4/12", "8/24"])],
                 ArtifactForLane(lane, request.StrategyId.Trim()),
                 "Edit the parameters or lane-native logic, then rerun deterministic validation.",
-                ["Check causality and expected EMA-cross signal transitions."]);
+                ["Check causality and expected EMA-cross signal transitions."],
+                request.ConfirmedIntentHashSha256);
 
     private static StrategyGenerationArtifactV1 ArtifactForLane(
         StrategyGenerationLaneV1 lane,
@@ -1752,10 +1942,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
             StrategyGenerationCandidateV1.CurrentSchemaVersion,
             candidateId,
             StrategyGenerationLaneV1.TypedGraph,
-            StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
-                request.StrategyId,
-                request.UserPrompt,
-                StrategyGenerationLaneV1.TypedGraph),
+            RequestHashFor(request, StrategyGenerationLaneV1.TypedGraph),
             StrategyGenerationPackageCatalogV1.RequireBinding(StrategyGenerationLaneV1.TypedGraph),
             "Canonical EMA cross",
             "Compare causal fast and slow EMAs and export an inert market-order intent.",
@@ -1777,7 +1964,8 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
                 null,
                 Json(moduleJson)),
             "Edit only installed operator parameters and bindings, then revalidate the module.",
-            ["Validate the module with TradeIrModuleValidatorV1."]);
+            ["Validate the module with TradeIrModuleValidatorV1."],
+            request.ConfirmedIntentHashSha256);
     }
 
     private static DataRequirementV1 QuoteRequirement() => new(
@@ -1999,6 +2187,158 @@ public sealed class ParallelStrategyCandidateGeneratorV1Tests
 
     private static string Describe(IEnumerable<StrategyCandidateGenerationIssueV1> issues) =>
         string.Join(Environment.NewLine, issues.Select(issue => $"{issue.Code} {issue.Path}: {issue.Message}"));
+
+    private static ConfirmedGenerationFixture CreateConfirmedGenerationFixture()
+    {
+        var candidate = new StrategyCandidateV1(
+            StrategyCandidateV1.CurrentSchemaVersion,
+            "ema-cross/candidate",
+            1,
+            null,
+            "Trade a causal fast/slow EMA cross with fixed risk sizing.",
+            "Confirmed EMA crossover",
+            StrategyCandidateStatusV1.Confirmed,
+            new StrategyCandidateInterpretationV1(
+                "Use completed bars and explicit risk, execution, lifecycle, and exit behavior.",
+                StrategyInterpretationConfidenceV1.High,
+                []),
+            [
+                new StrategyCandidateGroupV1(
+                    "group.confirmed",
+                    StrategyCandidateGroupKindV1.Custom,
+                    "Confirmed decisions",
+                    "The user reviewed the complete strategy request.",
+                    [
+                        new StrategyCandidateStatementV1(
+                            "statement.confirmed",
+                            StrategyCandidateStatementKindV1.Rule,
+                            "Use every reviewed decision in the confirmed strategy intent.",
+                            StrategyCandidateStatementSourceV1.User,
+                            StrategyCandidateStatementStateV1.Confirmed,
+                            IsMaterial: true,
+                            new StrategyCandidateValueV1(
+                                "core.semantic_clause@1",
+                                "The user confirmed every material strategy decision.")),
+                    ],
+                    []),
+            ],
+            []);
+        var researchCase = new ResearchCaseV1(
+            ResearchCaseV1.CurrentSchemaVersion,
+            "ema-cross/research",
+            candidate.CandidateId,
+            StrategyCandidateCanonicalJsonV1.Hash(candidate),
+            "Determine whether the causal EMA crossover deserves a controlled experiment.",
+            "Completed-bar EMA evidence may produce the confirmed position target without future data.",
+            [
+                new ResearchEvidenceRequirementV1(
+                    "evidence.point_in_time",
+                    "Use only completed observations available at each decision timestamp.",
+                    "All features are computed from completed, timestamp-aligned bars.",
+                    "Reject missing, stale, conflicting, or future information.",
+                    IsMaterial: true,
+                    ["statement.confirmed"]),
+            ],
+            [
+                new ResearchFalsifierV1(
+                    "falsifier.no_causal_effect",
+                    "Reject the hypothesis when causal out-of-sample evidence does not support it.",
+                    IsMaterial: true,
+                    ["statement.confirmed"]),
+            ],
+            []);
+        var classification = new StrategySpec(
+            "ema-cross/classification",
+            "EMA crossover classification",
+            StrategyObjectiveKind.ReturnSeeking,
+            new StrategyContextSpec(
+                [AssetClass.Equity],
+                MarketTopologyKind.SingleInstrument,
+                ExposureGeometryKind.DirectionalLongShort,
+                [StrategyInformationKind.Bar],
+                new StrategyTimeSemantics(
+                    StrategyHorizonKind.Intraday,
+                    TimeSpan.FromMinutes(5),
+                    TimeSpan.FromHours(2))),
+            new StrategySignalSpec(
+                [ReturnHypothesisKind.Momentum],
+                [StrategyTriggerKind.Bar],
+                [SignalModelKind.DeterministicRule]),
+            new StrategyPortfolioSpec(PortfolioConstructionKind.RiskBudget),
+            new StrategyRiskSpec([
+                StrategyRiskExitKind.StopLoss,
+                StrategyRiskExitKind.TakeProfit,
+                StrategyRiskExitKind.TimeExit,
+                StrategyRiskExitKind.SignalReversal,
+                StrategyRiskExitKind.ExposureCap,
+            ]),
+            new StrategyExecutionSpec([
+                StrategyExecutionPolicyKind.Market,
+                StrategyExecutionPolicyKind.Limit,
+            ]),
+            new StrategyStateSpec(
+                [StrategyStateKind.PositionAware, StrategyStateKind.FiniteState],
+                StrategyAdaptationKind.Fixed),
+            []);
+        var emptyDraft = new StrategyIntentDraftV1(
+            StrategyIntentDraftV1.CurrentSchemaVersion,
+            "ema-cross/intent",
+            candidate.CandidateId,
+            candidate.Revision,
+            StrategyCandidateCanonicalJsonV1.Hash(candidate),
+            ResearchCaseCanonicalJsonV1.Hash(researchCase),
+            new StrategyClassificationBindingV1(
+                classification.Id,
+                StrategySpecCanonicalJsonV1.Hash(classification)),
+            new StrategyIntentModelV1(StrategyIntentKindV1.PositionTarget),
+            StrategyIntentCompletenessV1.CatalogVersion,
+            []);
+        var provenance = new StrategyRequirementProvenanceV1(
+            ["statement.confirmed"],
+            ["evidence.point_in_time"],
+            "The user explicitly confirmed this decision during strategy review.");
+        var requirements = StrategyIntentCompletenessV1.Questions(emptyDraft, classification)
+            .Select(question =>
+            {
+                var answer = $"Confirmed reviewed answer for {question.RequirementId}.";
+                return new StrategySemanticRequirementV1(
+                    question.RequirementId,
+                    question.Stage,
+                    StrategySemanticDispositionV1.Applicable,
+                    answer,
+                    IsMaterial: true,
+                    provenance,
+                    new StrategyCandidateValueV1("core.semantic_clause@1", answer));
+            })
+            .ToArray();
+        var draft = emptyDraft with { Requirements = requirements };
+        var confirmation = StrategyIntentConfirmationV1.Confirm(
+            candidate,
+            researchCase,
+            classification,
+            draft,
+            StrategyIntentCanonicalJsonV1.Hash(draft));
+        if (!confirmation.Success || confirmation.Intent is null)
+        {
+            var detail = string.Join(
+                Environment.NewLine,
+                confirmation.Issues.Select(issue => $"{issue.Code} {issue.Path}: {issue.Message}")
+                    .Concat(confirmation.Questions.Select(question =>
+                        $"QUESTION {question.RequirementId}: {question.Reason}")));
+            throw new InvalidOperationException($"The generation test fixture did not confirm: {detail}");
+        }
+
+        return new ConfirmedGenerationFixture(
+            confirmation.Intent,
+            new StrategyGenerationConfirmedIntentContextV1(
+                StrategyCandidateCanonicalJsonV1.Serialize(candidate),
+                ResearchCaseCanonicalJsonV1.Serialize(researchCase),
+                StrategySpecCanonicalJsonV1.Serialize(classification)));
+    }
+
+    private sealed record ConfirmedGenerationFixture(
+        ConfirmedStrategyIntentV1 Intent,
+        StrategyGenerationConfirmedIntentContextV1 Context);
 
     private sealed class SynchronousProgressRecorder : IProgress<StrategyGenerationLaneProgressV1>
     {

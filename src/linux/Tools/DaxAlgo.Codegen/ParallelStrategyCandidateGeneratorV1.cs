@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Definition;
+using TradingTerminal.Core.Strategies.Generation;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
@@ -118,7 +119,9 @@ internal static class StrategyGenerationAutomaticRepairClassifierV1
 /// shared facts, unsupported semantics, and runtime-readiness gaps never trigger blind model repair;
 /// this layer never compiles, runs, imports, packages, or tests an artifact.
 /// </summary>
-public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane) : IStrategyGenerationLaneAgentV1
+public sealed class StrategyGenerationLaneAgentV1(
+    StrategyGenerationLaneV1 lane,
+    IStrategyIntentExtensionRegistryV1? extensionRegistry = null) : IStrategyGenerationLaneAgentV1
 {
     public StrategyGenerationLaneV1 Lane { get; } = lane;
 
@@ -132,6 +135,7 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(expectedCandidateId);
+        StrategyGenerationConfirmedIntentBindingV1.ValidateOrThrow(request, extensionRegistry);
 
         var systemContext = ParallelStrategyGenerationPromptV1.SystemContext(Lane);
         var originalUserMessage = ParallelStrategyGenerationPromptV1.UserMessage(request);
@@ -295,7 +299,10 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
                 StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
                     request.StrategyId,
                     request.UserPrompt,
-                    Lane));
+                    request.ConfirmedIntentCanonicalJson!,
+                    request.ConfirmedIntentHashSha256!,
+                    Lane),
+                request.ConfirmedIntentHashSha256);
         }
         catch (Exception exception) when (exception is JsonException or ArgumentException or
             FormatException or InvalidOperationException or NotSupportedException or OverflowException)
@@ -355,7 +362,10 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
                 StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
                     request.StrategyId,
                     request.UserPrompt,
+                    request.ConfirmedIntentCanonicalJson!,
+                    request.ConfirmedIntentHashSha256!,
                     Lane),
+                request.ConfirmedIntentHashSha256!,
                 request.StrategyId,
                 out candidate,
                 out error);
@@ -403,6 +413,25 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
         string expectedRequestHashSha256,
         string expectedStrategyId,
         out StrategyGenerationCandidateV1? candidate,
+        out string error) =>
+        TryBindHostCandidate(
+            lane,
+            root,
+            expectedCandidateId,
+            expectedRequestHashSha256,
+            null,
+            expectedStrategyId,
+            out candidate,
+            out error);
+
+    internal static bool TryBindHostCandidate(
+        StrategyGenerationLaneV1 lane,
+        JsonElement root,
+        string expectedCandidateId,
+        string expectedRequestHashSha256,
+        string? expectedConfirmedIntentHashSha256,
+        string expectedStrategyId,
+        out StrategyGenerationCandidateV1? candidate,
         out string error)
     {
         candidate = null;
@@ -429,7 +458,8 @@ public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane)
                 DeserializeProperty<IReadOnlyList<StrategyVariationAxisV1>>(root, "variationAxes"),
                 BindArtifact(lane, artifactPayload, expectedStrategyId),
                 DeserializeProperty<string>(root, "explanation"),
-                DeserializeProperty<IReadOnlyList<string>>(root, "proposedTests"));
+                DeserializeProperty<IReadOnlyList<string>>(root, "proposedTests"),
+                expectedConfirmedIntentHashSha256);
             error = string.Empty;
             return true;
         }
@@ -677,13 +707,16 @@ public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCand
 
     private readonly IReadOnlyDictionary<StrategyGenerationLaneV1, IStrategyGenerationLaneAgentV1> _agents;
     private readonly ILogger? _logger;
+    private readonly IStrategyIntentExtensionRegistryV1? _extensionRegistry;
 
     public ParallelStrategyCandidateGeneratorV1(
         IEnumerable<IStrategyGenerationLaneAgentV1> agents,
-        ILogger<ParallelStrategyCandidateGeneratorV1>? logger = null)
+        ILogger<ParallelStrategyCandidateGeneratorV1>? logger = null,
+        IStrategyIntentExtensionRegistryV1? extensionRegistry = null)
     {
         ArgumentNullException.ThrowIfNull(agents);
         _logger = logger;
+        _extensionRegistry = extensionRegistry;
 
         var indexed = new Dictionary<StrategyGenerationLaneV1, IStrategyGenerationLaneAgentV1>();
         foreach (var agent in agents)
@@ -718,6 +751,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCand
                 $"The strategy prompt exceeds {MaxUserPromptCharacters:N0} characters.",
                 nameof(request));
         ct.ThrowIfCancellationRequested();
+        StrategyGenerationConfirmedIntentBindingV1.ValidateOrThrow(request, _extensionRegistry);
 
         var normalizedRequest = request with { StrategyId = request.StrategyId.Trim() };
         var orderedAgents = StrategyGenerationLaneCatalogV1.Ordered.Select(lane => _agents[lane]).ToArray();
@@ -733,7 +767,9 @@ public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCand
             static (total, result) => total.Add(result.AgentRun?.Usage));
         var promptHash = StrategyGenerationCandidateCanonicalJsonV1.PromptHash(
             normalizedRequest.StrategyId,
-            normalizedRequest.UserPrompt);
+            normalizedRequest.UserPrompt,
+            normalizedRequest.ConfirmedIntentCanonicalJson!,
+            normalizedRequest.ConfirmedIntentHashSha256!);
 
         _logger?.LogInformation(
             "Parallel strategy generation for {StrategyId}: {Selectable}/4 lane(s) selectable, {PackageValid} package-valid",
@@ -746,7 +782,9 @@ public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCand
             normalizedRequest.UserPrompt,
             promptHash,
             Array.AsReadOnly(orderedResults),
-            usage);
+            usage,
+            normalizedRequest.ConfirmedIntentCanonicalJson,
+            normalizedRequest.ConfirmedIntentHashSha256);
     }
 
     private static async Task<StrategyGenerationLaneResultV1> InvokeLaneWithProgressAsync(
@@ -820,7 +858,10 @@ public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCand
                     StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
                         request.StrategyId,
                         request.UserPrompt,
+                        request.ConfirmedIntentCanonicalJson!,
+                        request.ConfirmedIntentHashSha256!,
                         agent.Lane),
+                    request.ConfirmedIntentHashSha256!,
                     out var reason))
                 return AgentFailure(provider, agent.Lane, "LANE_AGENT_RESULT_INVALID",
                     $"The {StrategyGenerationLaneCatalogV1.DisplayName(agent.Lane)} lane returned an invalid result: {reason}");
@@ -869,6 +910,7 @@ public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCand
         StrategyGenerationLaneV1 expectedLane,
         string expectedCandidateId,
         string expectedRequestHashSha256,
+        string expectedConfirmedIntentHashSha256,
         out string reason)
     {
         if (result.AgentRun is null || result.AgentRun.Usage is null)
@@ -934,7 +976,8 @@ public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCand
             result.Candidate,
             expectedLane,
             expectedCandidateId,
-            expectedRequestHashSha256);
+            expectedRequestHashSha256,
+            expectedConfirmedIntentHashSha256);
         var candidateValid = candidateIssues.All(static issue =>
             issue.Severity != StrategyCandidateGenerationIssueSeverityV1.Error);
         if (!result.Issues.SequenceEqual(candidateIssues))

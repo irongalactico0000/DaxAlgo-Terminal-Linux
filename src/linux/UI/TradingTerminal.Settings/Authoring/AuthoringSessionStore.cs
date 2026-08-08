@@ -54,6 +54,13 @@ public sealed record AuthoringSessionSnapshot(
     string? ParallelCandidateBatchJson = null,
     string? SelectedParallelCandidateHash = null,
     string? EditorBaseParallelCandidateHash = null,
+    string? ResearchCaseJson = null,
+    string? StrategyClassificationJson = null,
+    string? StrategyIntentDraftJson = null,
+    string? ConfirmedStrategyIntentJson = null,
+    StrategyAuthoringScreen ActiveScreen = StrategyAuthoringScreen.Design,
+    bool HasDetachedImplementationSource = false,
+    bool EditorOriginatedFromCombinedTradeIr = false,
     int AuthoringUxVersion = 0,
     DateTime UpdatedUtc = default)
 {

@@ -1,7 +1,12 @@
 # Vibe Quant four-lane Done / Not Done matrix
 
-Evidence date: 2026-08-07. “Done” means implemented and covered by the named local validation path;
+Evidence date: 2026-08-08. “Done” means implemented and covered by the named local validation path;
 it does not mean semantic correctness, profitability, historical readiness, or live safety.
+
+This matrix describes the existing four-representation subsystem. The approved next runtime product
+does not pretend these are four equivalent execution engines: it uses one research QueryEngine,
+one native akquant market-backtest worker, and one native CSP event-graph worker. See
+[DaxAlgo quant strategy agent architecture](quant-strategy-agent-architecture.md).
 
 | Lane | Inspectable artifact | Native validation/test path | First actionable stop | Status |
 |---|---|---|---|---|
@@ -12,7 +17,13 @@ it does not mean semantic correctness, profitability, historical readiness, or l
 
 ## Shared workflow boundary
 
-One **Check & generate** submission starts four independent provider requests. Each terminal lane
+Strategy chat and a local family-aware review produce one confirmed request first. A separate
+explicit implementation action then starts four independent provider requests with the identical
+canonical confirmed-request payload and hash. Immediately before provider dispatch, the host also
+revalidates that payload against the exact candidate, research case, classification, and reviewed
+draft; this context stays host-side. Every candidate and persisted batch must bind the confirmed
+hash; missing, changed, incomplete, unsupported, noncanonical, legacy, or stale bindings are
+nonactionable. Each terminal lane
 result becomes inspectable without waiting for the other three, while selection, persistence,
 synthesis, and testing remain gated on the complete validated four-lane batch. Provider, parse,
 repair, and contract-validation failures retain their exact stage, code, path, message, and available

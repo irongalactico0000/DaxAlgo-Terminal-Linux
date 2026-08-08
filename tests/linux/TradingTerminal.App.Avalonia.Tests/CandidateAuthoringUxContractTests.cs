@@ -12,6 +12,58 @@ public sealed class CandidateAuthoringUxContractTests
     private static readonly XNamespace Avalonia = "https://github.com/avaloniaui";
 
     [Fact]
+    public void Strategy_request_review_is_plain_language_editable_and_keeps_authority_locked()
+    {
+        var root = LoadAuthoringWindow();
+        var gate = root.Descendants(Avalonia + "Border").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") ==
+                "Strategy request review");
+
+        gate.Attribute("IsVisible")!.Value.Should().Be("{Binding HasStrategyIntentReview}");
+        var confirm = gate.Descendants(Avalonia + "Button").Single(element =>
+            (string?)element.Attribute("Command") == "{Binding ConfirmStrategyIntentReviewCommand}");
+        confirm.Attribute("Command")!.Value.Should().Be("{Binding ConfirmStrategyIntentReviewCommand}");
+        confirm.Attribute("IsEnabled")!.Value.Should().Be("{Binding CanConfirmStrategyIntentReview}");
+        gate.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "STRATEGY REQUEST · REVIEW");
+        gate.Descendants(Avalonia + "ComboBox").Should().Contain(element =>
+            (string?)element.Attribute("ItemsSource") == "{Binding StrategyIntentProfiles}");
+        gate.Descendants(Avalonia + "ComboBox").Should().Contain(element =>
+            (string?)element.Attribute("ItemsSource") == "{Binding StrategyIntentShapes}");
+        gate.Descendants(Avalonia + "TextBox").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "{Binding StrategyResearchObjective, Mode=TwoWay}");
+        gate.Descendants(Avalonia + "ItemsControl").Should().Contain(element =>
+            (string?)element.Attribute("ItemsSource") == "{Binding StrategyResearchEvidenceRows}");
+        gate.Descendants(Avalonia + "ItemsControl").Should().Contain(element =>
+            (string?)element.Attribute("ItemsSource") == "{Binding StrategyResearchFalsifierRows}");
+        gate.Descendants(Avalonia + "ItemsControl").Should().Contain(element =>
+            (string?)element.Attribute("ItemsSource") == "{Binding StrategyResearchUnresolvedRows}");
+        gate.Descendants(Avalonia + "ItemsControl").Should().Contain(element =>
+            (string?)element.Attribute("ItemsSource") == "{Binding StrategyResearchResolvedRows}");
+        gate.Descendants(Avalonia + "TextBox").Should().Contain(element =>
+            (string?)element.Attribute("Text") == "{Binding Resolution, Mode=TwoWay}");
+        gate.Descendants(Avalonia + "Button").Should().Contain(element =>
+            (string?)element.Attribute("Command") == "{Binding ResolveCommand}" &&
+            (string?)element.Attribute("Content") == "Record resolution" &&
+            (string?)element.Attribute("IsEnabled") == "{Binding CanResolve}");
+        gate.Descendants(Avalonia + "ItemsControl").Should().Contain(element =>
+            (string?)element.Attribute("ItemsSource") == "{Binding StrategyIntentRequirements}");
+        gate.Descendants(Avalonia + "ItemsControl").Should().Contain(element =>
+            (string?)element.Attribute("ItemsSource") == "{Binding StrategyIntentQuestions}");
+        gate.Descendants().Attributes().Should().NotContain(attribute =>
+            attribute.Value.Contains("StrategyIntentDraftHash", StringComparison.Ordinal) ||
+            attribute.Value.Contains("ConfirmedStrategyIntentHash", StringComparison.Ordinal));
+        gate.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") ==
+                "Observe → qualify evidence → decide intent → size/exposure → execution → manage lifecycle → finish/unwind");
+        gate.Descendants(Avalonia + "TextBlock").Should().Contain(element =>
+            (string?)element.Attribute("Text") != null &&
+            ((string?)element.Attribute("Text"))!.Contains(
+                "not proof that code compiles, scenarios pass, a backtest succeeds, paper trading is approved, or live trading is authorized",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Candidate_picker_is_a_two_by_two_grid_with_unambiguous_state_and_action_labels()
     {
         var root = LoadAuthoringWindow();
@@ -86,7 +138,7 @@ public sealed class CandidateAuthoringUxContractTests
             .Should().Contain("ghost").And.NotContain("aiAction");
 
         var progressRegion = root.Descendants(Avalonia + "Border").Single(element =>
-            (string?)element.Attribute("IsVisible") == "{Binding IsGeneratingCandidates}");
+            (string?)element.Attribute("IsVisible") == "{Binding ShowBuildGenerationProgress}");
         progressRegion.Attribute("MaxHeight")!.Value.Should().Be("400");
         progressRegion.Descendants(Avalonia + "ScrollViewer").First()
             .Attribute("VerticalScrollBarVisibility")!.Value.Should().Be("Auto");
@@ -147,6 +199,74 @@ public sealed class CandidateAuthoringUxContractTests
     }
 
     [Fact]
+    public void Design_and_build_are_separate_navigable_screens_with_one_confirmed_handoff()
+    {
+        var root = LoadAuthoringWindow();
+        var navigation = root.Descendants(Avalonia + "Border").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") == "Authoring screen navigation");
+        navigation.Descendants(Avalonia + "StackPanel").Should().Contain(element =>
+            (string?)element.Attribute("IsVisible") == "{Binding ShowScreenNavigation}");
+        var design = navigation.Descendants(Avalonia + "Button").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") == "Open Design and Confirm screen");
+        var build = navigation.Descendants(Avalonia + "Button").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") == "Open Build Test and Compare screen");
+
+        design.Attribute("Command")!.Value.Should().Be("{Binding OpenDesignScreenCommand}");
+        design.Attribute("IsEnabled")!.Value.Should().Be("{Binding CanOpenDesignScreen}");
+        build.Attribute("Command")!.Value.Should().Be("{Binding OpenBuildScreenCommand}");
+        build.Attribute("IsEnabled")!.Value.Should().Be("{Binding CanOpenBuildScreen}");
+
+        root.Descendants(Avalonia + "Grid").Should().ContainSingle(element =>
+            (string?)element.Attribute("AutomationProperties.Name") == "Design and Confirm screen" &&
+            (string?)element.Attribute("IsVisible") == "{Binding IsDesignScreen}");
+        root.Descendants(Avalonia + "StackPanel").Should().Contain(element =>
+            (string?)element.Attribute("IsVisible") == "{Binding ShowDesignRequestHeader}");
+        root.Descendants(Avalonia + "StackPanel").Should().Contain(element =>
+            (string?)element.Attribute("IsVisible") == "{Binding ShowImplementationHeader}");
+        var workbench = root.Descendants(Avalonia + "Border").Single(element =>
+            ((string?)element.Attribute("Classes"))?.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Contains("workbench") == true);
+        workbench.Attribute("Grid.Column")!.Value.Should().Be("{Binding WorkbenchGridColumn}");
+        workbench.Attribute("Grid.ColumnSpan")!.Value.Should().Be("{Binding WorkbenchGridColumnSpan}");
+
+        root.Descendants(Avalonia + "TabItem").Where(element =>
+                new[] { "Code", "Parameters", "Activity" }.Contains((string?)element.Attribute("Header")))
+            .Should().OnlyContain(element =>
+                (string?)element.Attribute("IsVisible") == "{Binding ShowImplementationTabs}");
+        root.Descendants(Avalonia + "TabItem").Should().ContainSingle(element =>
+            (string?)element.Attribute("Header") == "{Binding CandidateTabHeader}");
+
+        var start = root.Descendants(Avalonia + "Button").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") == "Start implementation generation");
+        start.Attribute("Command")!.Value.Should().Be("{Binding GenerateFourCandidatesCommand}");
+        start.Attribute("IsEnabled")!.Value.Should().Be("{Binding CanGenerateFourCandidates}");
+        start.Attribute("IsVisible")!.Value.Should().Be("{Binding ShowStartImplementationAction}");
+
+        var liveBoard = root.Descendants(Avalonia + "Border").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") == "Live four-lane generation board");
+        var stop = liveBoard.Descendants(Avalonia + "Button").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") == "Stop implementation generation");
+        stop.Attribute("Command")!.Value.Should().Be("{Binding StopCommand}");
+
+        var activeTask = root.Descendants(Avalonia + "Border").Single(element =>
+            (string?)element.Attribute("AutomationProperties.Name") == "Active build task");
+        activeTask.Attribute("IsVisible")!.Value.Should().Be("{Binding ShowBuildBusyStop}");
+        activeTask.Descendants(Avalonia + "Button").Single(element =>
+                (string?)element.Attribute("AutomationProperties.Name") == "Stop active build task")
+            .Attribute("Command")!.Value.Should().Be("{Binding StopCommand}");
+
+        root.Descendants(Avalonia + "Border").Single(element =>
+                (string?)element.Attribute("AutomationProperties.Name") ==
+                "Detached implementation source warning")
+            .Attribute("IsVisible")!.Value.Should().Be("{Binding HasDetachedImplementationSource}");
+
+        root.Descendants(Avalonia + "ScrollViewer").Should().ContainSingle(element =>
+            (string?)element.Attribute("IsVisible") == "{Binding ShowBuildCandidateResults}");
+        root.Descendants(Avalonia + "Grid").Should().ContainSingle(element =>
+            (string?)element.Attribute("IsVisible") == "{Binding ShowDesignCandidateReview}");
+    }
+
+    [Fact]
     public void Expert_mode_has_a_prominent_candidate_return_and_hides_compile_for_non_C_sharp_artifacts()
     {
         var root = LoadAuthoringWindow();
@@ -160,6 +280,7 @@ public sealed class CandidateAuthoringUxContractTests
         var compile = root.Descendants(Avalonia + "Button").Single(element =>
             (string?)element.Attribute("Content") == "⚡  Compile & Register");
         compile.Attribute("IsVisible")!.Value.Should().Be("{Binding HasExpertCSharpFiles}");
+        compile.Attribute("IsEnabled")!.Value.Should().Be("{Binding CanCompileCurrentSource}");
         var boundary = root.Descendants(Avalonia + "Border").Single(element =>
             (string?)element.Attribute("AutomationProperties.Name") ==
                 "Non C sharp source review boundary");

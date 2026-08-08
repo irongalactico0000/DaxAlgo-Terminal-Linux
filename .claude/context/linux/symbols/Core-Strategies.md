@@ -1,6 +1,6 @@
 # TradingTerminal.Core / Strategies — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `8af92ffea5ea`. Declaration lines only;
+Generated from source fingerprint `3026999d8534`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Core/TradingTerminal.Core/Strategies/Authoring/AiModelChoice.cs
@@ -371,6 +371,68 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
   155: public StrategyModuleRuntimeContractV1 Runtime { get; init; }
 ```
 
+## src/linux/Core/TradingTerminal.Core/Strategies/Generation/ConfirmedStrategyIntentV1.cs
+```cs
+    9: public enum StrategyIntentKindV1
+   24: public enum StrategyIntentFamilyV1
+   38: public enum StrategySemanticStageV1
+   53: public enum StrategySemanticDispositionV1
+   61: public sealed record StrategyIntentModelV1(
+   69: public enum StrategyIntentExtensionRoleV1
+   80: public interface IStrategyIntentExtensionRegistryV1
+   82:     bool Owns(StrategyIntentExtensionRoleV1 role, string extensionId);
+   89: public static class StrategyIntentValueTypesV1
+   91: public const string SemanticClause = "core.semantic_clause@1";
+   92: public const string Percentage = "core.percentage@1";
+   93: public const string Duration = "core.duration@1";
+   94: public const string Timeframe = "core.timeframe@1";
+  104: public static bool IsBuiltIn(string? typeId) =>
+  109: public sealed record StrategyRequirementProvenanceV1(
+  115: public sealed record StrategySemanticRequirementV1(
+  125: public sealed record ResearchEvidenceRequirementV1(
+  133: public sealed record ResearchFalsifierV1(
+  139: public sealed record ResearchUnresolvedItemV1(
+  146: public sealed record ResearchResolvedItemV1(
+  158: public sealed record ResearchCaseV1(
+  171: public const string CurrentSchemaVersion = "research-case/v1";
+  174: public sealed record StrategyClassificationBindingV1(
+  179: public sealed record StrategyIntentDraftV1(
+  191: public const string CurrentSchemaVersion = "strategy-intent-draft/v1";
+  198: public sealed record ConfirmedStrategyIntentV1(
+  211: public const string CurrentSchemaVersion = "confirmed-strategy-intent/v1";
+  214: public sealed record StrategyIntentQuestionV1(
+  221: public sealed record StrategyIntentIssueV1(
+  226: public sealed record StrategyIntentConfirmationResultV1(
+  231: public bool Success => Intent is not null && Questions.Count == 0 && Issues.Count == 0;
+  234: public static class ResearchCaseCanonicalJsonV1
+  236: public static string Serialize(ResearchCaseV1 value) =>
+  239: public static string Hash(ResearchCaseV1 value) =>
+  242: public static ResearchCaseV1 Deserialize(string json) =>
+  245: public static string Canonicalize(string json) =>
+  249: public static class StrategySpecCanonicalJsonV1
+  251: public static string Serialize(StrategySpec value) =>
+  254: public static string Hash(StrategySpec value) =>
+  257: public static StrategySpec Deserialize(string json) =>
+  260: public static string Canonicalize(string json) =>
+  264: public static class StrategyIntentCanonicalJsonV1
+  266: public static string Serialize(StrategyIntentDraftV1 value) =>
+  269: public static string Serialize(ConfirmedStrategyIntentV1 value) =>
+  272: public static string Hash(StrategyIntentDraftV1 value) =>
+  275: public static string Hash(ConfirmedStrategyIntentV1 value) =>
+  278: public static StrategyIntentDraftV1 DeserializeDraft(string json) =>
+  281: public static ConfirmedStrategyIntentV1 DeserializeConfirmed(string json) =>
+  284: public static string Canonicalize(string json) =>
+  292: public static class StrategyIntentConfirmationV1
+  294: public static StrategyIntentConfirmationResultV1 Confirm(
+  363: public static IReadOnlyList<StrategyIntentIssueV1> ValidateConfirmed(
+  976: public static class StrategyIntentCompletenessV1
+  978: public const string CatalogVersion = "strategy-intent-requirements/v1";
+ 1013: public static bool IsKnownRequirementId(string? requirementId) =>
+ 1016: public static IReadOnlyList<string> ActiveRequirementIds(
+ 1033: public static StrategyIntentFamilyV1 ClassifyFamily(
+ 1064: public static IReadOnlyList<StrategyIntentQuestionV1> Questions(
+```
+
 ## src/linux/Core/TradingTerminal.Core/Strategies/Generation/StrategyCandidateCompositionV1.cs
 ```cs
     8: public sealed record StrategySpecialistRequestV1(
@@ -557,22 +619,22 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    86: public enum StrategyInformationKind
   101: public enum SignalModelKind
   115: public enum PortfolioConstructionKind
-  128: public enum StrategyExecutionPolicyKind
-  144: public enum StrategyStateKind
-  156: public enum StrategyRiskExitKind
-  171: public enum StrategyAdaptationKind
-  186: public sealed record StrategyTimeSemantics(
-  192: public sealed record StrategyContextSpec(
-  200: public sealed record StrategySignalSpec(
-  206: public sealed record StrategyPortfolioSpec(PortfolioConstructionKind Construction);
-  209: public sealed record StrategyRiskSpec(IReadOnlyList<StrategyRiskExitKind> Rules);
-  212: public sealed record StrategyExecutionSpec(IReadOnlyList<StrategyExecutionPolicyKind> Policies);
-  215: public sealed record StrategyStateSpec(
-  226: public sealed record StrategySpec(
-  243: public IReadOnlyList<StrategyCapabilityRequirement> Requirements =>
-  248: public sealed record StrategySpecIssue(string Code, string Path, string Message);
-  251: public static class StrategySpecValidator
-  253: public static IReadOnlyList<StrategySpecIssue> Validate(StrategySpec? spec)
+  129: public enum StrategyExecutionPolicyKind
+  146: public enum StrategyStateKind
+  158: public enum StrategyRiskExitKind
+  174: public enum StrategyAdaptationKind
+  189: public sealed record StrategyTimeSemantics(
+  195: public sealed record StrategyContextSpec(
+  203: public sealed record StrategySignalSpec(
+  209: public sealed record StrategyPortfolioSpec(PortfolioConstructionKind Construction);
+  212: public sealed record StrategyRiskSpec(IReadOnlyList<StrategyRiskExitKind> Rules);
+  215: public sealed record StrategyExecutionSpec(IReadOnlyList<StrategyExecutionPolicyKind> Policies);
+  218: public sealed record StrategyStateSpec(
+  229: public sealed record StrategySpec(
+  246: public IReadOnlyList<StrategyCapabilityRequirement> Requirements =>
+  251: public sealed record StrategySpecIssue(string Code, string Path, string Message);
+  254: public static class StrategySpecValidator
+  256: public static IReadOnlyList<StrategySpecIssue> Validate(StrategySpec? spec)
 ```
 
 ## src/linux/Core/TradingTerminal.Core/Strategies/StrategyAssetScope.cs

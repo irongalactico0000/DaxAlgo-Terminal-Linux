@@ -95,11 +95,14 @@ public sealed class StrategyStarterCatalogTests
         specifications.SelectMany(static spec => spec.Signal.Models).Distinct()
             .Should().BeEquivalentTo(Enum.GetValues<SignalModelKind>());
         specifications.Select(static spec => spec.Portfolio.Construction).Distinct()
-            .Should().BeEquivalentTo(Enum.GetValues<PortfolioConstructionKind>());
+            .Should().BeEquivalentTo(Enum.GetValues<PortfolioConstructionKind>()
+                .Except([PortfolioConstructionKind.NotApplicable]));
         specifications.SelectMany(static spec => spec.Risk.Rules).Distinct()
-            .Should().BeEquivalentTo(Enum.GetValues<StrategyRiskExitKind>());
+            .Should().BeEquivalentTo(Enum.GetValues<StrategyRiskExitKind>()
+                .Except([StrategyRiskExitKind.NotApplicable]));
         specifications.SelectMany(static spec => spec.Execution.Policies).Distinct()
-            .Should().BeEquivalentTo(Enum.GetValues<StrategyExecutionPolicyKind>());
+            .Should().BeEquivalentTo(Enum.GetValues<StrategyExecutionPolicyKind>()
+                .Except([StrategyExecutionPolicyKind.NotApplicable]));
         specifications.SelectMany(static spec => spec.State.Policies).Distinct()
             .Should().BeEquivalentTo(Enum.GetValues<StrategyStateKind>());
         specifications.Select(static spec => spec.State.Adaptation).Distinct()

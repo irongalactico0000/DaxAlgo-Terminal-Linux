@@ -122,6 +122,7 @@ public enum PortfolioConstructionKind
     Optimized,
     ExposureNeutral,
     InventoryTarget,
+    NotApplicable,
 }
 
 /// <summary>How target exposure becomes orders.</summary>
@@ -138,6 +139,7 @@ public enum StrategyExecutionPolicyKind
     SmartRouting,
     CoordinatedLegs,
     ContinuousQuoting,
+    NotApplicable,
 }
 
 /// <summary>History that changes subsequent decisions.</summary>
@@ -165,6 +167,7 @@ public enum StrategyRiskExitKind
     GreekCap,
     LiquidityCap,
     DrawdownKillSwitch,
+    NotApplicable,
 }
 
 /// <summary>How parameters or policy state may change after initial selection.</summary>
@@ -306,6 +309,22 @@ public static class StrategySpecValidator
             ValidEnum(spec.Portfolio.Construction, "portfolio.construction", issues);
         if (spec.Risk is null)
             issues.Add(new StrategySpecIssue("spec.risk.required", "risk", "Risk and exit policy is required."));
+        else if (spec.Risk.Rules?.Contains(StrategyRiskExitKind.NotApplicable) == true &&
+                 spec.Risk.Rules.Count > 1)
+        {
+            issues.Add(new StrategySpecIssue(
+                "spec.risk.not_applicable_conflict",
+                "risk.rules",
+                "NotApplicable cannot be combined with risk or exit rules."));
+        }
+        if (spec.Execution?.Policies?.Contains(StrategyExecutionPolicyKind.NotApplicable) == true &&
+            spec.Execution.Policies.Count > 1)
+        {
+            issues.Add(new StrategySpecIssue(
+                "spec.execution.not_applicable_conflict",
+                "execution.policies",
+                "NotApplicable cannot be combined with execution policies."));
+        }
         if (spec.State is not null)
         {
             ValidEnum(spec.State.Adaptation, "state.adaptation", issues);

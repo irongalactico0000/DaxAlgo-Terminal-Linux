@@ -23,6 +23,11 @@ public sealed partial class StrategyAuthoringViewModel
     [ObservableProperty]
     private bool _isSynthesizingTradeIr;
 
+    // This is provenance, not a validity receipt. It deliberately survives editor changes so a later
+    // strategy-request change can still identify the retained file as belonging to the old request.
+    [ObservableProperty]
+    private bool _editorOriginatedFromCombinedTradeIr;
+
     public bool HasCombinedTradeIrSynthesis => CombinedTradeIrSynthesis is not null;
 
     public bool HasCurrentPackageValidCombinedTradeIr =>
@@ -38,6 +43,7 @@ public sealed partial class StrategyAuthoringViewModel
             StringComparison.Ordinal);
 
     public bool CanSynthesizeTradeIr =>
+        CanEnterFourLaneConformance &&
         _tradeIrCandidateSynthesizer is not null &&
         !HasPendingFourLanePrompt &&
         _parallelCandidateBatch is not null &&
@@ -46,6 +52,7 @@ public sealed partial class StrategyAuthoringViewModel
         !IsGenerating;
 
     public bool CanUseCombinedTradeIr =>
+        CanEnterFourLaneConformance &&
         !HasPendingFourLanePrompt &&
         HasCurrentPackageValidCombinedTradeIr &&
         !HasLoadedCombinedTradeIr &&
@@ -202,7 +209,8 @@ public sealed partial class StrategyAuthoringViewModel
     [RelayCommand(CanExecute = nameof(CanUseCombinedTradeIrAction))]
     private void UseCombinedTradeIr()
     {
-        if (_parallelCandidateBatch is not { } batch ||
+        if (!CanEnterFourLaneConformance ||
+            _parallelCandidateBatch is not { } batch ||
             CombinedTradeIrSynthesis is not { } result ||
             TradeIrCandidateSynthesisValidationV1.Validate(result, batch).Count != 0 ||
             result.Output.Candidate is not { } candidate ||
@@ -210,8 +218,10 @@ public sealed partial class StrategyAuthoringViewModel
             return;
 
         InvalidateDerivedArtifactState(markUnregistered: true);
+        HasDetachedImplementationSource = false;
         SetFiles([new StrategyFile(candidate.Artifact.FileName, EditableArtifactContent(candidate.Artifact))]);
         _filesEditedByUser = false;
+        EditorOriginatedFromCombinedTradeIr = true;
         SetLoadedCombinedTradeIrCandidateHash(candidateHash);
         WorkbenchTab = 3;
         AiStatus = $"Combined TradeIR loaded at exact synthesized hash {candidateHash[..12]}…. The smoke admission action is now visible below; compatibility is not proven until run, and editing the artifact clears this receipt proof.";

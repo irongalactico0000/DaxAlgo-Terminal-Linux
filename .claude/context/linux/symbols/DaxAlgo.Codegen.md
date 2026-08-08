@@ -1,6 +1,6 @@
 # DaxAlgo.Codegen — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `8af92ffea5ea`. Declaration lines only;
+Generated from source fingerprint `3026999d8534`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs
@@ -145,91 +145,97 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyCandidateGeneratorV1.cs
 ```cs
-   18: public static StrategyGenerationAutomaticRepairDispositionV1 Classify(
-  121: public sealed class StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1 lane) : IStrategyGenerationLaneAgentV1
-  123: public StrategyGenerationLaneV1 Lane { get; } = lane;
-  125: public async Task<StrategyGenerationLaneResultV1> GenerateAsync(
-  674: public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCandidateGeneratorV1
-  676: public const int MaxUserPromptCharacters = 100_000;
-  681: public ParallelStrategyCandidateGeneratorV1(
-  706: public async Task<ParallelStrategyGenerationResultV1> GenerateAsync(
+   19: public static StrategyGenerationAutomaticRepairDispositionV1 Classify(
+  122: public sealed class StrategyGenerationLaneAgentV1(
+  126: public StrategyGenerationLaneV1 Lane { get; } = lane;
+  128: public async Task<StrategyGenerationLaneResultV1> GenerateAsync(
+  704: public sealed class ParallelStrategyCandidateGeneratorV1 : IParallelStrategyCandidateGeneratorV1
+  706: public const int MaxUserPromptCharacters = 100_000;
+  712: public ParallelStrategyCandidateGeneratorV1(
+  739: public async Task<ParallelStrategyGenerationResultV1> GenerateAsync(
 ```
 
 ## src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationContractsV1.cs
 ```cs
-    9: public enum StrategyGenerationLaneV1
-   18: public enum StrategyGenerationLaneProgressStateV1
-   31: public sealed record StrategyGenerationLaneProgressV1(
-   37: public enum StrategyGenerationArtifactKindV1
-   49: public enum StrategyGenerationReadinessV1
-   69: public enum StrategyGenerationAutomaticRepairDispositionV1
-   88: public enum StrategyGenerationSemanticRoleV1
-   95: public enum StrategyGenerationLoweringModeV1
-  114: public enum StrategyGenerationExternalCompatibilityV1
-  126: public sealed record StrategyGenerationContractAuthorityV1(
-  139: public sealed record StrategyGenerationPackageBindingV1(
-  150: public enum StrategyVariationAxisKindV1
-  163: public sealed record StrategyGenerationParameterV1(
-  179: public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-  198: public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) =>
-  203: public sealed record StrategyVariationAxisV1(
-  214: public sealed record StrategyGenerationArtifactV1(
-  225: public sealed record StrategyGenerationCandidateV1(
-  241: public const string CurrentSchemaVersion = "strategy-generation-candidate/v2";
-  244: public sealed record ParallelStrategyGenerationRequestV1(
-  248: public sealed record StrategyGenerationLaneResultV1(
-  256: public StrategyGenerationAutomaticRepairDispositionV1 AutomaticRepairDisposition =>
-  259: public bool Generated => Candidate is not null && CandidateHashSha256 is not null &&
-  267: public bool PackageValidationAvailable =>
-  275: public bool Selectable
-  315: public bool PackageValid
-  342: public sealed record ParallelStrategyGenerationResultV1(
-  349: public bool HasPackageValidCandidate =>
-  354: public interface IStrategyGenerationLaneAgentV1
-  356:     StrategyGenerationLaneV1 Lane { get; }
-  358:     Task<StrategyGenerationLaneResultV1> GenerateAsync(
-  359:     IStrategyCodegenClient provider,
-  360:     ParallelStrategyGenerationRequestV1 request,
-  361:     string expectedCandidateId,
-  362:     CancellationToken ct = default,
-  363:     IProgress<StrategyGenerationLaneProgressV1>? progress = null);
-  366: public interface IParallelStrategyCandidateGeneratorV1
-  368:     Task<ParallelStrategyGenerationResultV1> GenerateAsync(
-  369:     IStrategyCodegenClient provider,
-  370:     ParallelStrategyGenerationRequestV1 request,
-  371:     CancellationToken ct = default,
-  372:     IProgress<StrategyGenerationLaneProgressV1>? progress = null);
-  375: public static class StrategyGenerationCandidateCanonicalJsonV1
-  377: public static string Serialize(StrategyGenerationCandidateV1 candidate) =>
-  380: public static StrategyGenerationCandidateV1 Deserialize(string json) =>
-  383: public static string Hash(StrategyGenerationCandidateV1 candidate) =>
-  406: public static string SerializeBatch(ParallelStrategyGenerationResultV1 result) =>
-  409: public static ParallelStrategyGenerationResultV1 DeserializeBatch(string json) =>
-  412: public static string PromptHash(string strategyId, string userPrompt) =>
-  415: public static string RequestHash(
-  464: public sealed record StrategyGenerationSelectionResultV1(
-  469: public bool Success => Candidate is not null && CandidateHashSha256 is not null &&
-  474: public sealed record StrategyGenerationRevalidationResultV1(
-  479: public bool Applied => Batch is not null && LaneResult is not null && Issues is not null &&
-  485: public static class StrategyGenerationBatchValidationV1
-  487: public static IReadOnlyList<StrategyCandidateGenerationIssueV1> Validate(
-  648: public static StrategyGenerationSelectionResultV1 Select(
-  675: public static StrategyGenerationRevalidationResultV1 RevalidateArtifact(
-  764: public static class StrategyGenerationLaneCatalogV1
-  766: public static IReadOnlyList<StrategyGenerationLaneV1> Ordered { get; } = Array.AsReadOnly(
-  775: public static string WireName(StrategyGenerationLaneV1 lane) => lane switch
-  784: public static string DisplayName(StrategyGenerationLaneV1 lane) => lane switch
-  793: public static StrategyGenerationArtifactKindV1 ArtifactKind(StrategyGenerationLaneV1 lane) => lane switch
+   10: public enum StrategyGenerationLaneV1
+   19: public enum StrategyGenerationLaneProgressStateV1
+   32: public sealed record StrategyGenerationLaneProgressV1(
+   38: public enum StrategyGenerationArtifactKindV1
+   50: public enum StrategyGenerationReadinessV1
+   70: public enum StrategyGenerationAutomaticRepairDispositionV1
+   89: public enum StrategyGenerationSemanticRoleV1
+   96: public enum StrategyGenerationLoweringModeV1
+  115: public enum StrategyGenerationExternalCompatibilityV1
+  127: public sealed record StrategyGenerationContractAuthorityV1(
+  140: public sealed record StrategyGenerationPackageBindingV1(
+  151: public enum StrategyVariationAxisKindV1
+  164: public sealed record StrategyGenerationParameterV1(
+  180: public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+  199: public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) =>
+  204: public sealed record StrategyVariationAxisV1(
+  215: public sealed record StrategyGenerationArtifactV1(
+  226: public sealed record StrategyGenerationCandidateV1(
+  243: public const string CurrentSchemaVersion = "strategy-generation-candidate/v3";
+  250: public sealed record StrategyGenerationConfirmedIntentContextV1(
+  255: public sealed record ParallelStrategyGenerationRequestV1(
+  262: public sealed record StrategyGenerationLaneResultV1(
+  270: public StrategyGenerationAutomaticRepairDispositionV1 AutomaticRepairDisposition =>
+  273: public bool Generated => Candidate is not null && CandidateHashSha256 is not null &&
+  281: public bool PackageValidationAvailable =>
+  289: public bool Selectable
+  329: public bool PackageValid
+  356: public sealed record ParallelStrategyGenerationResultV1(
+  365: public bool HasPackageValidCandidate =>
+  370: public interface IStrategyGenerationLaneAgentV1
+  372:     StrategyGenerationLaneV1 Lane { get; }
+  374:     Task<StrategyGenerationLaneResultV1> GenerateAsync(
+  375:     IStrategyCodegenClient provider,
+  376:     ParallelStrategyGenerationRequestV1 request,
+  377:     string expectedCandidateId,
+  378:     CancellationToken ct = default,
+  379:     IProgress<StrategyGenerationLaneProgressV1>? progress = null);
+  382: public interface IParallelStrategyCandidateGeneratorV1
+  384:     Task<ParallelStrategyGenerationResultV1> GenerateAsync(
+  385:     IStrategyCodegenClient provider,
+  386:     ParallelStrategyGenerationRequestV1 request,
+  387:     CancellationToken ct = default,
+  388:     IProgress<StrategyGenerationLaneProgressV1>? progress = null);
+  391: public static class StrategyGenerationCandidateCanonicalJsonV1
+  393: public static string Serialize(StrategyGenerationCandidateV1 candidate) =>
+  396: public static StrategyGenerationCandidateV1 Deserialize(string json) =>
+  399: public static string Hash(StrategyGenerationCandidateV1 candidate) =>
+  422: public static string SerializeBatch(ParallelStrategyGenerationResultV1 result) =>
+  425: public static ParallelStrategyGenerationResultV1 DeserializeBatch(string json) =>
+  428: public static string PromptHash(string strategyId, string userPrompt) =>
+  431: public static string PromptHash(
+  442: public static string RequestHash(
+  455: public static string RequestHash(
+  540: public const int MaxCanonicalJsonCharacters = 750_000;
+  542: public static bool TryValidate(
+  599: public static void ValidateOrThrow(
+  704: public sealed record StrategyGenerationSelectionResultV1(
+  709: public bool Success => Candidate is not null && CandidateHashSha256 is not null &&
+  714: public sealed record StrategyGenerationRevalidationResultV1(
+  719: public bool Applied => Batch is not null && LaneResult is not null && Issues is not null &&
+  725: public static class StrategyGenerationBatchValidationV1
+  727: public static IReadOnlyList<StrategyCandidateGenerationIssueV1> Validate(
+  907: public static StrategyGenerationSelectionResultV1 Select(
+  934: public static StrategyGenerationRevalidationResultV1 RevalidateArtifact(
+ 1026: public static class StrategyGenerationLaneCatalogV1
+ 1028: public static IReadOnlyList<StrategyGenerationLaneV1> Ordered { get; } = Array.AsReadOnly(
+ 1037: public static string WireName(StrategyGenerationLaneV1 lane) => lane switch
+ 1046: public static string DisplayName(StrategyGenerationLaneV1 lane) => lane switch
+ 1055: public static StrategyGenerationArtifactKindV1 ArtifactKind(StrategyGenerationLaneV1 lane) => lane switch
 ```
 
 ## src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationPromptV1.cs
 ```cs
     8: public static string AgentId(StrategyGenerationLaneV1 lane) => lane switch
    17: public static string SystemContext(StrategyGenerationLaneV1 lane)
-   20: public static string UserMessage(ParallelStrategyGenerationRequestV1 request) =>
-   27: public static string RepairMessage(
-  121: public const int MaxArtifactCharacters = 750_000;
-  123: public static IReadOnlyList<StrategyCandidateGenerationIssueV1> Validate(
+   20: public static string UserMessage(ParallelStrategyGenerationRequestV1 request)
+   39: public static string RepairMessage(
+  138: public const int MaxArtifactCharacters = 750_000;
+  140: public static IReadOnlyList<StrategyCandidateGenerationIssueV1> Validate(
 ```
 
 ## src/linux/Tools/DaxAlgo.Codegen/StrategyBacktestSmoke.cs
@@ -321,8 +327,8 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/Tools/DaxAlgo.Codegen/StrategyCodegenServiceCollectionExtensions.cs
 ```cs
-   11: public static class StrategyCodegenServiceCollectionExtensions
-   22: public static IServiceCollection AddStrategyCodegen(this IServiceCollection services, IConfiguration configuration)
+   12: public static class StrategyCodegenServiceCollectionExtensions
+   23: public static IServiceCollection AddStrategyCodegen(this IServiceCollection services, IConfiguration configuration)
 ```
 
 ## src/linux/Tools/DaxAlgo.Codegen/StrategyContextPack.cs
@@ -377,26 +383,26 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
     7: public sealed record StrategySynthesisSourceV1(
    14: public sealed record TradeIrCandidateSynthesisRequestV1(
    18: public sealed record TradeIrSynthesisReceiptV1(
-   31: public const string CurrentSchemaVersion = "trade-ir-candidate-synthesis-receipt/v1";
-   34: public sealed record TradeIrCandidateSynthesisResultV1(
-   39: public bool Success => TradeIrCandidateSynthesisValidationV1.Validate(this).Count == 0;
-   42: public interface ITradeIrCandidateSynthesizerV1
-   44:     Task<TradeIrCandidateSynthesisResultV1> SynthesizeAsync(
-   45:     IStrategyCodegenClient provider,
-   46:     TradeIrCandidateSynthesisRequestV1 request,
-   47:     CancellationToken ct = default);
-   50: public static class TradeIrCandidateSynthesisCanonicalJsonV1
-   52: public const string AgentId = "strategy.tradeir_synthesis@2";
-   54: public static string ReceiptHash(TradeIrSynthesisReceiptV1 receipt) =>
-   57: public static string RequestHash(
-   76: public static string SynthesisId(string strategyId) => $"{strategyId.Trim()}/tradeir-synthesis/v1";
-   91: public static class TradeIrCandidateSynthesisValidationV1
-   93: public static IReadOnlyList<StrategyCandidateGenerationIssueV1> Validate(
-  299: public sealed class TradeIrCandidateSynthesizerV1 : ITradeIrCandidateSynthesizerV1
-  301: public const int MaxSourcePayloadCharacters = 1_000_000;
-  303: public async Task<TradeIrCandidateSynthesisResultV1> SynthesizeAsync(
-  531: public static string SystemContext { get; } = """
-  545: public static string UserMessage(
+   32: public const string CurrentSchemaVersion = "trade-ir-candidate-synthesis-receipt/v2";
+   35: public sealed record TradeIrCandidateSynthesisResultV1(
+   40: public bool Success => TradeIrCandidateSynthesisValidationV1.Validate(this).Count == 0;
+   43: public interface ITradeIrCandidateSynthesizerV1
+   45:     Task<TradeIrCandidateSynthesisResultV1> SynthesizeAsync(
+   46:     IStrategyCodegenClient provider,
+   47:     TradeIrCandidateSynthesisRequestV1 request,
+   48:     CancellationToken ct = default);
+   51: public static class TradeIrCandidateSynthesisCanonicalJsonV1
+   53: public const string AgentId = "strategy.tradeir_synthesis@2";
+   55: public static string ReceiptHash(TradeIrSynthesisReceiptV1 receipt) =>
+   58: public static string RequestHash(
+   79: public static string SynthesisId(string strategyId) => $"{strategyId.Trim()}/tradeir-synthesis/v1";
+   95: public static class TradeIrCandidateSynthesisValidationV1
+   97: public static IReadOnlyList<StrategyCandidateGenerationIssueV1> Validate(
+  319: public sealed class TradeIrCandidateSynthesizerV1 : ITradeIrCandidateSynthesizerV1
+  321: public const int MaxSourcePayloadCharacters = 1_000_000;
+  323: public async Task<TradeIrCandidateSynthesisResultV1> SynthesizeAsync(
+  555: public static string SystemContext { get; } = """
+  569: public static string UserMessage(
 ```
 
 ## src/linux/Tools/DaxAlgo.Codegen/VibeQuantDeclarativeRulesContractV1.cs

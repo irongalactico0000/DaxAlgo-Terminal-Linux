@@ -179,7 +179,7 @@ public sealed class MacPackagingConfigurationTests
         text.Should().Contain("No AI provider is set up yet.");
         text.Should().Contain("<Button.Flyout>");
         root.Descendants(av + "TabItem").Select(item => item.Attribute("Header")?.Value)
-            .Should().Equal("Code", "Parameters", "Activity", "Candidate");
+            .Should().Equal("Code", "Parameters", "Activity", "{Binding CandidateTabHeader}");
         text.Should().Contain("Content=\"{Binding GenerationModeActionText}\"");
         text.Should().Contain("Command=\"{Binding ToggleGenerationModeCommand}\"");
         text.Should().Contain("ItemsSource=\"{Binding CandidateGroups}\"");

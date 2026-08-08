@@ -8,6 +8,8 @@ using TradingTerminal.Core.Backtesting;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Definition;
+using TradingTerminal.Core.Strategies.Generation;
+using TradingTerminal.Core.Strategies.Specification;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
@@ -21,7 +23,7 @@ public sealed class TradeIrBacktestAuthoringTests
     {
         const string strategyId = "ema-smoke";
         const string prompt = "Build the QuoteL1 EMA smoke-compatible starter.";
-        var (batch, module, candidateHash) = ValidGraphBatch(strategyId, prompt);
+        var (batch, module, candidateHash, semantic) = ValidGraphBatch(strategyId, prompt);
         var saved = new AuthoringSessionSnapshot(
             StrategyId: strategyId,
             DisplayName: "EMA smoke",
@@ -29,7 +31,12 @@ public sealed class TradeIrBacktestAuthoringTests
             Thread: [],
             Files: [new StrategyFile(StrategyFile.DefaultName, string.Empty)],
             GenerateCandidateFirst: true,
+            CandidateJson: StrategyCandidateCanonicalJsonV1.Serialize(semantic.Candidate),
             ParallelCandidateBatchJson: StrategyGenerationCandidateCanonicalJsonV1.SerializeBatch(batch),
+            ResearchCaseJson: ResearchCaseCanonicalJsonV1.Serialize(semantic.ResearchCase),
+            StrategyClassificationJson: StrategySpecCanonicalJsonV1.Serialize(semantic.Classification),
+            StrategyIntentDraftJson: StrategyIntentCanonicalJsonV1.Serialize(semantic.Draft),
+            ConfirmedStrategyIntentJson: StrategyIntentCanonicalJsonV1.Serialize(semantic.ConfirmedIntent),
             AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion,
             UpdatedUtc: DateTime.UtcNow);
         var runner = new RecordingSmokeRunner();
@@ -268,7 +275,7 @@ public sealed class TradeIrBacktestAuthoringTests
         const string strategyId = "ema-smoke";
         const string prompt = "Build the QuoteL1 EMA smoke-compatible starter.";
         const string pending = "Use a faster EMA and require a wider spread filter.";
-        var (batch, _, candidateHash) = ValidGraphBatch(strategyId, prompt);
+        var (batch, _, candidateHash, semantic) = ValidGraphBatch(strategyId, prompt);
         var graph = batch.Lanes.Single(lane => lane.Lane == StrategyGenerationLaneV1.TypedGraph).Candidate!;
         var saved = new AuthoringSessionSnapshot(
             StrategyId: strategyId,
@@ -277,11 +284,16 @@ public sealed class TradeIrBacktestAuthoringTests
             Thread: [],
             Files: [new StrategyFile(graph.Artifact.FileName, graph.Artifact.Document!.Value.GetRawText())],
             GenerateCandidateFirst: true,
+            CandidateJson: StrategyCandidateCanonicalJsonV1.Serialize(semantic.Candidate),
             FourLaneStrategyBrief: prompt,
             PendingFourLanePrompt: pending,
             ParallelCandidateBatchJson: StrategyGenerationCandidateCanonicalJsonV1.SerializeBatch(batch),
             SelectedParallelCandidateHash: candidateHash,
             EditorBaseParallelCandidateHash: candidateHash,
+            ResearchCaseJson: ResearchCaseCanonicalJsonV1.Serialize(semantic.ResearchCase),
+            StrategyClassificationJson: StrategySpecCanonicalJsonV1.Serialize(semantic.Classification),
+            StrategyIntentDraftJson: StrategyIntentCanonicalJsonV1.Serialize(semantic.Draft),
+            ConfirmedStrategyIntentJson: StrategyIntentCanonicalJsonV1.Serialize(semantic.ConfirmedIntent),
             AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion,
             UpdatedUtc: DateTime.UtcNow);
 
@@ -311,18 +323,30 @@ public sealed class TradeIrBacktestAuthoringTests
             "discarding only the uncommitted request restores the exact retained graph gate");
     }
 
-    private static (ParallelStrategyGenerationResultV1 Batch, OperatorGraphModuleV1 Module, string CandidateHash)
+    private static (
+        ParallelStrategyGenerationResultV1 Batch,
+        OperatorGraphModuleV1 Module,
+        string CandidateHash,
+        ConfirmedSemanticState Semantic)
         ValidGraphBatch(string strategyId, string prompt)
     {
         var lane = StrategyGenerationLaneV1.TypedGraph;
         var candidateId = $"{strategyId}/{StrategyGenerationLaneCatalogV1.WireName(lane)}";
+        var semantic = ConfirmedSemanticState.Create(strategyId, prompt);
+        var intentCanonicalJson = StrategyIntentCanonicalJsonV1.Serialize(semantic.ConfirmedIntent);
+        var intentHash = StrategyIntentCanonicalJsonV1.Hash(semantic.ConfirmedIntent);
         var module = CreateModule(strategyId);
         using var document = JsonDocument.Parse(OperatorGraphModuleCanonicalJsonV1.Serialize(module));
         var candidate = new StrategyGenerationCandidateV1(
             StrategyGenerationCandidateV1.CurrentSchemaVersion,
             candidateId,
             lane,
-            StrategyGenerationCandidateCanonicalJsonV1.RequestHash(strategyId, prompt, lane),
+            StrategyGenerationCandidateCanonicalJsonV1.RequestHash(
+                strategyId,
+                prompt,
+                intentCanonicalJson,
+                intentHash,
+                lane),
             StrategyGenerationPackageCatalogV1.RequireBinding(lane),
             "QuoteL1 EMA smoke",
             "Compare two causal quote-mid EMAs and target a fixed position.",
@@ -337,18 +361,24 @@ public sealed class TradeIrBacktestAuthoringTests
                 null,
                 document.RootElement.Clone()),
             "Known-supported closed-target fixture.",
-            ["Run the exact-hash synthetic QuoteL1 smoke test."]);
+            ["Run the exact-hash synthetic QuoteL1 smoke test."],
+            intentHash);
         var issues = StrategyGenerationCandidateValidatorV1.Validate(
             candidate,
             lane,
             candidateId,
-            candidate.RequestHashSha256);
+            candidate.RequestHashSha256,
+            intentHash);
         issues.Should().BeEmpty();
         var candidateHash = StrategyGenerationCandidateCanonicalJsonV1.Hash(candidate);
         var batch = new ParallelStrategyGenerationResultV1(
             strategyId,
             prompt,
-            StrategyGenerationCandidateCanonicalJsonV1.PromptHash(strategyId, prompt),
+            StrategyGenerationCandidateCanonicalJsonV1.PromptHash(
+                strategyId,
+                prompt,
+                intentCanonicalJson,
+                intentHash),
             StrategyGenerationLaneCatalogV1.Ordered.Select(candidateLane =>
                 candidateLane == lane
                     ? new StrategyGenerationLaneResultV1(
@@ -369,9 +399,11 @@ public sealed class TradeIrBacktestAuthoringTests
                             "agentRun",
                             "Fixture provider failure.")],
                         Run(candidateLane, success: false))).ToArray(),
-            CodegenUsage.None);
+            CodegenUsage.None,
+            intentCanonicalJson,
+            intentHash);
         StrategyGenerationBatchValidationV1.Validate(batch).Should().BeEmpty();
-        return (batch, module, candidateHash);
+        return (batch, module, candidateHash, semantic);
     }
 
     private static StrategyGenerationCandidateOption ValidSourceReviewOption(StrategyGenerationLaneV1 lane)
@@ -415,6 +447,202 @@ public sealed class TradeIrBacktestAuthoringTests
             StrategyGenerationCandidateCanonicalJsonV1.Hash(candidate),
             [],
             Run(lane, success: true)));
+    }
+
+    private sealed record ConfirmedSemanticState(
+        StrategyCandidateV1 Candidate,
+        ResearchCaseV1 ResearchCase,
+        StrategySpec Classification,
+        StrategyIntentDraftV1 Draft,
+        ConfirmedStrategyIntentV1 ConfirmedIntent)
+    {
+        public static ConfirmedSemanticState Create(string strategyId, string prompt)
+        {
+            const string statementId = "statement.ema-smoke";
+            const string evidenceId = "evidence.ema-smoke";
+            var candidate = new StrategyCandidateV1(
+                StrategyCandidateV1.CurrentSchemaVersion,
+                strategyId,
+                1,
+                null,
+                prompt,
+                "QuoteL1 EMA smoke",
+                StrategyCandidateStatusV1.Confirmed,
+                new StrategyCandidateInterpretationV1(
+                    "Compare causal QuoteL1 fast and slow EMAs and maintain the exact fixed target.",
+                    StrategyInterpretationConfidenceV1.High,
+                    []),
+                [
+                    new StrategyCandidateGroupV1(
+                        "group.ema-smoke",
+                        StrategyCandidateGroupKindV1.SignalAndAlpha,
+                        "Confirmed EMA behavior",
+                        "The user reviewed the signal, position, execution, and lifecycle behavior.",
+                        [
+                            new StrategyCandidateStatementV1(
+                                statementId,
+                                StrategyCandidateStatementKindV1.Rule,
+                                "Use causal QuoteL1 EMA 4/12 evidence to target +5 or -5 shares with market day orders.",
+                                StrategyCandidateStatementSourceV1.User,
+                                StrategyCandidateStatementStateV1.Confirmed,
+                                true),
+                        ],
+                        []),
+                ],
+                []);
+            var researchCase = new ResearchCaseV1(
+                ResearchCaseV1.CurrentSchemaVersion,
+                $"research/{strategyId}",
+                strategyId,
+                StrategyCandidateCanonicalJsonV1.Hash(candidate),
+                "Exercise the installed deterministic QuoteL1 EMA smoke path.",
+                "A causal EMA 4/12 cross can produce the reviewed fixed position target.",
+                [
+                    new ResearchEvidenceRequirementV1(
+                        evidenceId,
+                        "Timestamped ALPHA XNAS QuoteL1 bid and ask observations.",
+                        "Only quotes available at the current event timestamp may update either EMA.",
+                        "Reject missing, stale, crossed, or future quote evidence.",
+                        true,
+                        [statementId]),
+                ],
+                [
+                    new ResearchFalsifierV1(
+                        "falsifier.ema-smoke",
+                        "Reject the implementation if scenario replay cannot reproduce the same target causally.",
+                        true,
+                        [statementId]),
+                ],
+                []);
+            var classification = new StrategySpec(
+                $"classification/{strategyId}",
+                "QuoteL1 EMA smoke",
+                StrategyObjectiveKind.ReturnSeeking,
+                new StrategyContextSpec(
+                    [AssetClass.Equity],
+                    MarketTopologyKind.SingleInstrument,
+                    ExposureGeometryKind.DirectionalLongShort,
+                    [StrategyInformationKind.Quote],
+                    new StrategyTimeSemantics(StrategyHorizonKind.Intraday, TimeSpan.FromSeconds(1))),
+                new StrategySignalSpec(
+                    [ReturnHypothesisKind.Momentum],
+                    [StrategyTriggerKind.Quote],
+                    [SignalModelKind.DeterministicRule]),
+                new StrategyPortfolioSpec(PortfolioConstructionKind.FixedQuantity),
+                new StrategyRiskSpec([StrategyRiskExitKind.SignalReversal]),
+                new StrategyExecutionSpec([StrategyExecutionPolicyKind.Market]),
+                new StrategyStateSpec([StrategyStateKind.PositionAware], StrategyAdaptationKind.Fixed),
+                []);
+            var emptyDraft = new StrategyIntentDraftV1(
+                StrategyIntentDraftV1.CurrentSchemaVersion,
+                $"intent/{strategyId}",
+                strategyId,
+                candidate.Revision,
+                StrategyCandidateCanonicalJsonV1.Hash(candidate),
+                ResearchCaseCanonicalJsonV1.Hash(researchCase),
+                new StrategyClassificationBindingV1(
+                    classification.Id,
+                    StrategySpecCanonicalJsonV1.Hash(classification)),
+                new StrategyIntentModelV1(StrategyIntentKindV1.PositionTarget),
+                StrategyIntentCompletenessV1.CatalogVersion,
+                []);
+            var requirements = StrategyIntentCompletenessV1.Questions(emptyDraft, classification)
+                .Select(question => NotApplicableRequirementIds.Contains(question.RequirementId)
+                    ? new StrategySemanticRequirementV1(
+                        question.RequirementId,
+                        question.Stage,
+                        StrategySemanticDispositionV1.NotApplicable,
+                        SemanticAnswer(question.RequirementId),
+                        true,
+                        Provenance(statementId, evidenceId),
+                        DispositionRationale: SemanticAnswer(question.RequirementId))
+                    : new StrategySemanticRequirementV1(
+                        question.RequirementId,
+                        question.Stage,
+                        StrategySemanticDispositionV1.Applicable,
+                        SemanticAnswer(question.RequirementId),
+                        true,
+                        Provenance(statementId, evidenceId),
+                        new StrategyCandidateValueV1(
+                            "core.semantic_clause@1",
+                            SemanticAnswer(question.RequirementId))))
+                .ToArray();
+            var draft = emptyDraft with { Requirements = requirements };
+            var confirmation = StrategyIntentConfirmationV1.Confirm(
+                candidate,
+                researchCase,
+                classification,
+                draft,
+                StrategyIntentCanonicalJsonV1.Hash(draft));
+            confirmation.Success.Should().BeTrue(
+                string.Join(Environment.NewLine, confirmation.Issues.Select(issue =>
+                    $"{issue.Code} at {issue.Path}: {issue.Message}").Concat(
+                    confirmation.Questions.Select(question =>
+                        $"{question.RequirementId}: {question.Reason}"))));
+
+            return new ConfirmedSemanticState(
+                candidate,
+                researchCase,
+                classification,
+                draft,
+                confirmation.Intent!);
+        }
+
+        private static readonly IReadOnlySet<string> NotApplicableRequirementIds =
+            new HashSet<string>(StringComparer.Ordinal)
+            {
+                "observe.suspected_move",
+                "exposure.early_tranche",
+                "exposure.later_tranches",
+                "lifecycle.scale_policy",
+                "execution.cancel_replace",
+                "finish.session_boundary",
+            };
+
+        private static StrategyRequirementProvenanceV1 Provenance(
+            string statementId,
+            string evidenceId) =>
+            new([statementId], [evidenceId], "The user confirmed this EMA smoke decision during review.");
+
+        private static string SemanticAnswer(string requirementId) => requirementId switch
+        {
+            "observe.trigger" => "Evaluate on every timestamped ALPHA XNAS QuoteL1 event.",
+            "data.primary_instrument" => "Trade ALPHA equity on XNAS in USD.",
+            "data.timeframe" => "Use causal QuoteL1 event time; do not aggregate bars.",
+            "observe.suspected_move" => "Jump or overheat detection is not part of this EMA smoke strategy.",
+            "evidence.qualification" => "Update EMA 4 and EMA 12 only from valid causal quote mids.",
+            "evidence.primary_threshold" => "Qualify long when EMA 4 is greater than EMA 12; otherwise qualify short.",
+            "evidence.point_in_time" => "Each EMA update may use only the current and earlier QuoteL1 events.",
+            "evidence.data_freshness" => "Reject a quote that is missing or not current at its event timestamp.",
+            "evidence.conflict_no_trade" => "Emit no new target when required QuoteL1 evidence is unavailable or invalid.",
+            "decision.intent" => "Emit a +5-share target for fast-above-slow and a -5-share target otherwise.",
+            "decision.long_condition" => "Target +5 shares when EMA 4 is greater than EMA 12.",
+            "decision.short_condition" => "Target -5 shares when EMA 4 is not greater than EMA 12.",
+            "decision.no_trade_condition" => "Do not emit a target before both EMAs have valid causal inputs.",
+            "decision.reversal_condition" => "Reverse only when the completed EMA comparison changes sign.",
+            "decision.position_actions" => "Maintain +5, -5, or flatten-on-end according to the reviewed graph output.",
+            "decision.validity_window" => "Recompute the target at the next QuoteL1 event.",
+            "exposure.position_target" => "The only non-flat targets are exactly +5 and -5 shares.",
+            "exposure.sizing_formula" => "Select the fixed absolute quantity of five shares from the EMA decision.",
+            "exposure.maximum_position" => "Never exceed five shares absolute exposure.",
+            "exposure.leverage_limit" => "Reject the five-share target if the host risk gate does not admit it.",
+            "exposure.early_tranche" => "Staged early entry is not part of this fixed-target smoke strategy.",
+            "exposure.later_tranches" => "Later entry tranches are not part of this fixed-target smoke strategy.",
+            "execution.order_policy" => "Submit only the fill-derived delta between current and target shares.",
+            "execution.order_type_selection" => "Use market orders for admitted target deltas.",
+            "execution.market_policy" => "Use the installed simulated market-order path after host risk admission.",
+            "execution.time_in_force" => "Use day time-in-force as encoded in the graph.",
+            "execution.partial_fill_policy" => "Recompute the remaining delta from confirmed fills.",
+            "execution.cancel_replace" => "Cancel/replace is not part of the installed market-order smoke path.",
+            "lifecycle.position" => "Maintain the reviewed fixed target and derive current exposure from fills.",
+            "lifecycle.fill_driven_state" => "Update position state only from simulator fill events.",
+            "lifecycle.scale_policy" => "Scaling is not part of this fixed-target smoke strategy.",
+            "finish.position" => "Reverse on the opposite EMA state and flatten when the run ends.",
+            "finish.invalidation" => "Stop producing targets if causal QuoteL1 evidence becomes invalid.",
+            "finish.session_boundary" => "A session-boundary rule is outside this synthetic smoke strategy.",
+            "finish.reversal" => "Trade only the delta needed to move from +5 to -5 or from -5 to +5.",
+            _ => $"The user confirmed the concrete EMA smoke behavior for {requirementId}.",
+        };
     }
 
     private static OperatorGraphModuleV1 CreateModule(string strategyId)

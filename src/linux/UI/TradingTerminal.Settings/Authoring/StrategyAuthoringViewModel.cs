@@ -47,6 +47,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private readonly IAiStrategyBuilder? _ai;
     private readonly IStrategyCandidateGeneratorV1? _candidateGenerator;
     private readonly IParallelStrategyCandidateGeneratorV1? _parallelCandidateGenerator;
+    private readonly IStrategyIntentExtensionRegistryV1? _strategyIntentExtensionRegistry;
     private readonly AiCodegenOptions _options;
     private readonly AuthoredStrategyInstaller? _installer;
     private readonly ICliWorkspaceLauncher? _cliLauncher;
@@ -88,7 +89,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         IParallelStrategyCandidateGeneratorV1? parallelCandidateGenerator = null,
         IAuthoringSessionRepository? sessionRepository = null,
         ITradeIrCandidateSynthesizerV1? tradeIrCandidateSynthesizer = null,
-        ITradeIrSimulatedBacktestRunnerV1? tradeIrSimulatedBacktestRunner = null)
+        ITradeIrSimulatedBacktestRunnerV1? tradeIrSimulatedBacktestRunner = null,
+        IStrategyIntentExtensionRegistryV1? strategyIntentExtensionRegistry = null)
     {
         _compiler = compiler;
         _registry = registry;
@@ -96,6 +98,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _ai = ai;
         _candidateGenerator = candidateGenerator;
         _parallelCandidateGenerator = parallelCandidateGenerator;
+        _strategyIntentExtensionRegistry = strategyIntentExtensionRegistry;
         _tradeIrCandidateSynthesizer = tradeIrCandidateSynthesizer;
         _tradeIrSimulatedBacktestRunner = tradeIrSimulatedBacktestRunner;
         _options = options?.Value ?? new AiCodegenOptions();
@@ -115,6 +118,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         GeneratedCandidateOptions = [];
         GenerationLaneProgressRows = [];
         AllStarterBriefs = StrategyStarterCatalog.All;
+        foreach (var brief in AllStarterBriefs) AddStrategyIntentProfile(brief);
         VisibleStarterBriefs = [];
         StarterFamilyOptions = [AllStarterFamilies, .. StrategyStarterFamilies.All];
         StarterHorizonOptions =
@@ -229,14 +233,20 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     }
 
     [RelayCommand]
-    private void UseStarterPrompt(string? brief)
+    private void UseStarterPrompt(StrategyStarterBrief? brief)
     {
-        if (!string.IsNullOrWhiteSpace(brief)) Composer = brief;
+        if (brief is null) return;
+
+        SelectStrategyIntentProfile(brief);
+        Composer = brief.Prompt;
     }
 
     [RelayCommand]
     private void UseQuoteL1EmaSmokeStarter()
     {
+        var starter = AllStarterBriefs.First(brief =>
+            string.Equals(brief.Id, "starter.quote-l1-ema-smoke", StringComparison.Ordinal));
+        SelectStrategyIntentProfile(starter);
         Composer = StrategyStarterCatalog.QuoteL1EmaSmokePrompt;
         AiStatus = "Loaded the known QuoteL1 EMA smoke starter. Review the brief, then generate a fresh candidate batch.";
     }
@@ -249,7 +259,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     /// <summary>Selected workbench tab: 0 Code · 1 Parameters · 2 Activity. A file chip in the chat
     /// sets it back to Code so the click always lands on the file it names.</summary>
-    [ObservableProperty] private int _workbenchTab;
+    [ObservableProperty] private int _workbenchTab = 3;
 
     // ── Strategy candidate (semantic lane, before source generation) ───────────────────────────────
 
@@ -305,6 +315,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     public bool IsGeneratingCandidates => IsGenerating && GenerateCandidateFirst && !IsSynthesizingTradeIr;
     public bool HasRetainedCandidateBatchDuringGeneration => IsGeneratingCandidates && HasGeneratedCandidates;
     public bool CanChooseGeneratedCandidate =>
+        CanEnterFourLaneConformance &&
         !HasPendingFourLanePrompt &&
         _parallelCandidateBatch is not null &&
         SelectedGeneratedCandidateOption is { Result.Selectable: true } selected &&
@@ -316,6 +327,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             StringComparison.Ordinal) &&
         !IsGenerating;
     public bool CanRevalidateGeneratedCandidate =>
+        CanEnterFourLaneConformance &&
         !HasPendingFourLanePrompt &&
         _parallelCandidateBatch is not null &&
         _editorBaseGeneratedCandidateHash is not null &&
@@ -325,14 +337,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         !IsGenerating;
     public bool CanConfirmCandidate => CurrentCandidate is not null && CandidateContentHash is not null &&
         StrategyCandidateConfirmationV1.Confirm(CurrentCandidate, CandidateContentHash).Success;
-    public string GenerationModeLabel => GenerateCandidateFirst ? "FOUR AI LANES" : "EXPERT C#";
+    public string GenerationModeLabel => GenerateCandidateFirst ? "STRATEGY RESEARCH" : "EXPERT C#";
     public string GenerationModeActionText => GenerateCandidateFirst
         ? "Use Expert C#"
-        : "Return to Four AI candidates";
-    public string GenerationLaneText => GenerateCandidateFirst ? "4 AI strategy lanes" : "Expert code";
-    public string SendButtonText => GenerateCandidateFirst ? "Check & generate  ⌘↵" : "Generate code  ⌘↵";
+        : "Return to Strategy Builder";
+    public string GenerationLaneText => GenerateCandidateFirst ? "Research, confirm, then implement" : "Expert code";
+    public string SendButtonText => GenerateCandidateFirst ? "Check strategy  ⌘↵" : "Generate code  ⌘↵";
     public string AuthoringBoundaryText => GenerateCandidateFirst
-        ? "generation only · choose before package"
+        ? "confirm meaning before implementation"
         : HasNonCSharpExpertArtifact
             ? "source review only · no importer/runtime"
             : "reviewed C# runs in-process";
@@ -374,11 +386,26 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     partial void OnGenerateCandidateFirstChanged(bool value)
     {
         InvalidateGenerationIfActive();
+        if (ReviewOpen)
+            CloseReview();
         if (value &&
             !string.IsNullOrWhiteSpace(_pendingFourLanePrompt) &&
             string.IsNullOrWhiteSpace(Composer))
         {
             Composer = _pendingFourLanePrompt;
+        }
+        if (value)
+        {
+            if (IsBuildScreen && !CanEnterFourLaneConformance)
+                ActiveScreen = StrategyAuthoringScreen.Design;
+        }
+        else
+        {
+            // Expert C# is a separate legacy workspace. It does not require semantic confirmation,
+            // and it keeps chat beside the code editor instead of entering the confirmed Build screen.
+            ActiveScreen = StrategyAuthoringScreen.Design;
+            HasDetachedImplementationSource = false;
+            EditorOriginatedFromCombinedTradeIr = false;
         }
         OnPropertyChanged(nameof(IsGeneratingCandidates));
         OnPropertyChanged(nameof(GenerationModeLabel));
@@ -388,6 +415,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         OnPropertyChanged(nameof(AuthoringBoundaryText));
         OnPropertyChanged(nameof(HasExpertCSharpFiles));
         OnPropertyChanged(nameof(HasNonCSharpExpertArtifact));
+        NotifyAuthoringScreenStateChanged();
+        CompileCommand.NotifyCanExecuteChanged();
         RegenerateRecoveredCandidatesCommand.NotifyCanExecuteChanged();
         RegenerateFourCandidatesCommand.NotifyCanExecuteChanged();
         AiStatus = value
@@ -405,14 +434,17 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             : HasNonCSharpExpertArtifact
                 ? "Expert C# mode is open, but the current file is a source-review artifact and cannot be compiled here."
                 : "Expert C# mode is open. Review C# before compiling and registering it.";
+        Save();
     }
 
     partial void OnCurrentCandidateChanged(StrategyCandidateV1? value)
     {
+        InvalidateStrategyIntentIfCandidateChanged(value);
         OnPropertyChanged(nameof(HasCandidate));
         OnPropertyChanged(nameof(HasCandidateContent));
         OnPropertyChanged(nameof(CanConfirmCandidate));
         ConfirmCandidateCommand.NotifyCanExecuteChanged();
+        NotifyStrategyIntentStateChanged();
     }
 
     partial void OnCandidateContentHashChanged(string? value)
@@ -465,6 +497,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         InvalidateDerivedArtifactState(markUnregistered: true);
         AiStatus = "Strategy identity changed. Generate a fresh set of candidates for this id.";
         Status = "Strategy id changed; prior candidates and derived compile state were cleared.";
+    }
+
+    partial void OnDisplayNameChanged(string value)
+    {
+        if (!_ready || _restoring || !ReviewOpen) return;
+
+        CloseReview();
+        Status = "Registration review expired because the strategy name changed. Compile and review the current Expert C# source again.";
     }
 
     [RelayCommand]
@@ -1028,8 +1068,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         DiscardPendingFourLanePromptCommand.NotifyCanExecuteChanged();
         StopCommand.NotifyCanExecuteChanged();
         ConfirmCandidateCommand.NotifyCanExecuteChanged();
+        NotifyStrategyIntentStateChanged();
         OnPropertyChanged(nameof(IsGeneratingCandidates));
         OnPropertyChanged(nameof(HasRetainedCandidateBatchDuringGeneration));
+        OnPropertyChanged(nameof(CanCompileCurrentSource));
+        CompileCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanChooseGeneratedCandidate));
         OnPropertyChanged(nameof(CanRevalidateGeneratedCandidate));
         ChooseGeneratedCandidateCommand.NotifyCanExecuteChanged();
@@ -1051,10 +1094,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         GenerateCandidateFirst &&
         !IsGenerating &&
         !string.IsNullOrWhiteSpace(Composer) &&
-        _parallelCandidateGenerator is not null &&
+        _candidateGenerator is not null &&
         SelectedAiProvider is { IsAvailable: true };
 
     private bool CanRegenerateFourCandidatesAction() =>
+        CanEnterFourLaneConformance &&
         GenerateCandidateFirst &&
         !HasPendingFourLanePrompt &&
         !IsGenerating &&
@@ -1064,9 +1108,37 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _parallelCandidateGenerator is not null &&
         SelectedAiProvider is { IsAvailable: true };
 
+    public bool CanGenerateFourCandidates =>
+        CanEnterFourLaneConformance &&
+        GenerateCandidateFirst &&
+        (!HasPendingFourLanePrompt || !HasGeneratedCandidates) &&
+        !IsGenerating &&
+        !string.IsNullOrWhiteSpace(StrategyId) &&
+        _ai is not null &&
+        _parallelCandidateGenerator is not null &&
+        SelectedAiProvider is { IsAvailable: true };
+
+    /// <summary>
+    /// Starts implementation only from the locally confirmed strategy request. Chat never reaches
+    /// this path implicitly, and the host rechecks the confirmation after the provider returns.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanGenerateFourCandidatesAction))]
+    private Task GenerateFourCandidatesAsync()
+    {
+        var choice = SelectedAiProvider;
+        return !CanGenerateFourCandidates || choice is null
+            ? Task.CompletedTask
+            : SendParallelCandidateTurnAsync(
+                choice,
+                BuildConfirmedStrategyImplementationBrief(),
+                "Generate implementations from the confirmed strategy request.");
+    }
+
+    private bool CanGenerateFourCandidatesAction() => CanGenerateFourCandidates;
+
     /// <summary>
     /// Replays the recovered brief only after an explicit user click. Restore itself never starts a
-    /// provider request; this command uses the normal four-lane send path and its existing validation.
+    /// provider request; this command re-enters semantic review and cannot start implementation.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanRegenerateRecoveredCandidatesAction))]
     private Task RegenerateRecoveredCandidatesAsync() => SendAsync();
@@ -1128,18 +1200,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
         if (GenerateCandidateFirst)
         {
-            if (_parallelCandidateGenerator is null && _candidateGenerator is null)
+            if (_candidateGenerator is null)
             {
-                AiStatus = "The strategy-candidate generator is not registered. Switch to Expert Code or restart after updating the app.";
+                AiStatus = "The strategy-meaning agent is not registered. Restart after updating the app or use Expert Code.";
                 return;
             }
 
-            if (CurrentCandidate is not null && _candidateGenerator is not null)
-                await SendCandidateTurnAsync(choice, prompt);
-            else if (_parallelCandidateGenerator is not null)
-                await SendParallelCandidateTurnAsync(choice, prompt);
-            else
-                await SendCandidateTurnAsync(choice, prompt);
+            // Chat always works on strategy meaning. Implementation generation is a separate,
+            // explicit action unlocked only after the local research/intent review is confirmed.
+            await SendCandidateTurnAsync(choice, prompt);
             return;
         }
 
@@ -1215,6 +1284,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             if (turn.Files.Count > 0)
             {
                 var prior = Files.ToDictionary(f => f.Name, f => f.Content, StringComparer.OrdinalIgnoreCase);
+                HasDetachedImplementationSource = false;
                 SetFiles(turn.Files);
                 _filesEditedByUser = false;
                 AppendFileChanges(prior, turn.Files);
@@ -1301,6 +1371,32 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         string prompt,
         string? displayedPrompt = null)
     {
+        if (!CanEnterFourLaneConformance ||
+            ConfirmedStrategyIntent is not { } boundIntent ||
+            ConfirmedStrategyIntentHash is not { Length: 64 } boundIntentHash ||
+            CurrentCandidate is not { } boundCandidate ||
+            _strategyIntentResearchCase is not { } boundResearchCase ||
+            _strategyIntentClassification is not { } boundClassification ||
+            _parallelCandidateGenerator is null)
+        {
+            AiStatus = "Confirm the complete strategy request before generating implementations.";
+            return;
+        }
+
+        var boundIntentCanonicalJson = StrategyIntentCanonicalJsonV1.Serialize(boundIntent);
+        var boundIntentContext = new StrategyGenerationConfirmedIntentContextV1(
+            StrategyCandidateCanonicalJsonV1.Serialize(boundCandidate),
+            ResearchCaseCanonicalJsonV1.Serialize(boundResearchCase),
+            StrategySpecCanonicalJsonV1.Serialize(boundClassification));
+        if (!string.Equals(
+                StrategyIntentCanonicalJsonV1.Hash(boundIntent),
+                boundIntentHash,
+                StringComparison.Ordinal))
+        {
+            AiStatus = "The confirmed strategy request failed its local integrity check. Review and confirm it again.";
+            return;
+        }
+
         var turnStrategyId = StrategyId.Trim();
         var turnEpoch = Interlocked.Increment(ref _generationContextEpoch);
         var strategyBrief = BuildFourLaneStrategyBrief(prompt);
@@ -1346,10 +1442,33 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             });
             var result = await _parallelCandidateGenerator!.GenerateAsync(
                 provider,
-                new ParallelStrategyGenerationRequestV1(turnStrategyId, strategyBrief),
+                new ParallelStrategyGenerationRequestV1(
+                    turnStrategyId,
+                    strategyBrief,
+                    boundIntentCanonicalJson,
+                    boundIntentHash,
+                    boundIntentContext),
                 turnCts.Token,
                 progress);
             if (!IsGenerationContextCurrent(turnEpoch, turnStrategyId)) return;
+            if (!CanEnterFourLaneConformance ||
+                !string.Equals(boundIntentHash, ConfirmedStrategyIntentHash, StringComparison.Ordinal))
+            {
+                AiStatus = "The confirmed strategy request changed while implementations were being generated. The returned batch was discarded.";
+                return;
+            }
+            if (!string.Equals(
+                    result.ConfirmedIntentCanonicalJson,
+                    boundIntentCanonicalJson,
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    result.ConfirmedIntentHashSha256,
+                    boundIntentHash,
+                    StringComparison.Ordinal))
+            {
+                AiStatus = "The implementation batch did not bind the exact confirmed strategy request and was discarded.";
+                return;
+            }
             InputTokens += result.Usage.InputTokens;
             OutputTokens += result.Usage.OutputTokens;
             CachedTokens += result.Usage.CachedInputTokens;
@@ -1428,6 +1547,27 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         return CombineFourLaneStrategyBrief(_fourLaneStrategyBrief, prompt);
     }
 
+    private string BuildConfirmedStrategyImplementationBrief()
+    {
+        if (ConfirmedStrategyIntent is null || _strategyIntentResearchCase is null)
+            return string.Empty;
+
+        var builder = new StringBuilder()
+            .AppendLine("Confirmed strategy request. Implement these reviewed decisions without inventing missing behavior.")
+            .Append("Objective: ").AppendLine(_strategyIntentResearchCase.Objective)
+            .Append("Hypothesis: ").AppendLine(_strategyIntentResearchCase.Hypothesis)
+            .Append("Intent shape: ").AppendLine(ConfirmedStrategyIntent.IntentModel.Kind.ToString())
+            .AppendLine("Reviewed decisions:");
+        foreach (var requirement in ConfirmedStrategyIntent.Requirements.OrderBy(static item => item.Stage))
+        {
+            builder.Append("- ").Append(requirement.Stage).Append(": ").Append(requirement.Description).Append(" => ")
+                .AppendLine(requirement.Disposition == StrategySemanticDispositionV1.Applicable
+                    ? requirement.Value?.CanonicalValue ?? "missing"
+                    : requirement.DispositionRationale ?? requirement.Disposition.ToString());
+        }
+        return builder.ToString().TrimEnd();
+    }
+
     private void SetPendingFourLanePrompt(string? prompt)
     {
         var normalized = string.IsNullOrWhiteSpace(prompt) ? null : prompt.Trim();
@@ -1435,11 +1575,13 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
         _pendingFourLanePrompt = normalized;
         OnPropertyChanged(nameof(HasPendingFourLanePrompt));
+        OnPropertyChanged(nameof(CanGenerateFourCandidates));
         OnPropertyChanged(nameof(CanChooseGeneratedCandidate));
         OnPropertyChanged(nameof(CanRevalidateGeneratedCandidate));
         OnPropertyChanged(nameof(CandidateBacktestAvailabilityText));
         ChooseGeneratedCandidateCommand.NotifyCanExecuteChanged();
         RevalidateGeneratedCandidateCommand.NotifyCanExecuteChanged();
+        GenerateFourCandidatesCommand.NotifyCanExecuteChanged();
         RegenerateFourCandidatesCommand.NotifyCanExecuteChanged();
         DiscardPendingFourLanePromptCommand.NotifyCanExecuteChanged();
         NotifyTradeIrSynthesisStateChanged();
@@ -1580,10 +1722,18 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (issues.Count > 0)
             throw new InvalidOperationException(string.Join(Environment.NewLine, issues.Select(issue =>
                 $"{issue.Path}: {issue.Message}")));
+        if (!CanEnterFourLaneConformance ||
+            !string.Equals(
+                result.ConfirmedIntentHashSha256,
+                ConfirmedStrategyIntentHash,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The candidate batch is not bound to the currently confirmed strategy request.");
+        }
 
         CandidateRestoreWarning = null;
         ClearTradeIrSynthesis();
-        ClearSemanticCandidate();
         SetEditorBaseGeneratedCandidateHash(null);
         SelectedGeneratedCandidateOption = null;
         ChosenGeneratedCandidateHash = null;
@@ -1600,7 +1750,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [RelayCommand(CanExecute = nameof(CanChooseGeneratedCandidateAction))]
     private void ChooseGeneratedCandidate()
     {
-        if (_parallelCandidateBatch is null || SelectedGeneratedCandidateOption?.CandidateHashSha256 is not { } hash)
+        if (!CanEnterFourLaneConformance ||
+            _parallelCandidateBatch is null ||
+            SelectedGeneratedCandidateOption?.CandidateHashSha256 is not { } hash)
             return;
 
         var selection = StrategyGenerationBatchValidationV1.Select(_parallelCandidateBatch, hash);
@@ -1617,6 +1769,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         var laneResult = _parallelCandidateBatch.Lanes.Single(lane =>
             string.Equals(lane.CandidateHashSha256, selection.CandidateHashSha256, StringComparison.Ordinal));
         InvalidateDerivedArtifactState(markUnregistered: true);
+        HasDetachedImplementationSource = false;
         SetFiles([new StrategyFile(candidate.Artifact.FileName, EditableArtifactContent(candidate.Artifact))]);
         _filesEditedByUser = false;
         SetEditorBaseGeneratedCandidateHash(selection.CandidateHashSha256);
@@ -1646,7 +1799,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [RelayCommand(CanExecute = nameof(CanRevalidateGeneratedCandidateAction))]
     private void RevalidateGeneratedCandidate()
     {
-        if (_parallelCandidateBatch is null ||
+        if (!CanEnterFourLaneConformance ||
+            _parallelCandidateBatch is null ||
             _editorBaseGeneratedCandidateHash is not { } priorHash ||
             Files.Count != 1)
             return;
@@ -1852,6 +2006,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
             var candidate = result.Candidate!;
             var assessment = result.Assessment!;
+            _fourLaneStrategyBrief = null;
+            SetPendingFourLanePrompt(null);
             ClearParallelCandidates();
             ApplyCandidate(candidate, assessment);
             Append(new AuthoringMessage(CodegenRole.Assistant, FormatCandidate(candidate, assessment)));
@@ -1918,6 +2074,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         }
 
         ApplyCandidate(result.Candidate!, result.Assessment!);
+        BeginStrategyIntentReview();
         AwaitingAnswer = false;
         Append(AuthoringMessage.Tool(
             "Ok",
@@ -2164,13 +2321,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             CompiledOk = false;
             AwaitingAnswer = false;
             IsRegistered = false;
-            WorkbenchTab = 0;
+            WorkbenchTab = 3;
+            ActiveScreen = StrategyAuthoringScreen.Design;
             SelectedSavedSession = null;
             CloseReview();
             _registeredBaseline.Clear();
             RefreshWorkStatus();
             Parameters = null;
             SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
+            HasDetachedImplementationSource = false;
             _filesEditedByUser = false;
             AiStatus = null;
             Status = "New strategy. Choose a starter or describe your own idea; its id is derived from the first brief.";
@@ -2230,6 +2389,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         InvalidateGenerationContext();
         _restoring = true;
         string? restoreWarning = null;
+        var candidateBatchRejected = false;
         try
         {
             _session = null;
@@ -2299,6 +2459,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     _logger.LogWarning(exception, "Could not restore strategy candidate for {Id}", session.StrategyId);
                 }
             }
+            RestoreStrategyIntentReview(session);
             if (!string.IsNullOrWhiteSpace(session.ParallelCandidateBatchJson))
             {
                 var recoveryPrompt = RecoverParallelCandidatePrompt(session);
@@ -2328,32 +2489,43 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     // after a restart without rebinding it to whichever row happens to be selected.
                     var restoredEditorBaseHash = session.EditorBaseParallelCandidateHash
                         ?? session.SelectedParallelCandidateHash;
-                    if (!string.IsNullOrWhiteSpace(restoredEditorBaseHash))
+                    if (CanEnterFourLaneConformance &&
+                        !string.IsNullOrWhiteSpace(restoredEditorBaseHash))
                     {
                         var editorMatches = restoredBatch.Lanes.Where(lane => lane.Candidate is not null &&
                             string.Equals(
                                 lane.CandidateHashSha256,
                                 restoredEditorBaseHash,
                                 StringComparison.Ordinal)).ToArray();
-                        if (editorMatches.Length == 1 && EditorMatchesCandidate(editorMatches[0].Candidate!))
+                        if (editorMatches.Length == 1)
                         {
+                            // This hash records where the editor content came from; it is not a proof
+                            // that hand-edited content still equals that candidate. Keep the origin so an
+                            // edited draft can be revalidated or detached after a strategy change, while
+                            // restoring ChosenGeneratedCandidateHash below only on an exact content match.
                             SetEditorBaseGeneratedCandidateHash(restoredEditorBaseHash);
                             SelectedGeneratedCandidateOption = GeneratedCandidateOptions.FirstOrDefault(option =>
                                 string.Equals(
                                     option.CandidateHashSha256,
                                     restoredEditorBaseHash,
                                     StringComparison.Ordinal));
+                            if (!EditorMatchesCandidate(editorMatches[0].Candidate!))
+                            {
+                                restoreWarning =
+                                    "The edited candidate source was restored with its original lane provenance, but its selected-candidate proof remains cleared until revalidation.";
+                            }
                         }
                         else
                         {
-                            restoreWarning = "The chat was restored, but the saved candidate editor proof did not match the restored artifact and was cleared.";
+                            restoreWarning = "The chat was restored, but the saved candidate editor origin did not identify exactly one restored artifact and was cleared.";
                             _logger.LogWarning(
-                                "Cleared restored editor-base candidate hash for {Id}: editor files do not match the artifact",
+                                "Cleared restored editor-base candidate hash for {Id}: origin does not identify exactly one artifact",
                                 session.StrategyId);
                         }
                     }
 
-                    if (!string.IsNullOrWhiteSpace(session.SelectedParallelCandidateHash) &&
+                    if (CanEnterFourLaneConformance &&
+                        !string.IsNullOrWhiteSpace(session.SelectedParallelCandidateHash) &&
                         StrategyGenerationBatchValidationV1.Select(
                             restoredBatch,
                             session.SelectedParallelCandidateHash) is { Success: true } selection)
@@ -2385,13 +2557,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     // ApplyParallelCandidateBatch may have populated cards before a later editor-proof
                     // restore fails. Never leave those cards visible while claiming they were discarded.
                     ClearParallelCandidates();
+                    candidateBatchRejected = true;
                     if (!string.IsNullOrWhiteSpace(recoveryPrompt)) Composer = recoveryPrompt;
                     CandidateRestoreWarning =
                         "Saved candidate results no longer match the current validation contract. " +
                         "Your chat and code were kept, but the old candidate choices were discarded. " +
                         (string.IsNullOrWhiteSpace(recoveryPrompt)
-                            ? "Paste or refine the strategy brief in the composer, then select Regenerate 4 candidates."
-                            : "The original brief is loaded in the composer; review or refine it, then select Regenerate 4 candidates.");
+                            ? "Paste or refine the strategy brief in the composer, then review and reconfirm the recovered strategy request."
+                            : "The original brief is loaded in the composer; review it, then reconfirm the recovered strategy request before implementation.");
                     restoreWarning = CandidateRestoreWarning;
                     WorkbenchTab = 3;
                     _logger.LogWarning(exception, "Could not restore parallel strategy candidates for {Id}", session.StrategyId);
@@ -2399,6 +2572,17 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             }
             if (GenerateCandidateFirst && !string.IsNullOrWhiteSpace(_pendingFourLanePrompt))
                 Composer = _pendingFourLanePrompt;
+            HasDetachedImplementationSource = session.HasDetachedImplementationSource ||
+                candidateBatchRejected &&
+                GenerateCandidateFirst &&
+                Files.Count > 0 &&
+                Files.All(static file => file.Name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase));
+            EditorOriginatedFromCombinedTradeIr = session.EditorOriginatedFromCombinedTradeIr;
+            ActiveScreen = GenerateCandidateFirst &&
+                           session.ActiveScreen == StrategyAuthoringScreen.Build && CanEnterFourLaneConformance
+                ? StrategyAuthoringScreen.Build
+                : StrategyAuthoringScreen.Design;
+            WorkbenchTab = GenerateCandidateFirst ? 3 : 0;
             CloseReview();
             _registeredBaseline.Clear();   // the diff baseline is per-process; a restored review starts from "all new"
             _filesEditedByUser = false;
@@ -2516,7 +2700,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private void Save()
     {
         if (_restoring || !_ready || string.IsNullOrWhiteSpace(StrategyId)) return;
-        if (Messages.Count == 0 && !_filesEditedByUser) return;   // nothing worth a file yet
+        if (Messages.Count == 0 && !_filesEditedByUser && StrategyIntentDraft is null)
+            return;   // nothing worth a file yet
 
         var snapshot = new AuthoringSessionSnapshot(
             StrategyId: StrategyId.Trim(),
@@ -2543,6 +2728,21 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     WithoutRawParallelResponses(_parallelCandidateBatch)),
             SelectedParallelCandidateHash: ChosenGeneratedCandidateHash,
             EditorBaseParallelCandidateHash: _editorBaseGeneratedCandidateHash,
+            ResearchCaseJson: _strategyIntentResearchCase is null
+                ? null
+                : ResearchCaseCanonicalJsonV1.Serialize(_strategyIntentResearchCase),
+            StrategyClassificationJson: _strategyIntentClassification is null
+                ? null
+                : StrategySpecCanonicalJsonV1.Serialize(_strategyIntentClassification),
+            StrategyIntentDraftJson: StrategyIntentDraft is null
+                ? null
+                : StrategyIntentCanonicalJsonV1.Serialize(StrategyIntentDraft),
+            ConfirmedStrategyIntentJson: ConfirmedStrategyIntent is null
+                ? null
+                : StrategyIntentCanonicalJsonV1.Serialize(ConfirmedStrategyIntent),
+            ActiveScreen: ActiveScreen,
+            HasDetachedImplementationSource: HasDetachedImplementationSource,
+            EditorOriginatedFromCombinedTradeIr: EditorOriginatedFromCombinedTradeIr,
             AuthoringUxVersion: AuthoringSessionSnapshot.CurrentAuthoringUxVersion);
 
         if (!_sessionRepository.Save(snapshot))
@@ -2577,7 +2777,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// against what was last registered, plus the diagnostics. Registration itself only happens from
     /// <see cref="ConfirmRegisterCommand"/> inside the overlay; there is no path around the review.
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanCompileCurrentSourceAction))]
     private void Compile()
     {
         Diagnostics.Clear();
@@ -2585,9 +2785,21 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Parameters = null;
         CloseReview();
 
+        if (GenerateCandidateFirst)
+        {
+            Status = "Compile and Register is available only after explicitly switching to Expert C#. Strategy Builder artifacts keep their confirmed-request binding and use their own admission paths.";
+            return;
+        }
+
         if (Files.Any(static file => !file.Name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))
         {
             Status = "Compile is the C# expert-code path. Use the selected artifact's package importer; none is registered for this file type yet.";
+            return;
+        }
+
+        if (HasDetachedImplementationSource)
+        {
+            Status = "This source belongs to a previous strategy request. Generate a new bound implementation, or explicitly switch to Expert C# to keep it as an unbound draft.";
             return;
         }
 
@@ -2643,18 +2855,24 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _pendingCompile = result;
         _pendingScript = script;
         ReviewOpen = true;
+        ConfirmRegisterCommand.NotifyCanExecuteChanged();
         Status = "Compiled clean — review the code, then press Register.";
     }
+
+    private bool CanCompileCurrentSourceAction() => CanCompileCurrentSource;
 
     /// <summary>Step 2 of consent: the actual registration, only reachable from the review overlay.
     /// The installer makes this a real strategy (backtest registry, catalog card, plugin on disk);
     /// without one (Basic, tests) it falls back to the backtest registry alone.</summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanConfirmRegisterAction))]
     private void ConfirmRegister()
     {
-        if (_pendingCompile is not { Option: not null } result || _pendingScript is not { } script)
+        if (!CanConfirmRegisterAction() ||
+            _pendingCompile is not { Option: not null } result ||
+            _pendingScript is not { } script)
         {
             CloseReview();
+            Status = "Registration review expired because the authoring mode or reviewed source changed. Compile and review the current Expert C# source again.";
             return;
         }
 
@@ -2700,6 +2918,34 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ReviewSummary = null;
         _pendingCompile = null;
         _pendingScript = null;
+        ConfirmRegisterCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanConfirmRegisterAction() =>
+        !GenerateCandidateFirst &&
+        ReviewOpen &&
+        _pendingCompile is { Success: true, Option: not null } &&
+        _pendingScript is { } pendingScript &&
+        ScriptMatchesCurrentSource(pendingScript);
+
+    private bool ScriptMatchesCurrentSource(StrategyScript pendingScript)
+    {
+        var currentScript = CurrentScript();
+        if (!string.Equals(pendingScript.Id, currentScript.Id, StringComparison.Ordinal) ||
+            !string.Equals(pendingScript.DisplayName, currentScript.DisplayName, StringComparison.Ordinal) ||
+            pendingScript.Files.Count != currentScript.Files.Count)
+            return false;
+
+        for (var index = 0; index < pendingScript.Files.Count; index++)
+        {
+            var pendingFile = pendingScript.Files[index];
+            var currentFile = currentScript.Files[index];
+            if (!string.Equals(pendingFile.Name, currentFile.Name, StringComparison.Ordinal) ||
+                !string.Equals(pendingFile.Content, currentFile.Content, StringComparison.Ordinal))
+                return false;
+        }
+
+        return true;
     }
 
     // ── plumbing ────────────────────────────────────────────────────────────────────────────────────
@@ -2820,6 +3066,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private void ClearSemanticCandidate()
     {
+        ClearStrategyIntentReview();
         _generationSession = null;
         _generationProviderKey = null;
         CurrentCandidate = null;
@@ -2888,11 +3135,13 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ChooseGeneratedCandidateCommand.NotifyCanExecuteChanged();
         RevalidateGeneratedCandidateCommand.NotifyCanExecuteChanged();
         NotifyTradeIrSynthesisStateChanged();
+        NotifyAuthoringScreenStateChanged();
     }
 
     private void SetFiles(IReadOnlyList<StrategyFile> files)
     {
         SetLoadedCombinedTradeIrCandidateHash(null);
+        EditorOriginatedFromCombinedTradeIr = false;
         SetEditorBaseGeneratedCandidateHash(null);
         ChosenGeneratedCandidateHash = null;
         CompiledOk = false;
@@ -2932,6 +3181,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         OnPropertyChanged(nameof(HasExpertCSharpFiles));
         OnPropertyChanged(nameof(HasNonCSharpExpertArtifact));
         OnPropertyChanged(nameof(AuthoringBoundaryText));
+        OnPropertyChanged(nameof(CanCompileCurrentSource));
+        CompileCommand.NotifyCanExecuteChanged();
     }
 
     private void SetEditorBaseGeneratedCandidateHash(string? hash)

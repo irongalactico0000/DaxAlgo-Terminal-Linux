@@ -29,6 +29,7 @@ public sealed partial class StrategyAuthoringViewModel
     public bool HasTradeIrBacktestResult => TradeIrBacktestResult is not null;
 
     public bool CanPrepareGeneratedCandidateForBacktest =>
+        CanEnterFourLaneConformance &&
         _tradeIrSimulatedBacktestRunner is not null &&
         !HasPendingFourLanePrompt &&
         !IsGenerating &&
@@ -325,7 +326,8 @@ public sealed partial class StrategyAuthoringViewModel
     [RelayCommand(CanExecute = nameof(CanRunTradeIrSimulatedBacktest))]
     private async Task RunTradeIrSimulatedBacktestAsync()
     {
-        if (_tradeIrSimulatedBacktestRunner is null ||
+        if (!CanEnterFourLaneConformance ||
+            _tradeIrSimulatedBacktestRunner is null ||
             !TryResolveActiveTradeIr(out var module, out var sourceHash, out var sourceLabel, out var moduleHash))
             return;
 

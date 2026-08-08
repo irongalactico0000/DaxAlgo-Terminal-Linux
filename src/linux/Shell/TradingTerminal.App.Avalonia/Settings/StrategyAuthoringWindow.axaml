@@ -112,14 +112,41 @@
   </Window.Styles>
 
   <Grid RowDefinitions="Auto,*">
-    <Border x:Name="SimulatedDataBanner" Grid.Row="0" Background="#B45309"
-            Padding="12,6" IsVisible="False">
-      <StackPanel Orientation="Horizontal" Spacing="8">
-        <TextBlock Text="&#x26A0;" Foreground="White" FontWeight="Bold" />
-        <TextBlock Text="SIMULATED DATA — not a live feed"
-                   Foreground="White" FontWeight="SemiBold" />
-      </StackPanel>
-    </Border>
+    <StackPanel Grid.Row="0">
+      <Border x:Name="SimulatedDataBanner" Background="#B45309"
+              Padding="12,6" IsVisible="False">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="&#x26A0;" Foreground="White" FontWeight="Bold" />
+          <TextBlock Text="SIMULATED DATA — not a live feed"
+                     Foreground="White" FontWeight="SemiBold" />
+        </StackPanel>
+      </Border>
+
+      <Border Padding="14,9"
+              Background="{StaticResource Background.Surface}"
+              BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,0,0,1"
+              AutomationProperties.Name="Authoring screen navigation">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Grid.Column="0" Spacing="2">
+            <TextBlock Text="{Binding ActiveScreenTitle}" FontWeight="SemiBold" FontSize="13" />
+            <TextBlock Text="{Binding ActiveScreenDescription}" Classes="caption" TextWrapping="Wrap" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
+                      IsVisible="{Binding ShowScreenNavigation}">
+            <Button Classes="pill" Content="1  Design &amp; Confirm"
+                    Command="{Binding OpenDesignScreenCommand}"
+                    IsEnabled="{Binding CanOpenDesignScreen}"
+                    AutomationProperties.Name="Open Design and Confirm screen" />
+            <TextBlock Text="→" Classes="caption" VerticalAlignment="Center" />
+            <Button Classes="aiAction" Content="2  Build, Test &amp; Compare"
+                    Command="{Binding OpenBuildScreenCommand}"
+                    IsEnabled="{Binding CanOpenBuildScreen}"
+                    AutomationProperties.Name="Open Build Test and Compare screen"
+                    ToolTip.Tip="Available after the exact strategy request is confirmed." />
+          </StackPanel>
+        </Grid>
+      </Border>
+    </StackPanel>
 
     <Grid Grid.Row="1" ColumnDefinitions="Auto,*,4,390">
       <!-- Session rail: an expanded history view and a compact icon strip share one column. -->
@@ -220,7 +247,9 @@
       </Border>
 
       <!-- Agent canvas. -->
-      <Grid Grid.Column="1" Margin="16,10,12,12" RowDefinitions="Auto,*,Auto,Auto">
+      <Grid Grid.Column="1" Margin="16,10,12,12" RowDefinitions="Auto,*,Auto,Auto"
+            IsVisible="{Binding IsDesignScreen}"
+            AutomationProperties.Name="Design and Confirm screen">
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="2,0,2,8"
               IsVisible="{Binding HasConversation}">
           <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -344,7 +373,7 @@
                   <DataTemplate>
                     <Button Classes="pill" Margin="0,3" Padding="11,8"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                            Tag="{Binding Prompt}" Click="OnUseStarter">
+                            Tag="{Binding}" Click="OnUseStarter">
                       <Grid RowDefinitions="Auto,Auto,Auto">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                           <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="11.5"
@@ -526,14 +555,29 @@
       </Grid>
 
       <GridSplitter Grid.Column="2" Width="4" HorizontalAlignment="Stretch"
-                    Background="Transparent" />
+                    Background="Transparent" IsVisible="{Binding IsDesignScreen}" />
 
       <!-- Multi-file workbench. -->
-      <Border Grid.Column="3" Classes="workbench">
+      <Border Grid.Column="{Binding WorkbenchGridColumn}"
+              Grid.ColumnSpan="{Binding WorkbenchGridColumnSpan}"
+              Classes="workbench">
         <DockPanel>
           <Border DockPanel.Dock="Top" Padding="13,12,13,10"
                   BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,0,0,1">
-            <StackPanel Spacing="8">
+            <Grid>
+              <StackPanel Spacing="7" IsVisible="{Binding ShowDesignRequestHeader}">
+              <TextBlock Text="SCREEN 1 · STRATEGY REQUEST" Classes="eyebrow" />
+              <TextBlock Text="Review the interpreted idea, answer the material strategy questions, and confirm the request before implementation."
+                         Classes="caption" TextWrapping="Wrap" />
+              <Border Background="{StaticResource Ai.Soft}"
+                      BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="1"
+                      CornerRadius="5" Padding="8,6">
+                <TextBlock Text="{Binding StrategyIntentStatusText}" Classes="caption" TextWrapping="Wrap" />
+              </Border>
+              </StackPanel>
+
+              <StackPanel Spacing="8" IsVisible="{Binding ShowImplementationHeader}">
+              <TextBlock Text="SCREEN 2 · BUILD, TEST &amp; COMPARE" Classes="eyebrow" />
               <Grid ColumnDefinitions="2*,8,3*">
                 <StackPanel Grid.Column="0" Spacing="3">
                   <TextBlock Text="STRATEGY ID" Classes="eyebrow" />
@@ -550,9 +594,23 @@
 
               <Button Classes="aiAction" Content="⚡  Compile &amp; Register"
                       Command="{Binding CompileCommand}"
-                      IsEnabled="{Binding !IsGenerating}"
+                      IsEnabled="{Binding CanCompileCurrentSource}"
                       IsVisible="{Binding HasExpertCSharpFiles}"
                       ToolTip.Tip="Compile every file, then review before registration" />
+
+              <Border Background="{StaticResource Warning.Soft}"
+                      BorderBrush="{StaticResource Warning.Brush}" BorderThickness="1"
+                      CornerRadius="5" Padding="8,6"
+                      IsVisible="{Binding HasDetachedImplementationSource}"
+                      AutomationProperties.Name="Detached implementation source warning">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="SOURCE BELONGS TO THE PREVIOUS REQUEST"
+                             Foreground="{StaticResource Warning.Brush}"
+                             FontWeight="SemiBold" FontSize="10" />
+                  <TextBlock Text="It remains available for inspection, but it is not an implementation of the current confirmed request. Generate a new bound implementation, or explicitly switch to Expert C# to keep it as an unbound draft."
+                             Classes="caption" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
 
               <Border Background="{StaticResource Background.Elevated}"
                       BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
@@ -569,7 +627,7 @@
                           Content="Return to candidates"
                           Command="{Binding ToggleGenerationModeCommand}"
                           VerticalAlignment="Center"
-                          AutomationProperties.Name="Return to Four AI candidates" />
+                          AutomationProperties.Name="Return to Strategy Builder" />
                 </Grid>
               </Border>
 
@@ -609,12 +667,13 @@
                            HorizontalAlignment="Right" VerticalAlignment="Center" />
               </Grid>
               <TextBlock Text="{Binding Status}" Classes="caption" TextWrapping="Wrap" />
-            </StackPanel>
+              </StackPanel>
+            </Grid>
           </Border>
 
           <Border x:Name="CliWorkspaceFooter" DockPanel.Dock="Bottom" Padding="12,7"
                   BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0"
-                  IsVisible="{Binding AvailableClis.Count, Converter={StaticResource PositiveCount}}">
+                  IsVisible="{Binding ShowCliWorkspaceFooter}">
             <ScrollViewer MaxHeight="84"
                           HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
@@ -637,7 +696,7 @@
 
           <TabControl SelectedIndex="{Binding WorkbenchTab, Mode=TwoWay}"
                       Margin="10,5,10,8" Background="Transparent">
-            <TabItem Header="Code">
+            <TabItem Header="Code" IsVisible="{Binding ShowImplementationTabs}">
               <Grid Margin="0,6,0,0" RowDefinitions="Auto,*,Auto">
                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                   <ListBox Grid.Column="0" Classes="chromeLess"
@@ -712,7 +771,7 @@
               </Grid>
             </TabItem>
 
-            <TabItem Header="Parameters">
+            <TabItem Header="Parameters" IsVisible="{Binding ShowImplementationTabs}">
               <Grid Margin="0,8,0,0" RowDefinitions="Auto,*">
                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,7">
                   <TextBlock Grid.Column="0" Text="Compile a strategy with a static Schema to edit its tunables."
@@ -756,7 +815,7 @@
               </Grid>
             </TabItem>
 
-            <TabItem Header="Activity">
+            <TabItem Header="Activity" IsVisible="{Binding ShowImplementationTabs}">
               <Grid Margin="0,8,0,0" RowDefinitions="Auto,*">
                 <StackPanel Grid.Row="0" Spacing="5" Margin="0,0,0,8">
                   <TextBlock Text="BUILD TASKS" Classes="eyebrow" />
@@ -790,9 +849,27 @@
               </Grid>
             </TabItem>
 
-            <TabItem Header="Candidate">
+            <TabItem Header="{Binding CandidateTabHeader}">
               <Grid Margin="0,8,0,0" RowDefinitions="Auto,*">
-                <Border Grid.Row="0" IsVisible="{Binding IsGeneratingCandidates}"
+                <Border Grid.Row="0" IsVisible="{Binding ShowBuildBusyStop}"
+                        Background="{StaticResource Ai.Soft}"
+                        BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="1"
+                        CornerRadius="5" Padding="9,8" Margin="0,0,0,8"
+                        AutomationProperties.Name="Active build task">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2">
+                      <TextBlock Text="{Binding WorkingVerb}" FontWeight="SemiBold"
+                                 Foreground="{StaticResource Ai.Text.Brush}" />
+                      <TextBlock Text="{Binding StepText}" Classes="caption" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="ghost" Content="■  Stop"
+                            Command="{Binding StopCommand}" Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="Stop active build task" />
+                  </Grid>
+                </Border>
+
+                <Border Grid.Row="0" IsVisible="{Binding ShowBuildGenerationProgress}"
                         Background="{StaticResource Ai.Soft}"
                         BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="1"
                         CornerRadius="5" Padding="9,8" Margin="0,0,0,8"
@@ -801,7 +878,7 @@
                   <ScrollViewer VerticalScrollBarVisibility="Auto"
                                 HorizontalScrollBarVisibility="Disabled">
                   <StackPanel Spacing="7" Margin="0,0,3,0">
-                    <Grid ColumnDefinitions="*,Auto">
+                    <Grid ColumnDefinitions="*,Auto,Auto">
                       <StackPanel Grid.Column="0" Spacing="1">
                         <TextBlock Text="Building four candidates" FontWeight="SemiBold"
                                    Foreground="{StaticResource Ai.Text.Brush}" />
@@ -816,6 +893,10 @@
                                    FontFamily="{StaticResource Font.Data}"
                                    HorizontalAlignment="Right" />
                       </StackPanel>
+                      <Button Grid.Column="2" Classes="ghost" Content="■  Stop"
+                              Command="{Binding StopCommand}"
+                              Margin="10,0,0,0" VerticalAlignment="Center"
+                              AutomationProperties.Name="Stop implementation generation" />
                     </Grid>
                     <ListBox Classes="chromeLess"
                              ItemsSource="{Binding GenerationLaneProgressRows}"
@@ -926,15 +1007,21 @@
                   </ScrollViewer>
                 </Border>
 
-                <Grid Grid.Row="1" IsVisible="{Binding !HasCandidateContent}">
+                <Grid Grid.Row="1" IsVisible="{Binding ShowCandidateEmptyState}">
                   <StackPanel IsVisible="{Binding !IsGeneratingCandidates}"
                               VerticalAlignment="Center" HorizontalAlignment="Center"
                               MaxWidth="300" Spacing="7">
                     <StackPanel IsVisible="{Binding !HasCandidateRestoreWarning}" Spacing="7">
-                      <TextBlock Text="No strategy options yet" FontWeight="SemiBold"
+                      <TextBlock Text="{Binding CandidateEmptyTitle}" FontWeight="SemiBold"
                                  HorizontalAlignment="Center" />
-                      <TextBlock Text="Describe a trading idea in chat. Four candidates is the primary generation mode."
+                      <TextBlock Text="{Binding CandidateEmptyText}"
                                  Classes="caption" TextWrapping="Wrap" TextAlignment="Center" />
+                      <Button Classes="aiAction" Content="Generate implementations"
+                              Command="{Binding GenerateFourCandidatesCommand}"
+                              IsEnabled="{Binding CanGenerateFourCandidates}"
+                              IsVisible="{Binding ShowStartImplementationAction}"
+                              HorizontalAlignment="Center"
+                              AutomationProperties.Name="Start implementation generation" />
                     </StackPanel>
                     <Border IsVisible="{Binding HasCandidateRestoreWarning}"
                             Padding="12,10" CornerRadius="6"
@@ -947,19 +1034,19 @@
                                    Foreground="{StaticResource Warning.Brush}" />
                         <TextBlock Text="{Binding CandidateRestoreWarning}"
                                    TextWrapping="Wrap" />
-                        <TextBlock Text="Nothing was sent automatically. Review the recovered brief, then regenerate when ready."
+                        <TextBlock Text="Nothing was sent automatically. Review the recovered brief and reconfirm the strategy request first."
                                    Classes="caption" TextWrapping="Wrap" />
                         <Button Classes="aiAction"
-                                Content="Regenerate 4 candidates"
+                                Content="Review recovered request"
                                 Command="{Binding RegenerateRecoveredCandidatesCommand}"
                                 HorizontalAlignment="Left"
-                                AutomationProperties.Name="Regenerate four candidates from recovered brief" />
+                                AutomationProperties.Name="Review recovered strategy request" />
                       </StackPanel>
                     </Border>
                   </StackPanel>
                 </Grid>
 
-                <ScrollViewer Grid.Row="1" IsVisible="{Binding HasGeneratedCandidates}"
+                <ScrollViewer Grid.Row="1" IsVisible="{Binding ShowBuildCandidateResults}"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
                               AutomationProperties.Name="Scrollable candidate results">
@@ -1536,7 +1623,7 @@
                   </StackPanel>
                 </ScrollViewer>
 
-                <Grid Grid.Row="1" IsVisible="{Binding HasCandidate}" RowDefinitions="Auto,*">
+                <Grid Grid.Row="1" IsVisible="{Binding ShowDesignCandidateReview}" RowDefinitions="Auto,*">
                   <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,8">
                     <Grid ColumnDefinitions="*,Auto">
                       <StackPanel Grid.Column="0" Spacing="2">
@@ -1579,6 +1666,208 @@
                           </ItemsControl.ItemTemplate>
                         </ItemsControl>
                       </StackPanel>
+
+                      <Border AutomationProperties.Name="Strategy request review"
+                              IsVisible="{Binding HasStrategyIntentReview}"
+                              Background="{StaticResource Background.Elevated}"
+                              BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="1"
+                              CornerRadius="5" Padding="8,7">
+                        <StackPanel Spacing="9">
+                          <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" Spacing="2">
+                              <TextBlock Text="STRATEGY REQUEST · REVIEW" Classes="eyebrow" />
+                              <TextBlock Text="Observe → qualify evidence → decide intent → size/exposure → execution → manage lifecycle → finish/unwind"
+                                         Classes="caption" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Classes="aiAction" Content="Confirm strategy request"
+                                    Command="{Binding ConfirmStrategyIntentReviewCommand}"
+                                    IsEnabled="{Binding CanConfirmStrategyIntentReview}"
+                                    ToolTip.Tip="Locks the reviewed research case and strategy decisions before implementation agents may start." />
+                          </Grid>
+                          <TextBlock Text="{Binding StrategyIntentStatusText}" Classes="caption" TextWrapping="Wrap" />
+
+                          <Grid ColumnDefinitions="*,*">
+                            <StackPanel Grid.Column="0" Spacing="3">
+                              <TextBlock Text="STRATEGY PROFILE" Classes="eyebrow" />
+                              <ComboBox ItemsSource="{Binding StrategyIntentProfiles}"
+                                        SelectedItem="{Binding SelectedStrategyIntentProfile, Mode=TwoWay}"
+                                        MinWidth="220" />
+                              <TextBlock Text="{Binding SelectedStrategyIntentProfile.Summary}"
+                                         Classes="caption" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="3" Margin="8,0,0,0">
+                              <TextBlock Text="DECISION SHAPE" Classes="eyebrow" />
+                              <ComboBox ItemsSource="{Binding StrategyIntentShapes}"
+                                        SelectedItem="{Binding SelectedStrategyIntentShape, Mode=TwoWay}"
+                                        MinWidth="220" />
+                              <TextBlock Text="{Binding SelectedStrategyIntentShape.Summary}"
+                                         Classes="caption" TextWrapping="Wrap" />
+                            </StackPanel>
+                          </Grid>
+                          <TextBlock Text="{Binding StrategyIntentFamilyText}" Classes="caption"
+                                     FontWeight="SemiBold" TextWrapping="Wrap" />
+
+                          <Border BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                  CornerRadius="4" Padding="7,6">
+                            <StackPanel Spacing="6">
+                              <TextBlock Text="RESEARCH CASE" Classes="eyebrow" />
+                              <TextBlock Text="Objective" Classes="caption" />
+                              <TextBox Text="{Binding StrategyResearchObjective, Mode=TwoWay}"
+                                       Watermark="What decision or outcome is this research trying to improve?"
+                                       TextWrapping="Wrap" />
+                              <TextBlock Text="Hypothesis" Classes="caption" />
+                              <TextBox Text="{Binding StrategyResearchHypothesis, Mode=TwoWay}"
+                                       Watermark="What testable market relationship do you expect?"
+                                       TextWrapping="Wrap" />
+                              <TextBlock Text="EVIDENCE TO OBSERVE" Classes="eyebrow" Margin="0,3,0,0" />
+                              <ItemsControl ItemsSource="{Binding StrategyResearchEvidenceRows}">
+                                <ItemsControl.ItemTemplate>
+                                  <DataTemplate>
+                                    <Border BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                            CornerRadius="4" Padding="7,6" Margin="0,2">
+                                      <StackPanel Spacing="4">
+                                        <TextBlock Text="{Binding MaterialityLabel}" Classes="caption"
+                                                   FontWeight="SemiBold" />
+                                        <TextBox Text="{Binding Description, Mode=TwoWay}"
+                                                 Watermark="Prices, volume, comparison instruments, indicators, regime, or events"
+                                                 TextWrapping="Wrap" />
+                                        <TextBlock Text="Point-in-time and freshness rule" Classes="caption" />
+                                        <TextBox Text="{Binding PointInTimeRule, Mode=TwoWay}"
+                                                 Watermark="Which completed data is available at each decision time, and how fresh must it be?"
+                                                 TextWrapping="Wrap" />
+                                        <TextBlock Text="Qualification, conflict, and no-action rule" Classes="caption" />
+                                        <TextBox Text="{Binding QualificationRule, Mode=TwoWay}"
+                                                 Watermark="What confirms the evidence, and what conflict or missing input forces no action?"
+                                                 TextWrapping="Wrap" />
+                                      </StackPanel>
+                                    </Border>
+                                  </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                              </ItemsControl>
+                              <TextBlock Text="FALSIFIERS / REJECTION CONDITIONS" Classes="eyebrow" Margin="0,3,0,0" />
+                              <ItemsControl ItemsSource="{Binding StrategyResearchFalsifierRows}">
+                                <ItemsControl.ItemTemplate>
+                                  <DataTemplate>
+                                    <Border BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                            CornerRadius="4" Padding="7,6" Margin="0,2">
+                                      <StackPanel Spacing="4">
+                                        <TextBlock Text="{Binding MaterialityLabel}" Classes="caption"
+                                                   FontWeight="SemiBold" />
+                                        <TextBox Text="{Binding Description, Mode=TwoWay}"
+                                                 Watermark="What result or data defect would reject this idea?"
+                                                 TextWrapping="Wrap" />
+                                      </StackPanel>
+                                    </Border>
+                                  </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                              </ItemsControl>
+                              <ItemsControl ItemsSource="{Binding StrategyResearchUnresolvedRows}">
+                                <ItemsControl.ItemTemplate>
+                                  <DataTemplate>
+                                    <Border BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                            CornerRadius="4" Padding="7,6" Margin="0,2">
+                                      <StackPanel Spacing="4">
+                                        <TextBlock Text="{Binding MaterialityLabel}" Classes="caption"
+                                                   FontWeight="SemiBold" />
+                                        <TextBox Text="{Binding Description, Mode=TwoWay}" TextWrapping="Wrap" />
+                                        <TextBlock Text="Reviewed resolution" Classes="caption" />
+                                        <TextBox Text="{Binding Resolution, Mode=TwoWay}"
+                                                 Watermark="Record the explicit reviewed decision; a blank answer cannot close this item."
+                                                 TextWrapping="Wrap" />
+                                        <Button Content="Record resolution"
+                                                Command="{Binding ResolveCommand}"
+                                                IsEnabled="{Binding CanResolve}"
+                                                Classes="ghost"
+                                                HorizontalAlignment="Left" />
+                                      </StackPanel>
+                                    </Border>
+                                  </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                              </ItemsControl>
+                              <TextBlock Text="RESOLVED RESEARCH DECISIONS" Classes="eyebrow" Margin="0,3,0,0" />
+                              <ItemsControl ItemsSource="{Binding StrategyResearchResolvedRows}">
+                                <ItemsControl.ItemTemplate>
+                                  <DataTemplate>
+                                    <Border BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                            CornerRadius="4" Padding="7,6" Margin="0,2">
+                                      <StackPanel Spacing="4">
+                                        <TextBlock Text="{Binding MaterialityLabel}" Classes="caption"
+                                                   FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding OriginalDescription}" Classes="caption"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Resolution}" TextWrapping="Wrap"
+                                                   FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding ResolutionProvenance}" Classes="caption"
+                                                   TextWrapping="Wrap" />
+                                      </StackPanel>
+                                    </Border>
+                                  </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                              </ItemsControl>
+                            </StackPanel>
+                          </Border>
+
+                          <ItemsControl ItemsSource="{Binding StrategyIntentRequirements}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <Border BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                        CornerRadius="4" Padding="7,6" Margin="0,2">
+                                  <StackPanel Spacing="5">
+                                    <Grid ColumnDefinitions="*,190">
+                                      <StackPanel Spacing="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding StageLabel}" Classes="eyebrow" />
+                                        <TextBlock Text="{Binding MaterialityLabel}" Classes="caption" />
+                                      </StackPanel>
+                                      <ComboBox Grid.Column="1"
+                                                ItemsSource="{Binding ApplicabilityOptions}"
+                                                SelectedItem="{Binding SelectedApplicability, Mode=TwoWay}"
+                                                IsEnabled="{Binding CanChangeApplicability}" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding Question}" FontSize="10.5" TextWrapping="Wrap"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Description}" Classes="caption" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Provenance.Explanation}" Classes="caption" TextWrapping="Wrap" />
+                                    <TextBox Text="{Binding Answer, Mode=TwoWay}"
+                                             Watermark="{Binding AnswerWatermark}"
+                                             TextWrapping="Wrap" />
+                                  </StackPanel>
+                                </Border>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+
+                          <StackPanel Spacing="3"
+                                      IsVisible="{Binding StrategyIntentQuestions.Count, Converter={StaticResource PositiveCount}}">
+                            <TextBlock Text="ANSWERS STILL REQUIRED" Classes="eyebrow" />
+                            <ItemsControl ItemsSource="{Binding StrategyIntentQuestions}">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                  <TextBlock TextWrapping="Wrap" Classes="caption" Margin="0,1">
+                                    <Run Text="{Binding Prompt}" />
+                                    <Run Text=" — " /><Run Text="{Binding Reason}" />
+                                  </TextBlock>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </StackPanel>
+
+                          <StackPanel Spacing="3"
+                                      IsVisible="{Binding StrategyIntentIssues.Count, Converter={StaticResource PositiveCount}}">
+                            <TextBlock Text="WHY CONFIRMATION IS LOCKED" Classes="eyebrow" />
+                            <ItemsControl ItemsSource="{Binding StrategyIntentIssues}">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                  <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
+                                             Classes="caption" Margin="0,1" />
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </StackPanel>
+
+                          <TextBlock Text="Confirmation only unlocks implementation work. It is not proof that code compiles, scenarios pass, a backtest succeeds, paper trading is approved, or live trading is authorized."
+                                     Classes="caption" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </Border>
 
                       <StackPanel Spacing="4" IsVisible="{Binding CandidateOpenQuestions.Count, Converter={StaticResource PositiveCount}}">
                         <TextBlock Text="YOUR CHOICES" Classes="eyebrow" />

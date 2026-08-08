@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Core.Strategies.Generation;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
@@ -37,13 +38,21 @@ public static class StrategyCodegenServiceCollectionExtensions
         services.AddSingleton<IStrategyCandidateGeneratorV1>(sp =>
             sp.GetRequiredService<StrategyCandidateGenerationOrchestratorV1>());
         services.AddSingleton<IStrategyGenerationLaneAgentV1>(
-            _ => new StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1.VibePython));
+            sp => new StrategyGenerationLaneAgentV1(
+                StrategyGenerationLaneV1.VibePython,
+                sp.GetService<IStrategyIntentExtensionRegistryV1>()));
         services.AddSingleton<IStrategyGenerationLaneAgentV1>(
-            _ => new StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1.DeclarativeSpec));
+            sp => new StrategyGenerationLaneAgentV1(
+                StrategyGenerationLaneV1.DeclarativeSpec,
+                sp.GetService<IStrategyIntentExtensionRegistryV1>()));
         services.AddSingleton<IStrategyGenerationLaneAgentV1>(
-            _ => new StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1.TypedGraph));
+            sp => new StrategyGenerationLaneAgentV1(
+                StrategyGenerationLaneV1.TypedGraph,
+                sp.GetService<IStrategyIntentExtensionRegistryV1>()));
         services.AddSingleton<IStrategyGenerationLaneAgentV1>(
-            _ => new StrategyGenerationLaneAgentV1(StrategyGenerationLaneV1.CspPython));
+            sp => new StrategyGenerationLaneAgentV1(
+                StrategyGenerationLaneV1.CspPython,
+                sp.GetService<IStrategyIntentExtensionRegistryV1>()));
         services.AddSingleton<ParallelStrategyCandidateGeneratorV1>();
         services.AddSingleton<IParallelStrategyCandidateGeneratorV1>(sp =>
             sp.GetRequiredService<ParallelStrategyCandidateGeneratorV1>());

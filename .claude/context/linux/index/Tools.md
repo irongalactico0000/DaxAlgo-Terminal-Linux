@@ -1,6 +1,6 @@
 # macOS index / Tools
 
-Generated from source fingerprint `8af92ffea5ea`. macOS/Avalonia source only.
+Generated from source fingerprint `3026999d8534`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
@@ -13,21 +13,21 @@ Generated from source fingerprint `8af92ffea5ea`. macOS/Avalonia source only.
 | `src/linux/Tools/DaxAlgo.Codegen/CodegenCodeExtractor.cs` | 148 | linux | DaxAlgo.Codegen | product | Y | A bare file name mentioned in prose/info strings — |
 | `src/linux/Tools/DaxAlgo.Codegen/FakeCodegenClient.cs` | 82 | linux | DaxAlgo.Codegen | product | Y | How many times the loop asked this client to generate — the |
 | `src/linux/Tools/DaxAlgo.Codegen/OpenAiCompatibleCodegenClient.cs` | 275 | linux | DaxAlgo.Codegen | product | Y | Every OpenAI-compatible endpoint (including Ollama) exposes |
-| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyCandidateGeneratorV1.cs` | 983 | linux | DaxAlgo.Codegen | product | Y | Conservative host-owned gate for the single optional repair call. It prefers stopping |
-| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationContractsV1.cs` | 801 | linux | DaxAlgo.Codegen | product | Y | The four authoring representations offered for every strategy brief. |
-| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationPromptV1.cs` | 576 | linux | DaxAlgo.Codegen | product | Y |  |
+| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyCandidateGeneratorV1.cs` | 1026 | linux | DaxAlgo.Codegen | product | Y | Conservative host-owned gate for the single optional repair call. It prefers stopping |
+| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationContractsV1.cs` | 1063 | linux | DaxAlgo.Codegen | product | Y | The four authoring representations offered for every strategy brief. |
+| `src/linux/Tools/DaxAlgo.Codegen/ParallelStrategyGenerationPromptV1.cs` | 615 | linux | DaxAlgo.Codegen | product | Y |  |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyBacktestSmoke.cs` | 112 | linux | DaxAlgo.Codegen | product | Y | Ticks fed through |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyBuildSession.cs` | 469 | linux | DaxAlgo.Codegen | product | Y | What one turn of the conversation produced. |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyCandidateGenerationOrchestratorV1.cs` | 611 | linux | DaxAlgo.Codegen | product | Y | One intake or revision request. CurrentCandidate is null for the original idea; |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyCandidateGenerationPromptV1.cs` | 164 | linux | DaxAlgo.Codegen | product | Y |  |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyCodegenClientFactory.cs` | 161 | linux | DaxAlgo.Codegen | product | Y | Every provider the app knows how to build — installed agent CLIs, |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyCodegenOrchestrator.cs` | 80 | linux | DaxAlgo.Codegen | product | Y | The result of a one-shot build: whether it produced a compiling strategy, |
-| `src/linux/Tools/DaxAlgo.Codegen/StrategyCodegenServiceCollectionExtensions.cs` | 74 | linux | DaxAlgo.Codegen | product | Y | Wires the AI Strategy Builder into DI. Called once per shell from |
+| `src/linux/Tools/DaxAlgo.Codegen/StrategyCodegenServiceCollectionExtensions.cs` | 83 | linux | DaxAlgo.Codegen | product | Y | Wires the AI Strategy Builder into DI. Called once per shell from |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyContextPack.cs` | 31 | linux | DaxAlgo.Codegen | product | Y | The pack text — the codegen system prompt. |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyGenerationPackageCatalogV1.cs` | 622 | linux | DaxAlgo.Codegen | product | Y | Compatibility text for consumers that explain the absent runtime boundary. |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategyGenerationSessionV1.cs` | 117 | linux | DaxAlgo.Codegen | product | Y | One user-facing strategy-generation conversation. It persists accepted candidate revisions, not |
 | `src/linux/Tools/DaxAlgo.Codegen/StrategySkillLibrary.cs` | 163 | linux | DaxAlgo.Codegen | product | Y | One on-demand domain pack: what it knows, and the words that mean |
-| `src/linux/Tools/DaxAlgo.Codegen/TradeIrCandidateSynthesisV1.cs` | 566 | linux | DaxAlgo.Codegen | product | Y |  |
+| `src/linux/Tools/DaxAlgo.Codegen/TradeIrCandidateSynthesisV1.cs` | 596 | linux | DaxAlgo.Codegen | product | Y |  |
 | `src/linux/Tools/DaxAlgo.Codegen/VibeQuantDeclarativeRulesContractV1.cs` | 785 | linux | DaxAlgo.Codegen | product | Y | Deterministic structural enforcement for the closed Vibe Quant Declarative Rules v1 document. |
 | `src/linux/Tools/DaxAlgo.Coordinator.Cli/CliApplication.cs` | 641 | linux | DaxAlgo.Coordinator.Cli | product | Y |  |
 | `src/linux/Tools/DaxAlgo.Coordinator.Cli/CliArguments.cs` | 54 | linux | DaxAlgo.Coordinator.Cli | product | Y |  |

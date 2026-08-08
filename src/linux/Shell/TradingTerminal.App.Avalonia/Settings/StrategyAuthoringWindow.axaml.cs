@@ -73,7 +73,7 @@ public partial class StrategyAuthoringWindow : Window
 
     private void OnUseStarter(object? sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: string brief } && DataContext is StrategyAuthoringViewModel viewModel)
+        if (sender is Button { Tag: StrategyStarterBrief brief } && DataContext is StrategyAuthoringViewModel viewModel)
             viewModel.UseStarterPromptCommand.Execute(brief);
     }
 

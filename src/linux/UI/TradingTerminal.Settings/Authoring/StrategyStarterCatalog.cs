@@ -301,6 +301,7 @@ public static class StrategyStarterLabels
 
     public static string For(PortfolioConstructionKind value) => value switch
     {
+        PortfolioConstructionKind.NotApplicable => "Not applicable",
         PortfolioConstructionKind.FixedQuantity => "Fixed quantity",
         PortfolioConstructionKind.EqualWeight => "Equal weight",
         PortfolioConstructionKind.TopK => "Top K",
@@ -314,6 +315,7 @@ public static class StrategyStarterLabels
 
     public static string For(StrategyExecutionPolicyKind value) => value switch
     {
+        StrategyExecutionPolicyKind.NotApplicable => "Not applicable",
         StrategyExecutionPolicyKind.Market => "Market",
         StrategyExecutionPolicyKind.Limit => "Limit",
         StrategyExecutionPolicyKind.Stop => "Stop",
@@ -342,6 +344,7 @@ public static class StrategyStarterLabels
 
     public static string For(StrategyRiskExitKind value) => value switch
     {
+        StrategyRiskExitKind.NotApplicable => "Not applicable",
         StrategyRiskExitKind.SignalReversal => "Signal reversal",
         StrategyRiskExitKind.StopLoss => "Stop loss",
         StrategyRiskExitKind.TakeProfit => "Take profit",

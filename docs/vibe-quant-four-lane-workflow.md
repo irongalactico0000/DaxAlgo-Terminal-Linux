@@ -1,8 +1,9 @@
 # Vibe Quant four-lane workflow
 
-Vibe Quant can ask four independent generation agents to express one strategy brief in four
-different authoring formats. This is an authoring and comparison workflow. It does not silently
-compile, import, backtest, register, or run any generated artifact.
+Vibe Quant first develops and confirms one strategy request, then can ask four independent
+generation agents to express that exact confirmed meaning in four authoring formats. Strategy chat
+does not implicitly launch implementation agents. This is an authoring and comparison workflow; it
+does not silently compile, import, backtest, register, or run any generated artifact.
 
 The current implementation status and exact first missing boundary for every lane are recorded in
 the [honest Done / Not Done matrix](vibe-quant-four-lane-done-matrix.md).
@@ -20,7 +21,8 @@ objective
   -> portfolio / position / quote intent
   -> execution policy
   -> state, risk, and lifecycle
-  -> build four inspectable representations
+  -> user confirms the readable strategy request
+  -> build four inspectable representations from that exact request
   -> validate, evaluate, review, and approve
 ```
 
@@ -32,12 +34,31 @@ quotes both sides and manages inventory; arbitrage coordinates simultaneous legs
 an execution objective rather than an alpha signal; hedging manages exposure; and options strategies
 may manage Greeks, expiry, and multi-leg structures.
 
-The current product is strongest at building the four representations and deterministic parts of
-validation. It can encode many family-specific details in the brief, parameters, data requirements,
-graph/state, outputs, and risk/execution policies, but it does not yet force every strategy through a
-family-aware completeness interview. The UI must ask only applicable questions while still closing
-every required slot for the chosen family; it must not force all strategies into a “stock jumps, buy,
+The current product now separates strategy meaning from implementation. After semantic candidate
+confirmation, the app presents an editable, plain-language research and strategy review. Its
+questions derive from intent topology and the selected family: position, coordinated multi-leg,
+portfolio target, quote set, execution schedule, or signal publication. Material unresolved or
+unsupported decisions keep implementation locked. Signal-only legitimately marks exposure,
+execution, and unwind as not applicable; pairs cannot omit legs; market making cannot omit
+cancel/replace and inventory behavior. It does not force every strategy into a “stock jumps, buy,
 then sell” template or invent unresolved facts.
+
+Before any provider call, the host replays confirmation from the exact canonical candidate,
+research case, classification, and reviewed draft represented by the confirmed strategy. Every
+implementation request then carries the same smaller canonical confirmed-strategy payload. Every
+returned candidate and persisted batch binds its exact hash, and the host rejects missing, changed,
+noncanonical, incomplete, unsupported, legacy, or stale bindings before they become actionable.
+The dependency context is a host preflight and is not appended to each model prompt. This is input
+conformance, not proof of behavioral equivalence.
+Governed extension ownership is exact and role-scoped: authority for an intent model never implies
+authority for a requirement or value schema with the same identifier. The selected extension ID is
+also part of the editable-review and answer-stash identity, so restore or normal edits cannot erase
+or cross-contaminate it.
+
+The next runtime architecture replaces the current source-review emphasis with one research agent
+and two native implementation workers: akquant for real market backtests and Point72 CSP for typed
+event-graph simulation. That CLI-first design and its exact DaxAlgo connection are recorded in
+[DaxAlgo quant strategy agent architecture](quant-strategy-agent-architecture.md).
 
 The exact format rules and their owners are defined in the
 [Vibe Quant lane contracts v1](vibe-quant-lane-contracts.md). The machine-readable Declarative
@@ -45,10 +66,11 @@ Rules contract is [JSON Schema Draft 2020-12](schemas/vibe-quant-declarative-rul
 
 ## Current implementation versus intended product
 
-The current implementation starts four real model requests, reconstructs the trusted candidate
-envelope in the host, keeps invalid native output inspectable, validates Typed Graph against the
-installed TradeIR package, and can run one narrow exact-hash synthetic Graph smoke. It does **not**
-yet implement the shared-facts preflight, Rules resolution/lowering, Python or CSP runtimes,
+The current implementation confirms strategy meaning before an explicit action starts four real
+model requests. It reconstructs the trusted candidate envelope in the host, keeps invalid native
+output inspectable, validates Typed Graph against the installed TradeIR package, and can run one
+narrow exact-hash synthetic Graph smoke. It does **not** yet implement Rules resolution/lowering,
+an akquant worker, a pinned CSP worker,
 historical TradeIR worker source, historical data admission, parameter sweeps, or historical result
 view described later in this document.
 
@@ -60,20 +82,25 @@ candidate historically backtestable.
 ## Quick start
 
 1. Open **Strategy Studio → Vibe Code → Vibe Quant** and choose **New strategy**.
-2. Search or filter the starter gallery, then choose a starter, or type a strategy brief from
+2. Search or filter the starter gallery, then choose a starter, or describe a strategy idea from
    scratch. The 23 curated starters span overlapping family, horizon, topology, market, data, risk,
    and execution axes; they are prompts, not runnable templates and not an exhaustive taxonomy.
-3. For the known-supported synthetic test path, search for `smoke` and choose
+3. Send the idea to the strategy-meaning chat. Resolve its visible questions and confirm the
+   semantic candidate; this still starts no implementation or backtest.
+4. Complete the plain-language research and strategy request review. Material unanswered choices
+   remain visible. Confirming this review unlocks **Build, Test & Compare**.
+5. For the known-supported synthetic test path, search for `smoke` and choose
    **QuoteL1 EMA crossover · smoke compatible**. Other starters may produce package-valid graphs,
    but the current closed smoke target can still reject their data or operators.
-4. Keep **Four AI lanes** selected, choose a provider/model, and press **Check & generate**.
-5. Open **Candidate**. The live board reports each real request separately; it does not invent a
+6. Explicitly start implementation generation. The four requests receive the exact confirmed
+   strategy and cannot replace it with a different interpretation.
+7. The live board reports each real request separately; it does not invent a
    model-completion percentage. As soon as one lane reaches **ready** or **blocked**, select that row
    to inspect its exact source/JSON or raw invalid response while the other lanes keep running.
-6. When all four lanes finish, select any candidate card. Its exact read-only artifact appears
+8. When all four lanes finish, select any candidate card. Its exact read-only artifact appears
    immediately below the four cards; then review its assumptions, unresolved questions, proposed
    parameters, tests, and hash before choosing **Use selected in editor**.
-7. The Candidate action panels deliberately separate **Generate / Regenerate** from
+9. The Candidate action panels deliberately separate **Generate / Regenerate** from
    **Test · synthetic only**. Testing requires **Graph · Typed → Use selected in editor → Run
    exact-hash synthetic smoke**; it never reruns the generation agents.
 
@@ -381,29 +408,33 @@ generation epoch.
 Late provider callbacks and results are ignored, so they cannot repopulate the candidate list after
 the stop.
 
-When a completed batch already exists, starting a replacement generation keeps that last validated
-batch until the replacement fully validates. Canceling, closing the app, or losing the provider does
-not replace the committed batch with an empty one. A first-ever generation interrupted before any
-response completes still has no candidate artifact to recover. In both cases, the submitted but
-uncommitted refinement is saved separately and restored into the composer after Stop or restart.
-When an older completed batch is retained, Candidate labels it **PENDING REQUEST NOT APPLIED** and
-disables selection, revalidation, unchanged-brief regeneration, and synthetic testing until the
-restored refinement is applied with **Check & generate**. If the request is no longer wanted, choose
-**Discard pending request** to keep the prior completed batch and hashes without making any provider,
-synthesis, or test call. This prevents an old candidate hash from being mistaken for the result of
-the newer request.
+When a completed batch already exists, regenerating the unchanged confirmed request keeps that last
+validated batch until the replacement fully validates. Canceling, closing the app, or losing the
+provider does not replace the committed batch with an empty one. A first-ever implementation run
+interrupted before any response completes still has no candidate artifact to recover.
+
+A semantic chat revision is different: it immediately relocks confirmation and detaches prior
+implementation results, because those artifacts belong to the previous strategy meaning. The user
+reviews and confirms the revised request before another explicit implementation run. This prevents
+an old candidate from being mistaken for the result of a newer strategy request.
 
 The current one-shot CLI adapter does not prove process-tree termination. A child provider process
 may finish after the UI has stopped listening; its output remains ignored. Start a new turn to retry.
 
 ## Restoring an older session
 
-The chat and editor files are restored independently from candidate proof. If a saved batch was
-created under an older generation or validation contract, Vibe Quant keeps the chat and code but does
-not silently rebind its old hashes. The Candidate tab shows **Saved candidates need fresh
-generation** and reloads the batch's original brief into the composer when it can recover it. Review
-or refine that brief and choose **Regenerate 4 candidates** to create a new batch under the current
-contract. Restore itself never sends an AI request.
+The chat and editor files are restored independently from candidate proof. The app revalidates the
+saved semantic candidate, research case, strategy request, confirmation, and implementation binding
+in that order. If a batch was created under an older contract or lacks the exact current confirmed
+request binding, Vibe Quant keeps recoverable chat/code but quarantines the batch. It never silently
+rebinds old bytes. Review and reconfirm the request, then explicitly generate fresh implementations.
+Restore itself never sends an AI request.
+
+The session file is an ordinary local authoring cache, not a cryptographically authenticated
+ledger. Canonical hashes and dependency replay detect stale, partial, substituted, and ordinary
+in-app mutations, but a hostile process that can rewrite the complete session and recompute every
+hash is outside this authoring contract. Protecting against that threat requires a separately keyed
+receipt (for example, a macOS Keychain-backed HMAC) and is not claimed by this milestone.
 
 When a saved batch still matches the current contract, it is shown as **RESTORED RESULT · NOT A NEW
 AI RUN**. Its prior invalid diagnostics remain evidence; installing a newer parser or repair pass
@@ -417,8 +448,9 @@ package-valid **Graph · Typed** artifact or a package-valid combined TradeIR ar
 
 1. Choose **New strategy**, search for `smoke`, and select
    **QuoteL1 EMA crossover · smoke compatible**.
-2. Keep **Four AI lanes** selected and choose **Check & generate**.
-3. In **Candidate**, preview the package-valid **Graph · Typed** result. If Graph is invalid or
+2. Send the starter through strategy chat, confirm the semantic candidate, complete the request
+   review, and open **Build, Test & Compare**.
+3. Start implementation generation, then preview the package-valid **Graph · Typed** result. If Graph is invalid or
    blocked, refine and regenerate; a sibling Vibe, Rules, or CSP result cannot enter this runner.
 4. Choose **Use selected in editor**. Preview alone is not enough; the editor must still match the
    exact candidate hash.
