@@ -1,262 +1,236 @@
-# DaxAlgo Strategy Builder agent architecture
+# DaxAlgo native strategy-agent architecture
 
-Status: approved direction; native runtime implementation pending
+Status: native backend and retained-run UI slice implemented; full chart-to-app workflow not yet complete
 Decision date: 2026-08-08
+Last corrected: 2026-08-08
 
-## Decision
+## Product decision
 
-The chart experience, strategy conversation, and native workers form one pipeline with one explicit,
-immutable handoff. They are not adjacent features that separately reinterpret the user.
+DaxAlgo uses one research conversation and two independent native implementations. The fourth UI
+panel is comparison evidence; it is not a fourth implementation and it never invents metrics.
 
-The Python backbone is a narrow DaxAlgo-owned **LangGraph application**. LangGraph supplies the
-established state-machine, human-interrupt, checkpoint, parallel-send, join, and streaming
-machinery. DaxAlgo supplies only its financial state, tools, validation nodes, and native-engine
-adapters. FinanceManus is excluded: it is not imported, forked, copied, or renamed.
+The runtime backbone is the pinned local FinanceManus `QueryEngine`, `ContextManager`, `Session`,
+`ToolRegistry`, and `Coordinator`. DaxAlgo fixes the worker profiles and tools. User or model text
+cannot select a different profile or broaden a worker's tool registry.
 
-The only native execution engines in the first slice are:
+The native authorities are:
 
-- `akquant==0.3.36`: `akquant.Strategy` and `akquant.run_backtest` for orders, fills, trades,
-  positions, equity, and P&L;
-- `csp==0.18.0`: `@csp.node`, `@csp.graph`, `csp.curve`, and `csp.run` for typed causal event and
-  decision-graph execution.
+- transcend-0/VibeQuant `TaskSpec.from_dict -> make_plan -> run_task`, which reaches genuine
+  AKQuant for the trading backtest;
+- Point72 CSP `@csp.node`, `@csp.graph`, `csp.curve`, and `csp.run` for typed reactive execution;
+- HKUDS/Vibe-Trading as research guidance and a design reference only. It is not an execution lane.
 
-HKUDS/Vibe-Trading and transcend-0/VibeQuant are audited design references, not hidden runtime
-coordinators. Vibe-Trading contributes tested ideas for contained workspaces, trace manifests,
-memory, tool restriction, and run events. VibeQuant demonstrates a thin, deterministic adapter to
-the genuine akquant API. DaxAlgo does not import either product wholesale and does not adopt
-VibeQuant's separate `TaskSpec` as a second strategy language.
+Microsoft RD-Agent/Qlib, TradingAgents, ai-hedge-fund, LEAN, and NautilusTrader remain comparison
+references. They are not silently installed as additional runtimes.
 
-## The three acceptance tracks
+## User workflow
 
-1. **Python architecture:** prove the real LangGraph control flow and genuine akquant/CSP calls
-   headlessly.
-2. **Contained workflow:** run one complete FDAX situation from frozen chart evidence through
-   confirmation, both native workers, and exact results or failures.
-3. **UX/UI fit:** connect the same run/event API to the existing two-screen Strategy Builder. The UI
-   must not implement another coordinator or reinterpret the confirmed conversation.
-
-```mermaid
-flowchart LR
-    subgraph HOST["DaxAlgo host — authority"]
-        CH["Chart snapshot<br/>FDAX + FESX / ES / VDAX"]
-        CI["ConfirmedStrategyIntentV1<br/>canonical JSON + SHA-256"]
-        FR["Freeze and verify handoff"]
-    end
-
-    subgraph GRAPH["DaxAlgo StrategyAgentGraph — LangGraph runtime"]
-        RA["Research ReAct subgraph"]
-        HI["interrupt: readable user confirmation"]
-        FAN["Send: two immutable worker inputs"]
-        AW["akquant worker subgraph"]
-        CW["CSP worker subgraph"]
-        JOIN["Join and compare shared observations"]
-    end
-
-    subgraph NATIVE["Native execution"]
-        AK["akquant.Strategy<br/>akquant.run_backtest"]
-        CSP["@csp.node / @csp.graph<br/>csp.run"]
-    end
-
-    CH --> RA --> HI --> CI --> FR --> FAN
-    FAN --> AW --> AK --> JOIN
-    FAN --> CW --> CSP --> JOIN
-    JOIN --> API["monotonic JSONL / WebSocket events"]
-    API --> UI["existing Strategy Builder screens"]
+```text
+1. OBSERVE
+   The user selects a possible jump or breakdown on a primary chart
+   and adds up to three confirmation series.
+        │
+        ▼
+2. FREEZE CONTEXT
+   DaxAlgo freezes the selected range, as-of time, OHLCV bars,
+   declared indicators, comparison observations, provenance, and hashes.
+        │
+        ▼
+3. RESEARCH
+   One QueryEngine research session examines only that frozen evidence.
+   It asks what confirms, rejects, enters, sizes, cancels, exits, or reverses.
+        │
+        ▼
+4. CONFIRM
+   The user reviews one readable strategy and concrete scenarios.
+   Confirmation binds the exact context and intent hashes.
+        │
+        ▼
+5. IMPLEMENT AND RUN
+   The same immutable job fans out to two fixed QueryEngine workers.
+        │
+        ├── VibeQuant TaskSpec -> make_plan -> run_task -> AKQuant backtest
+        │
+        └── Point72 CSP source -> graph construction -> csp.run
+        │
+        ▼
+6. COMPARE
+   DaxAlgo compares only observable native evidence and reports
+   pass, fail, or unproven with the exact stage and retained artifacts.
 ```
 
-## Actual Python foundation
+For the first FDAX case, the intended conversation starts from an FDAX move and compares FESX, ES,
+and VDAX. The research agent must distinguish confirmed movement, rejected or stale confirmation,
+entry timing, order type, size, lifecycle close, and any unsupported short behavior before the user
+confirms a run.
 
-The implementation must use the library primitives directly; it must not introduce a home-grown
-agent loop or a generic DaxAlgo agent framework.
+## What the backbone does
 
-```python
-from langgraph.graph import StateGraph, START, END
-from langgraph.prebuilt import create_react_agent
-from langgraph.types import Command, Send, interrupt
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-from langgraph.config import get_stream_writer
-from langchain_core.tools import tool
-
-import akquant as aq
-import csp
+```text
+DaxAlgo API/service
+    │
+    ├── owns sessions, immutable manifests, hashes, events, retention, and cancellation requests
+    ├── creates one research QueryEngine with no execution tools
+    ├── creates one VibeQuant QueryEngine with only submit_vibequant_task_spec
+    ├── creates one CSP QueryEngine with only submit_csp_source
+    ├── invokes the real FinanceManus Coordinator for the two native workers
+    ├── streams original QueryEngine and native-stage events
+    └── retains source, native results, exact errors, and the comparison report
 ```
 
-The graph owns these concrete responsibilities:
+The backbone is not a strategy language, compiler, market simulator, broker, or substitute
+backtester. It does not parse CSP with regexes, call AKQuant directly around VibeQuant, fabricate
+fills, or describe `csp.run` as a market backtest.
 
-- `StateGraph`: explicit research, confirmation, freeze, worker, comparison, and terminal states;
-- `create_react_agent`: one research subgraph and two worker-specific subgraphs, each with an
-  immutable tool list;
-- `interrupt(...)` and `Command(resume=...)`: the durable user-confirmation boundary;
-- `Send(...)`: fan-out of the exact frozen bytes to the akquant and CSP workers;
-- a two-input join: comparison starts only after both workers reach a terminal success or failure;
-- `AsyncSqliteSaver`: durable state keyed by the host `run_id`;
-- `astream(..., stream_mode=["updates", "messages", "custom", "tasks"], subgraphs=True)`: the
-  event source used by the CLI and later by the UI;
-- `get_stream_writer()`: exact file, scenario, native-call, and failure progress from inside nodes.
+## One immutable handoff
 
-The C# host remains authoritative for `ResearchCaseV1`, `ConfirmedStrategyIntentV1`, user identity,
-approved market data, and downstream permissions. Python does not create another intent DSL.
+Both native workers receive the same canonical confirmed job containing:
 
-## One immutable worker handoff
+- the confirmed readable intent and its SHA-256;
+- the frozen run manifest and its SHA-256;
+- primary and comparison instruments, venues, sources, timeframe, timezone, selected range, and
+  as-of time;
+- one hash-bound input file per series;
+- timestamped expected situations that are declared exhaustive when exact stream comparison is
+  required;
+- pinned QueryEngine, VibeQuant, AKQuant, and CSP versions or source revisions; and
+- the actual provider/model identity used to generate each native artifact.
 
-Both workers receive the same canonical input bytes. The handoff contains:
+VibeQuant derives its real TaskSpec from this handoff. CSP derives genuine Python graph source from
+the same handoff. There is no artificial shared strategy DSL between them.
 
-- selected primary instrument, venue, timeframe, visible range, as-of time, and approved series
-  handles;
-- zero to three comparison instruments with timestamped observations and provenance;
-- the exact `ConfirmedStrategyIntentV1` canonical JSON and hash;
-- timestamped shared scenarios, simulated input events, and expected observable decisions;
-- explicit execution, sizing, lifecycle, and unwind decisions where applicable;
-- the assigned native profile (`akquant@0.3.36` or `csp@0.18.0`);
-- dependency-lock, chart-snapshot, and scenario-manifest hashes.
+## Four inspectable UI panels
 
-The freeze node recomputes every hash before fan-out. A chart, conversation, review, or scenario
-change creates a new handoff; it cannot mutate a running or completed experiment. Unresolved or
-unsupported material intent prevents launch.
-
-```mermaid
-stateDiagram-v2
-    [*] --> CollectingChartContext
-    CollectingChartContext --> ResearchConversation
-    ResearchConversation --> NeedsAnswer
-    NeedsAnswer --> ResearchConversation
-    ResearchConversation --> ReadyForConfirmation
-    ReadyForConfirmation --> Confirmed: user confirms readable request
-    Confirmed --> Frozen: host revalidates canonical bytes and hashes
-    Frozen --> NativeRunning
-    NativeRunning --> Complete: both terminal and evidence persisted
-    NativeRunning --> PartialFailure: one terminal failure, sibling evidence retained
-    CollectingChartContext --> CollectingChartContext: chart changes
-    ResearchConversation --> ResearchConversation: meaning changes
-    ReadyForConfirmation --> ResearchConversation: review changes
-```
-
-## Strict worker ownership
-
-There is no tool auto-discovery. The host supplies a fixed list to each subgraph.
-
-| Subgraph | Permitted capabilities | Forbidden capabilities |
+| Panel | Real authority | Honest output |
 |---|---|---|
-| Research | read frozen chart bars, comparison indexes, approved indicators and research ledger; calculate point-in-time evidence | source editing, native execution, broker, credentials, network widening |
-| akquant | read one frozen handoff; write one workspace; syntax/import checks; shared scenarios; call `aq.run_backtest`; read its artifacts | CSP tools, broker, live orders, arbitrary host filesystem, inherited secrets |
-| CSP | read the same frozen handoff; write one workspace; graph build; `csp.curve`; shared scenarios; call `csp.run`; read emitted events | akquant tools, broker, live orders, arbitrary host filesystem, inherited secrets |
+| Research | pinned FinanceManus QueryEngine plus Vibe-Trading-style questions | frozen evidence, transcript, assumptions, missing decisions, readable proposal |
+| VibeQuant / AKQuant | VibeQuant TaskSpec, planner, runner, and AKQuant | source, native stages, public trade count, equity, metrics, artifacts, exact failure |
+| Point72 CSP | genuine CSP source and `csp.run` | source, graph/type/runtime stages, timestamped outputs, exact failure; no native fills or P&L |
+| Compare | deterministic host comparison of retained results | agreement, disagreement, pass/fail/unproven, hashes; no invented metric |
 
-Generated worker code executes in separate rootless OCI containers or an equivalent OS-level
-isolation boundary: read-only base image, one writable run directory, staged inputs only, disabled
-network, no provider or broker secrets, and CPU/memory/process/file-descriptor/wall-time limits. A
-virtual environment is packaging, not isolation.
+## Two DaxAlgo screens
 
-## Concrete first situation
+```text
+SCREEN 1 — DESIGN & CONFIRM
 
-The first acceptance fixture uses five-minute FDAX observations with FESX, ES, and VDAX comparison
-series. Every observation carries a timestamp and source handle.
+selected chart range │ primary + up to 3 comparisons │ research transcript
+                     │                               │
+                     └──── readable strategy + scenarios ────┐
+                                                              ▼
+                                                   explicit user confirmation
 
-- upward trigger: FDAX `>= +0.80%` over the confirmed window;
-- downward trigger: FDAX `<= -0.80%`;
-- corroboration: at least two fresh comparisons agree—FESX `+/-0.35%`, ES `+/-0.25%`, inverse VDAX
-  `-/+2.00%`;
-- staleness: a comparison older than five minutes cannot count; fewer than two fresh confirmations
-  produces `no_trade`;
-- sizing: risk 0.5% of equity, maximum 20% notional, 40% first tranche and 60% continuation tranche;
-- order policy: confirmed market/limit choice, one-bar limit timeout, cancel followed by a distinct
-  residual order, TIF, and fill-driven residual sizing;
-- lifecycle: 0.6% stop, 1.2% target, six-bar time exit, evidence-loss invalidation, final unwind, and
-  exit fill before an opposite-direction entry.
+SCREEN 2 — BUILD, TEST & COMPARE
 
-The scenario manifest covers upward continuation, unconfirmed movement, stale evidence, unfilled
-limit, partial fill, cancel-plus-new-residual order, stop, target, time exit, invalidation, downward
-continuation, exit-then-reverse, OCO sibling cancellation, missing data, and final unwind. Native
-atomic replace and atomic reverse are reported as unsupported; DaxAlgo must not simulate them and
-label the result as akquant.
+Research evidence │ VibeQuant / AKQuant │ Point72 CSP │ Comparison
+                  │ source + backtest   │ graph run   │ pass/fail/unproven
+```
 
-## Native result truthfulness
+The screens consume the same backend session and run. The UI must not preserve the old synthetic
+four-lane generator as though it were this workflow. If the legacy generator remains available, it
+must be separately named and must not share readiness labels with native evidence.
 
-The two engines intentionally produce asymmetric evidence.
+## Native evidence boundary
 
-| Evidence | akquant | CSP |
+| Evidence | VibeQuant / AKQuant | CSP |
 |---|---:|---:|
-| flat/no-trade/long/short/exit decision | yes | yes |
-| order intent | yes | yes |
-| native order status and fill | yes | no |
-| trade ledger, position, equity and P&L | yes | no |
-| typed graph ticks and node outputs | no | yes |
+| generated native artifact | yes | yes |
+| native import/schema or graph construction | yes | yes |
+| native execution | yes | yes |
+| public aggregate trade count and metrics | yes | no |
+| public raw order/fill timestamps through VibeQuant | no | no |
+| typed output ticks with exact timestamps | no | yes |
+| exact per-scenario comparison in the current integration | unproven | yes |
 
-Only shared decision and order-intent observations are compared. CSP is reported as a graph run,
-never as a portfolio backtest. One worker's failure cannot erase or cosmetically fail the other
-worker's evidence.
+“Yes” for CSP means the host wrapper captured the values returned by the pinned native `csp.run`
+call. The runner snapshots its host callables and hides its actual `__main__` module while generated
+source executes, preventing the direct collector/result-writer monkeypatch path. Generated Python
+still shares the CSP interpreter, so this is inspectable host-observed evidence, not a hardened or
+cryptographic attestation claim.
 
-Every terminal result binds the handoff hash, generated-source hash, dependency-lock hash,
-scenario-input hash, native-output hashes, provider/model identity, and worker profile.
+The current unmodified VibeQuant result exposes aggregate trade and metric evidence but not raw
+AKQuant order/fill timestamps. Therefore a VibeQuant run can prove a declared aggregate such as one
+closed trade, while exact entry/exit timestamp behavior remains `unproven`. CSP can prove its full
+ordered `intent` stream, but cannot prove fills, equity, P&L, or portfolio metrics.
 
-## CLI-first proof
+## Failure reporting
+
+Every lane terminates with its actual framework and stage. Examples include QueryEngine provider
+failure, agent timeout, missing native submission, TaskSpec, planner, VibeQuant run, CSP import,
+graph construction, `csp.run`, artifact retention, or comparison mismatch. A sibling failure does
+not erase the other lane's evidence.
+
+If the upstream FinanceManus Coordinator records an internal worker timeout instead of raising it,
+DaxAlgo reads that retained worker status and reports `agent_timeout` for only the affected lane.
+A synchronous native runner remains under process custody until its bounded child process is reaped;
+the host does not publish a terminal timeout while that child continues writing the workspace.
+
+## Current first-case boundary
+
+The implemented frozen fixture currently proves only:
+
+- one FDAX primary series with FESX, ES, and VDAX comparisons;
+- structured causal OHLCV and indicator evidence in the research turn;
+- stale-confirmation `no_trade`;
+- one confirmed 10% long target;
+- one explicit time-based close;
+- genuine VibeQuant-to-AKQuant execution; and
+- genuine CSP graph execution with exact ordered intent comparison.
+
+It does not yet prove the full directional product requested by the user: short execution, market
+versus limit selection, staged entries, partial fills, stop/target behavior, reversal, human UI
+confirmation, or chart selection inside the app. The unmodified VibeQuant adapter has not
+demonstrated working short execution, so the product must not claim general long/short support.
+
+## Service and app boundary
+
+The Python service exposes loopback session, message, confirmation, run, cancellation, paged-event,
+status, and hash-checked artifact operations. The .NET app has a dedicated process host and typed
+client on port 8766, separate from the existing ML sidecar. The service is disabled by default until
+the pinned local or packaged runtimes and provider configuration are supplied.
+
+The present development seam verifies only the public health payload on that fixed loopback port;
+it does not authenticate the process instance. That is acceptable only for this disabled-by-default
+local slice. Enabling or shipping it as trusted evidence requires a per-launch random credential
+shared through a non-logged channel, plus explicit opt-in before accepting an externally managed
+service. Otherwise another local process could impersonate the backend or invoke provider-backed
+work.
+
+The Strategy Builder now has a deliberately partial Screen 2 bridge. It can open without the old
+synthetic four-lane confirmation, load an already confirmed retained run, page bounded session/run
+events, show all four retained panels, surface exact errors, and retrieve hash-checked artifacts.
+It does not create sessions, capture chart context, conduct the research conversation, or bind a
+human confirmation. Those missing Screen 1 operations are still required for product completion.
+
+The focused UI suite and app build pass. The attempted real macOS launch did not create a window:
+Avalonia Native failed while starting the platform render timer with native error `-6661`. Therefore
+manual in-app evidence remains unavailable and must not be inferred from the view-model/XAML tests.
+
+## Safety boundary
+
+Only the minimum host boundary is product-critical:
+
+- generated native workers have no broker or live-order authority;
+- contained child environments do not inherit provider or broker secrets;
+- native work uses staged hash-bound files, bounded output, wall-time limits, and disabled network;
+- VibeQuant and CSP execute independently in their real supported runtimes; and
+- only retained native evidence may be shown as passed.
+
+These controls do not limit strategy creativity in the research conversation. They limit what can
+be called a completed, reproducible native run.
+
+## Honest completion rule
+
+The product is Done only when one real macOS app flow performs:
 
 ```text
-daxalgo-strategy start --chart-context chart.json --prompt "..."
-daxalgo-strategy reply <run-id> "..."
-daxalgo-strategy confirm <run-id>
-daxalgo-strategy run <run-id>
-daxalgo-strategy events <run-id> --jsonl
+chart selection
+-> frozen primary/comparison context
+-> provider-backed research conversation
+-> explicit human confirmation
+-> one immutable two-worker run
+-> genuine VibeQuant/AKQuant and CSP results
+-> four inspectable panels with exact failures
 ```
 
-The CLI must expose the same event stream later consumed by the UI. Each event contains `run_id`, a
-monotonic `sequence`, timestamp, agent, stage, type, and payload. It reports created files, syntax or
-graph-build results, native API start/end, each scenario outcome, artifacts, exact capability
-failures, and cancellation.
-
-## Strategy Builder connection
-
-UI wiring starts only after the headless situation passes. DaxAlgo then supplies structured chart
-context—not merely screenshot pixels—and renders the existing run state:
-
-1. **Design & Confirm:** selected chart/context, research conversation, missing questions, and the
-   readable canonical request;
-2. **Build, Test & Compare:** akquant source/logs/orders/equity/backtest evidence and CSP
-   source/graph/ticks separately;
-3. reconnect and cancellation through the same monotonic run/event API.
-
-The UI does not prompt two workers independently, scrape a chart, widen tools, or create a second
-state machine.
-
-```text
-POST /api/v1/strategy-runs
-POST /api/v1/strategy-runs/{id}/messages
-POST /api/v1/strategy-runs/{id}/confirm
-POST /api/v1/strategy-runs/{id}/run
-POST /api/v1/strategy-runs/{id}/cancel
-GET  /api/v1/strategy-runs/{id}
-WS   /api/v1/strategy-runs/{id}/events?after={sequence}
-```
-
-## Reference roles
-
-- **LangGraph:** actual agent/control-flow runtime.
-- **HKUDS/Vibe-Trading**, pinned audit `46465ac3cd8d0a35208f974704c5e801a1107a13`: reference for
-  ReAct behavior, contained workspaces, memory, manifests, traces, cancellation, and strict tool
-  lists. Its full product runtime is not imported because it includes broad discovery, product
-  prompts, global stores, and unrelated trading/data surfaces.
-- **transcend-0/VibeQuant**, pinned audit `1f5442d88ec97b6075ac73a3c4d0b42d1c00a640`: reference for
-  deterministic planning and its genuine thin `aq.run_backtest` adapter. Its DSL and unsandboxed
-  in-process generated-code execution are not adopted.
-- **Microsoft RD-Agent/Qlib:** later hypothesis/experiment iteration and ML/factor research.
-- **ai-hedge-fund:** later alpha/portfolio/risk/execution role separation; its immediate-fill model
-  is not a replacement for akquant.
-- **TradingAgents:** optional later research-role debate; not a backtester or coordinator for this
-  slice.
-
-## Acceptance boundary
-
-The slice passes only when:
-
-1. research asks for missing material choices rather than inventing them;
-2. the user confirms one readable, canonical request bound to structured chart evidence;
-3. the freeze node rejects any changed byte or unresolved material requirement;
-4. both workers receive identical handoff and scenario bytes;
-5. generated akquant code imports, passes shared scenarios, and completes a real
-   `akquant.run_backtest` with native evidence;
-6. generated CSP code builds and completes a real `csp.run` over the same observable situations;
-7. CSP is never labeled a market backtest and never reports invented fills or P&L;
-8. either worker can fail without losing the sibling's files, events, or native results;
-9. the CLI names the exact file, stage, and reason for every failure; and
-10. only after those checks pass does the existing Strategy Builder consume the event API.
-
-No broker or live-order capability is permitted in this architecture.
+Until that evidence exists, the correct status is: native backend and .NET seam implemented;
+chart-to-agent and complete two-screen product workflow not complete.

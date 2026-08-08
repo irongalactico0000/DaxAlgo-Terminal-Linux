@@ -142,7 +142,7 @@
                     Command="{Binding OpenBuildScreenCommand}"
                     IsEnabled="{Binding CanOpenBuildScreen}"
                     AutomationProperties.Name="Open Build Test and Compare screen"
-                    ToolTip.Tip="Available after the exact strategy request is confirmed." />
+                    ToolTip.Tip="Loads retained native evidence when configured; legacy draft generation still requires a confirmed request." />
           </StackPanel>
         </Grid>
       </Border>
@@ -576,6 +576,13 @@
               </Border>
               </StackPanel>
 
+              <StackPanel Spacing="5" IsVisible="{Binding ShowNativeImplementationHeader}"
+                          AutomationProperties.Name="Native strategy run screen header">
+                <TextBlock Text="SCREEN 2 · RETAINED NATIVE RUN" Classes="eyebrow" />
+                <TextBlock Text="Inspect one already confirmed Research → VibeQuant/AKQuant + CSP → Compare run. This screen does not yet create that run from the chart or Design chat."
+                           Classes="caption" TextWrapping="Wrap" />
+              </StackPanel>
+
               <StackPanel Spacing="8" IsVisible="{Binding ShowImplementationHeader}">
               <TextBlock Text="SCREEN 2 · BUILD, TEST &amp; COMPARE" Classes="eyebrow" />
               <Grid ColumnDefinitions="2*,8,3*">
@@ -647,7 +654,7 @@
 
               <Border Background="{StaticResource Ai.Soft}" BorderBrush="{StaticResource Ai.Glow.Brush}"
                       BorderThickness="1" CornerRadius="5" Padding="8,6"
-                      IsVisible="{Binding GenerateCandidateFirst}">
+                      IsVisible="{Binding ShowLegacyCandidateBoundary}">
                 <TextBlock Text="Four AI generation agents: Vibe Python, declarative rules, TradeIR graph, and CSP. Every structurally valid artifact can be chosen; package validation is reported separately, and choosing never tests or runs it."
                            Classes="caption" TextWrapping="Wrap" />
               </Border>
@@ -851,6 +858,197 @@
 
             <TabItem Header="{Binding CandidateTabHeader}">
               <Grid Margin="0,8,0,0" RowDefinitions="Auto,*">
+                <Border Grid.Row="0" Grid.RowSpan="2"
+                        IsVisible="{Binding ShowNativeStrategyRunPanel}"
+                        Background="{StaticResource Background.Base}"
+                        BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="1"
+                        CornerRadius="6" Padding="10"
+                        AutomationProperties.Name="Native strategy retained run evidence">
+                  <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="10" Margin="0,0,4,0">
+                      <Border Background="{StaticResource Warning.Soft}"
+                              BorderBrush="{StaticResource Warning.Brush}" BorderThickness="1"
+                              CornerRadius="5" Padding="8,7"
+                              AutomationProperties.Name="Native strategy UI limitation">
+                        <StackPanel Spacing="2">
+                          <TextBlock Text="RETAINED RUN BRIDGE · PARTIAL UI WIRING"
+                                     Foreground="{StaticResource Warning.Brush}"
+                                     FontWeight="SemiBold" FontSize="10" />
+                          <TextBlock Text="Chart selection, frozen-context research chat, and user confirmation are not connected to this screen yet. Load an already confirmed run ID; every status, event, error, artifact hash, and report below comes from the native service."
+                                     Classes="caption" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </Border>
+
+                      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+                        <TextBox Grid.Column="0" Text="{Binding NativeRunId, Mode=TwoWay}"
+                                 Watermark="Confirmed retained run ID"
+                                 FontFamily="{StaticResource Font.Data}"
+                                 AutomationProperties.Name="Native strategy run ID" />
+                        <Button Grid.Column="1" Classes="aiAction" Content="Load run"
+                                Command="{Binding LoadNativeRunCommand}" Margin="7,0,0,0"
+                                AutomationProperties.Name="Load retained native strategy run" />
+                        <Button Grid.Column="2" Classes="ghost" Content="Refresh"
+                                Command="{Binding RefreshNativeRunCommand}" Margin="7,0,0,0"
+                                AutomationProperties.Name="Refresh retained native strategy run" />
+                        <Button Grid.Column="3" Classes="ghost" Content="Start"
+                                Command="{Binding StartNativeRunCommand}" Margin="7,0,0,0"
+                                AutomationProperties.Name="Start confirmed native strategy run" />
+                        <Button Grid.Column="4" Classes="ghost" Content="Request cancel"
+                                Command="{Binding CancelNativeRunCommand}" Margin="7,0,0,0"
+                                AutomationProperties.Name="Request native strategy run cancellation" />
+                      </Grid>
+
+                      <Border Background="{StaticResource Background.Elevated}"
+                              BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                              CornerRadius="5" Padding="8,7">
+                        <StackPanel Spacing="3">
+                          <Grid ColumnDefinitions="*,Auto,Auto">
+                            <TextBlock Grid.Column="0" Text="{Binding NativeRunIdentityText}"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1" Text="{Binding NativeRunStatus}"
+                                       FontFamily="{StaticResource Font.Data}" Classes="caption"
+                                       Margin="8,0" />
+                            <TextBlock Grid.Column="2" Text="{Binding NativeEvidenceStatus}"
+                                       FontFamily="{StaticResource Font.Data}" Classes="caption" />
+                          </Grid>
+                          <TextBlock Text="{Binding NativeRunLoadStatus}" Classes="caption"
+                                     TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding NativeEventDisplayBoundary}" Classes="caption"
+                                     TextWrapping="Wrap" />
+                          <Border IsVisible="{Binding NativeResearchSessionUnavailable}"
+                                  Background="{StaticResource Warning.Soft}"
+                                  BorderBrush="{StaticResource Warning.Brush}" BorderThickness="1"
+                                  CornerRadius="4" Padding="6,4"
+                                  AutomationProperties.Name="Research session restart fallback">
+                            <TextBlock Text="{Binding NativeResearchAvailabilityText}"
+                                       Foreground="{StaticResource Warning.Brush}"
+                                       TextWrapping="Wrap" />
+                          </Border>
+                          <TextBlock Classes="caption" FontFamily="{StaticResource Font.Data}"
+                                     TextWrapping="Wrap">
+                            <Run Text="Manifest SHA-256  " />
+                            <Run Text="{Binding NativeManifestSha256}" />
+                          </TextBlock>
+                          <TextBlock IsVisible="{Binding HasNativeRunFailure}"
+                                     Foreground="{StaticResource Warning.Brush}"
+                                     TextWrapping="Wrap">
+                            <Run Text="{Binding NativeRunFailureCode}" FontWeight="SemiBold" />
+                            <Run Text="  " />
+                            <Run Text="{Binding NativeRunFailureDetail}" />
+                          </TextBlock>
+                        </StackPanel>
+                      </Border>
+
+                      <ItemsControl ItemsSource="{Binding NativeStrategyEvidencePanels}"
+                                    AutomationProperties.Name="Research VibeQuant CSP Compare native panels">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Border Margin="3" Padding="9,8"
+                                    Background="{StaticResource Background.Elevated}"
+                                    BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                                    CornerRadius="5">
+                              <StackPanel Spacing="5">
+                                <Grid ColumnDefinitions="*,Auto">
+                                  <StackPanel Grid.Column="0" Spacing="1">
+                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Authority}" Classes="caption"
+                                               TextWrapping="Wrap" />
+                                  </StackPanel>
+                                  <StackPanel Grid.Column="1" Spacing="1" Margin="8,0,0,0">
+                                    <TextBlock Text="{Binding Status}" FontWeight="SemiBold"
+                                               FontFamily="{StaticResource Font.Data}"
+                                               HorizontalAlignment="Right" />
+                                    <TextBlock Text="{Binding Stage}" Classes="caption"
+                                               FontFamily="{StaticResource Font.Data}"
+                                               HorizontalAlignment="Right" />
+                                  </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding Summary}" Classes="caption"
+                                           TextWrapping="Wrap" />
+                                <Border IsVisible="{Binding HasExactFailure}"
+                                        Background="{StaticResource Warning.Soft}"
+                                        BorderBrush="{StaticResource Warning.Brush}" BorderThickness="1"
+                                        CornerRadius="4" Padding="6,4">
+                                  <StackPanel Spacing="2">
+                                    <TextBlock Text="EXACT NATIVE FAILURE" Classes="eyebrow"
+                                               Foreground="{StaticResource Warning.Brush}" />
+                                    <TextBlock Text="{Binding ExactFailure}" TextWrapping="Wrap" />
+                                  </StackPanel>
+                                </Border>
+                                <TextBox Text="{Binding Evidence, Mode=OneWay}" IsReadOnly="True"
+                                         AcceptsReturn="True" TextWrapping="NoWrap"
+                                         FontFamily="{StaticResource Font.Data}"
+                                         MinHeight="100" MaxHeight="150"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                         AutomationProperties.Name="{Binding Title}" />
+                                <TextBlock Text="RETAINED EVENTS" Classes="eyebrow" />
+                                <ItemsControl ItemsSource="{Binding Events}">
+                                  <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                      <Border BorderBrush="{StaticResource Border.Brush}"
+                                              BorderThickness="0,1,0,0" Padding="0,4">
+                                        <StackPanel Spacing="1">
+                                          <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{Binding StageStatusText}"
+                                                       FontFamily="{StaticResource Font.Data}"
+                                                       FontSize="9.5" />
+                                            <TextBlock Grid.Column="1" Text="{Binding TimestampText}"
+                                                       Classes="caption"
+                                                       FontFamily="{StaticResource Font.Data}" />
+                                          </Grid>
+                                          <TextBlock Text="{Binding Message}" Classes="caption"
+                                                     TextWrapping="Wrap" />
+                                          <TextBlock Text="{Binding Details}" Classes="caption"
+                                                     FontFamily="{StaticResource Font.Data}"
+                                                     TextWrapping="Wrap" MaxHeight="54" />
+                                        </StackPanel>
+                                      </Border>
+                                    </DataTemplate>
+                                  </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                              </StackPanel>
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+
+                      <Border Background="{StaticResource Background.Elevated}"
+                              BorderBrush="{StaticResource Border.Brush}" BorderThickness="1"
+                              CornerRadius="5" Padding="8,7"
+                              AutomationProperties.Name="Hash checked retained artifact viewer">
+                        <StackPanel Spacing="5">
+                          <TextBlock Text="RETAINED ARTIFACT" Classes="eyebrow" />
+                          <TextBlock Text="Copy an exact relative path from a native panel. The service verifies the retained file hash before returning its content."
+                                     Classes="caption" TextWrapping="Wrap" />
+                          <Grid ColumnDefinitions="*,Auto">
+                            <TextBox Grid.Column="0" Text="{Binding NativeArtifactPath, Mode=TwoWay}"
+                                     Watermark="lanes/... or comparison/report.json"
+                                     FontFamily="{StaticResource Font.Data}"
+                                     AutomationProperties.Name="Native retained artifact path" />
+                            <Button Grid.Column="1" Classes="ghost" Content="Load artifact"
+                                    Command="{Binding LoadNativeArtifactCommand}" Margin="7,0,0,0"
+                                    AutomationProperties.Name="Load hash checked retained artifact" />
+                          </Grid>
+                          <TextBlock Text="{Binding NativeArtifactStatus}" Classes="caption"
+                                     TextWrapping="Wrap" />
+                          <TextBox Text="{Binding NativeArtifactContent, Mode=OneWay}"
+                                   IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                                   FontFamily="{StaticResource Font.Data}" MinHeight="140"
+                                   IsVisible="{Binding HasNativeArtifactContent}"
+                                   ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                   ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                   AutomationProperties.Name="Retained artifact content" />
+                        </StackPanel>
+                      </Border>
+                    </StackPanel>
+                  </ScrollViewer>
+                </Border>
+
                 <Border Grid.Row="0" IsVisible="{Binding ShowBuildBusyStop}"
                         Background="{StaticResource Ai.Soft}"
                         BorderBrush="{StaticResource Ai.Glow.Brush}" BorderThickness="1"

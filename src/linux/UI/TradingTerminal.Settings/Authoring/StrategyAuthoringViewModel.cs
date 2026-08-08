@@ -13,6 +13,7 @@ using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Definition;
 using TradingTerminal.Core.Strategies.Generation;
 using TradingTerminal.Infrastructure.Backtest;
+using TradingTerminal.Infrastructure.StrategyAgent;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Strategies;
@@ -90,7 +91,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         IAuthoringSessionRepository? sessionRepository = null,
         ITradeIrCandidateSynthesizerV1? tradeIrCandidateSynthesizer = null,
         ITradeIrSimulatedBacktestRunnerV1? tradeIrSimulatedBacktestRunner = null,
-        IStrategyIntentExtensionRegistryV1? strategyIntentExtensionRegistry = null)
+        IStrategyIntentExtensionRegistryV1? strategyIntentExtensionRegistry = null,
+        IStrategyAgentClient? strategyAgentClient = null)
     {
         _compiler = compiler;
         _registry = registry;
@@ -99,6 +101,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _candidateGenerator = candidateGenerator;
         _parallelCandidateGenerator = parallelCandidateGenerator;
         _strategyIntentExtensionRegistry = strategyIntentExtensionRegistry;
+        _strategyAgentClient = strategyAgentClient;
         _tradeIrCandidateSynthesizer = tradeIrCandidateSynthesizer;
         _tradeIrSimulatedBacktestRunner = tradeIrSimulatedBacktestRunner;
         _options = options?.Value ?? new AiCodegenOptions();
@@ -3356,6 +3359,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         InvalidateGenerationContext();
         DisposeTradeIrBacktest();
+        DisposeNativeStrategyRun();
         // Hand-edits in the Code tab aren't saved per keystroke; catch them on the way out.
         Save();
 

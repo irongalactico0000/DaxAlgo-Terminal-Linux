@@ -1,12 +1,12 @@
 {
   "_meta": {
     "tree": "linux",
-    "sourceFingerprint": "3026999d8534e9686699b27a2f7a7faadbc0a027ebd2df7c6cb824e7cfb644b0",
+    "sourceFingerprint": "330db91800badc0dc25275c120e994dfc39a93c547f6ba0f1ba97deac206cb0e",
     "solution": "TradingTerminal.Mac.slnx",
     "source": "MSBuild-evaluated ProjectReference items from src/linux and tests/linux",
     "projectCount": 56,
-    "indexedFileCount": 1104,
-    "indexedLoc": 180967
+    "indexedFileCount": 1115,
+    "indexedLoc": 183736
   },
   "modules": [
     {
@@ -339,7 +339,7 @@
       "path": "src/linux/Shell/TradingTerminal.App.Avalonia/TradingTerminal.App.Avalonia.csproj",
       "group": "Shell",
       "role": "product",
-      "loc": 9258,
+      "loc": 9460,
       "files": 71,
       "dependsOn": ["DaxAlgo.Daxq.Host", "DaxAlgo.FootprintTransformer", "TradingTerminal.Accounts", "TradingTerminal.AdvancedMarketRegime", "TradingTerminal.Ai", "TradingTerminal.Ai.BacktestAnalysis", "TradingTerminal.Ai.FactorResearch", "TradingTerminal.Ai.MarketAnalyst", "TradingTerminal.Ai.MlFeatures", "TradingTerminal.Ai.PaperLab", "TradingTerminal.Backtest", "TradingTerminal.Backtest.Engine", "TradingTerminal.Backtest.Worker", "TradingTerminal.BacktestStudio", "TradingTerminal.BubbleChart", "TradingTerminal.Charts", "TradingTerminal.Core", "TradingTerminal.Correlation", "TradingTerminal.Heatmap", "TradingTerminal.Infrastructure", "TradingTerminal.Login", "TradingTerminal.LseBacktest", "TradingTerminal.MarketData", "TradingTerminal.OrderBook", "TradingTerminal.QuantConnect", "TradingTerminal.Recording", "TradingTerminal.Settings", "TradingTerminal.StrategyComposer", "TradingTerminal.SurfaceLab", "TradingTerminal.UI.Avalonia", "TradingTerminal.UI.Core", "TradingTerminal.VolumeFootprint"],
       "dependedBy": ["TradingTerminal.App.Avalonia.Tests"],
@@ -351,8 +351,8 @@
       "path": "tests/linux/TradingTerminal.App.Avalonia.Tests/TradingTerminal.App.Avalonia.Tests.csproj",
       "group": "Tests",
       "role": "test",
-      "loc": 4328,
-      "files": 9,
+      "loc": 4813,
+      "files": 10,
       "dependsOn": ["TradingTerminal.App.Avalonia"],
       "dependedBy": [],
       "blastRadius": "low"
@@ -507,8 +507,8 @@
       "path": "src/linux/Pipeline/TradingTerminal.Infrastructure/TradingTerminal.Infrastructure.csproj",
       "group": "Pipeline",
       "role": "product",
-      "loc": 19180,
-      "files": 122,
+      "loc": 20245,
+      "files": 129,
       "dependsOn": ["DaxAlgo.Codegen", "DaxAlgo.Sdk", "TradingTerminal.Core", "TradingTerminal.MarketData"],
       "dependedBy": ["DaxAlgo.Daxq.Host", "TradingTerminal.AdvancedMarketRegime", "TradingTerminal.Ai", "TradingTerminal.Ai.BacktestAnalysis", "TradingTerminal.Ai.FactorResearch", "TradingTerminal.Ai.MarketAnalyst", "TradingTerminal.Ai.MlFeatures", "TradingTerminal.Ai.PaperLab", "TradingTerminal.App.Avalonia", "TradingTerminal.Backtest", "TradingTerminal.Backtest.Cli", "TradingTerminal.BacktestStudio", "TradingTerminal.BubbleChart", "TradingTerminal.Charts", "TradingTerminal.Correlation", "TradingTerminal.Heatmap", "TradingTerminal.LseBacktest", "TradingTerminal.OrderBook", "TradingTerminal.Recording", "TradingTerminal.Settings", "TradingTerminal.SurfaceLab", "TradingTerminal.Tests.Headless", "TradingTerminal.VolumeFootprint"],
       "blastRadius": "high"
@@ -591,8 +591,8 @@
       "path": "src/linux/UI/TradingTerminal.Settings/TradingTerminal.Settings.csproj",
       "group": "UI",
       "role": "product",
-      "loc": 9170,
-      "files": 20,
+      "loc": 9740,
+      "files": 21,
       "dependsOn": ["TradingTerminal.Core", "TradingTerminal.Infrastructure", "TradingTerminal.UI.Core"],
       "dependedBy": ["TradingTerminal.App.Avalonia", "TradingTerminal.Recording"],
       "blastRadius": "med"
@@ -627,8 +627,8 @@
       "path": "tests/linux/TradingTerminal.Tests.Headless/TradingTerminal.Tests.Headless.csproj",
       "group": "Tests",
       "role": "test",
-      "loc": 21224,
-      "files": 112,
+      "loc": 21671,
+      "files": 114,
       "dependsOn": ["DaxAlgo.SamplePlugin", "DaxAlgo.Strategy.Bundle", "TradingTerminal.Accounts", "TradingTerminal.Ai.Coordinator", "TradingTerminal.Ai.Coordinator.Contracts", "TradingTerminal.Backtest.Client", "TradingTerminal.Backtest.Engine", "TradingTerminal.Backtest.Protocol", "TradingTerminal.Backtest.Worker", "TradingTerminal.Core", "TradingTerminal.Infrastructure", "TradingTerminal.MarketData", "TradingTerminal.Recording", "TradingTerminal.TradeIr.Runtime", "TradingTerminal.UI.Core"],
       "dependedBy": [],
       "blastRadius": "low"

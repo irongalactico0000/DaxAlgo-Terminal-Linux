@@ -1,6 +1,6 @@
 # TradingTerminal.Settings — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `3026999d8534`. Declaration lines only;
+Generated from source fingerprint `330db91800ba`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/UI/TradingTerminal.Settings/Archive/ArchiveActivityViewModel.cs
@@ -115,6 +115,34 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    34: public static IReadOnlyList<DiffLine> Build(string before, string after)
 ```
 
+## src/linux/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.NativeStrategyRun.cs
+```cs
+   11: public sealed partial class StrategyAuthoringViewModel
+   23: public ObservableCollection<NativeStrategyEvidencePanel> NativeStrategyEvidencePanels { get; } =
+   31: public bool IsNativeStrategyAgentWired => _strategyAgentClient is not null;
+   32: public bool ShowNativeStrategyRunPanel =>
+   34: public bool ShowLegacyCandidateBoundary =>
+   87: public string NativeRunIdentityText => LoadedNativeRunId is null
+   91: public string NativeResearchAvailabilityText => NativeResearchSessionUnavailable
+   95: public bool HasNativeRunFailure => !string.IsNullOrWhiteSpace(NativeRunFailureDetail);
+   96: public bool HasNativeArtifactContent => NativeArtifactContent.Length > 0;
+  450: public sealed class NativeStrategyEvidencePanel : ObservableObject
+  458: public NativeStrategyEvidencePanel(string key, string title, string authority)
+  465: public string Key { get; }
+  466: public string Title { get; }
+  467: public string Authority { get; }
+  468: public ObservableCollection<NativeStrategyEventRow> Events { get; } = [];
+  470: public string Status
+  476: public string Stage
+  482: public string Summary
+  488: public string? ExactFailure
+  498: public bool HasExactFailure => !string.IsNullOrWhiteSpace(ExactFailure);
+  500: public string Evidence
+  537: public sealed record NativeStrategyEventRow(
+  545: public string TimestampText => OccurredAtUtc.ToString("u");
+  546: public string StageStatusText => $"#{Sequence} · {Stage} · {Status}";
+```
+
 ## src/linux/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.Navigation.cs
 ```cs
     6: public enum StrategyAuthoringScreen
@@ -126,22 +154,23 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
    25: public bool ShowImplementationTabs => IsBuildScreen || !GenerateCandidateFirst;
    26: public bool ShowScreenNavigation => GenerateCandidateFirst;
    27: public bool ShowDesignRequestHeader => IsDesignScreen && GenerateCandidateFirst;
-   28: public bool ShowImplementationHeader => IsBuildScreen || !GenerateCandidateFirst;
-   29: public bool CanCompileCurrentSource =>
-   34: public bool CanOpenDesignScreen => GenerateCandidateFirst && IsBuildScreen && !IsGenerating;
-   35: public bool CanOpenBuildScreen =>
-   40: public bool ShowDesignCandidateReview => IsDesignScreen && HasCandidate;
-   41: public bool ShowBuildGenerationProgress => IsBuildScreen && IsGeneratingCandidates;
-   42: public bool ShowBuildBusyStop => IsBuildScreen && IsGenerating && !IsGeneratingCandidates;
-   43: public bool ShowBuildCandidateResults => IsBuildScreen && HasGeneratedCandidates;
-   44: public bool ShowCandidateEmptyState => IsDesignScreen
-   47: public bool ShowStartImplementationAction =>
-   51: public bool ShowCliWorkspaceFooter => IsBuildScreen && AvailableClis.Count > 0;
-   53: public string ActiveScreenTitle => !GenerateCandidateFirst
-   59: public string ActiveScreenDescription => !GenerateCandidateFirst
-   65: public string CandidateTabHeader => IsDesignScreen ? "Request" : "Compare";
-   67: public string CandidateEmptyTitle => IsDesignScreen
-   71: public string CandidateEmptyText => IsDesignScreen
+   28: public bool ShowImplementationHeader =>
+   30: public bool ShowNativeImplementationHeader => ShowNativeStrategyRunPanel;
+   31: public bool CanCompileCurrentSource =>
+   36: public bool CanOpenDesignScreen => GenerateCandidateFirst && IsBuildScreen && !IsGenerating;
+   37: public bool CanOpenBuildScreen =>
+   42: public bool ShowDesignCandidateReview => IsDesignScreen && HasCandidate;
+   43: public bool ShowBuildGenerationProgress =>
+   45: public bool ShowBuildBusyStop =>
+   47: public bool ShowBuildCandidateResults =>
+   49: public bool ShowCandidateEmptyState => IsDesignScreen
+   52: public bool ShowStartImplementationAction =>
+   57: public bool ShowCliWorkspaceFooter =>
+   60: public string ActiveScreenTitle => !GenerateCandidateFirst
+   66: public string ActiveScreenDescription => !GenerateCandidateFirst
+   74: public string CandidateTabHeader => IsDesignScreen ? "Request" : "Compare";
+   76: public string CandidateEmptyTitle => IsDesignScreen
+   80: public string CandidateEmptyText => IsDesignScreen
 ```
 
 ## src/linux/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.StrategyIntent.cs
@@ -259,175 +288,175 @@ multi-line signatures show their first line. `[ObservableProperty]` generated pr
 
 ## src/linux/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.cs
 ```cs
-   38: public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposable
-   80: public StrategyAuthoringViewModel(
-  173: public bool AiEnabled => _ai is not null;
-  174: public bool AiHasProvider => AiProviders.Any(p => p.IsAvailable);
-  178: public bool HasConversation => Messages.Count > 0;
-  191: public IReadOnlyList<StrategyStarterBrief> AllStarterBriefs { get; }
-  192: public ObservableCollection<StrategyStarterBrief> VisibleStarterBriefs { get; }
-  193: public IReadOnlyList<string> StarterFamilyOptions { get; }
-  194: public IReadOnlyList<string> StarterHorizonOptions { get; }
-  195: public IReadOnlyList<string> StarterDataOptions { get; }
-  202: public string StarterResultText =>
-  282: public ObservableCollection<StrategyCandidateGroupRow> CandidateGroups { get; }
-  283: public ObservableCollection<StrategyCandidateStatementV1> CandidateOpenQuestions { get; }
-  284: public ObservableCollection<StrategyBuildSupportRow> CandidateBuildSupport { get; }
-  285: public ObservableCollection<StrategyCandidateIssueV1> CandidateIssues { get; }
-  286: public ObservableCollection<StrategyGenerationCandidateOption> GeneratedCandidateOptions { get; }
-  287: public ObservableCollection<StrategyGenerationLaneProgressRow> GenerationLaneProgressRows { get; }
-  289: public bool HasCandidate => CurrentCandidate is not null;
-  290: public bool HasGeneratedCandidates => GeneratedCandidateOptions.Count > 0;
-  291: public bool HasCandidateContent => HasCandidate || HasGeneratedCandidates;
-  292: public bool HasCandidateRestoreWarning => !string.IsNullOrWhiteSpace(CandidateRestoreWarning);
-  293: public int SelectableGeneratedCandidateCount =>
-  295: public int BlockedGeneratedCandidateCount =>
-  297: public bool HasBlockedGeneratedCandidates => BlockedGeneratedCandidateCount > 0;
-  298: public StrategyGenerationCandidateOption? FirstBlockedGeneratedCandidateOption =>
-  300: public string CandidateBatchHeadline
-  312: public bool HasSelectedGeneratedCandidate => SelectedGeneratedCandidateOption?.Candidate is not null;
-  313: public bool HasChosenGeneratedCandidate => ChosenGeneratedCandidateOption is not null;
-  314: public bool HasPendingFourLanePrompt => !string.IsNullOrWhiteSpace(_pendingFourLanePrompt);
-  315: public bool IsGeneratingCandidates => IsGenerating && GenerateCandidateFirst && !IsSynthesizingTradeIr;
-  316: public bool HasRetainedCandidateBatchDuringGeneration => IsGeneratingCandidates && HasGeneratedCandidates;
-  317: public bool CanChooseGeneratedCandidate =>
-  329: public bool CanRevalidateGeneratedCandidate =>
-  338: public bool CanConfirmCandidate => CurrentCandidate is not null && CandidateContentHash is not null &&
-  340: public string GenerationModeLabel => GenerateCandidateFirst ? "STRATEGY RESEARCH" : "EXPERT C#";
-  341: public string GenerationModeActionText => GenerateCandidateFirst
-  344: public string GenerationLaneText => GenerateCandidateFirst ? "Research, confirm, then implement" : "Expert code";
-  345: public string SendButtonText => GenerateCandidateFirst ? "Check strategy  ⌘↵" : "Generate code  ⌘↵";
-  346: public string AuthoringBoundaryText => GenerateCandidateFirst
-  351: public bool HasExpertCSharpFiles =>
-  355: public bool HasNonCSharpExpertArtifact =>
-  358: public string CandidateActionText => SelectedGeneratedCandidateOption is { CandidateHashSha256: { } selectedHash } &&
-  364: public string ChosenGeneratedCandidateSummary => ChosenGeneratedCandidateOption is { } chosen
-  367: public string GenerationProgressSummary
-  539: public ObservableCollection<StrategyDiagnostic> Diagnostics { get; }
-  554: public ObservableCollection<AuthoredFile> Files { get; }
-  587: public ObservableCollection<AiProviderChoice> AiProviders { get; }
-  593: public ObservableCollection<string> Models { get; } = [];
-  600: public IReadOnlyList<CodegenEffort> Efforts { get; } =
-  607: public bool EffortSupported => SelectedAiProvider is { } choice && AiModelCatalog.SupportsEffort(choice.ProviderId);
-  643: public string ModelPillText =>
-  668: public ObservableCollection<AiModelChoice> AllModels { get; }
-  736: public IReadOnlyList<StrategyBuildEffort> BuildEfforts { get; } =
-  757: public IReadOnlyList<AgentCliAdapter> AvailableClis => _cliLauncher?.AvailableClis() ?? [];
-  826: public ObservableCollection<AuthoringMessage> Messages { get; }
-  830: public ObservableCollection<string> Activity { get; }
-  839: public ObservableCollection<BuildTask> Tasks { get; }
- 1052: public string UsageText => InputTokens + OutputTokens == 0
- 1111: public bool CanGenerateFourCandidates =>
- 2346: public ObservableCollection<AuthoringSessionSnapshot> SavedSessions { get; } = [];
- 2761: public ObservableCollection<ReviewFileEntry> ReviewFiles { get; } = [];
- 3355: public void Dispose()
- 3378: public sealed class MyStrategy : IBacktestStrategy
- 3380: public static StrategyParameterSchema Schema { get; } = new(
- 3384: public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
- 3391: public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
- 3393: public MyStrategy(Contract contract, int lookback, double threshold)
- 3400: public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
- 3403: public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
- 3411: public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
- 3413: public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
- 3421: public sealed partial class AuthoredFile(string name, string content) : ObservableObject
- 3435: public sealed partial class AuthoringMessage : ObservableObject
- 3437: public const string KindUser = "User";
- 3438: public const string KindAssistant = "Assistant";
- 3439: public const string KindNote = "Note";
- 3440: public const string KindTool = "Tool";
- 3441: public const string KindPlan = "Plan";
- 3442: public const string KindPlanText = "PlanText";
- 3443: public const string KindFiles = "Files";
- 3445: public AuthoringMessage(CodegenRole role, string text)
- 3461: public static AuthoringMessage System(string? text) => new(KindNote, text ?? string.Empty);
- 3466: public static AuthoringMessage Tool(string state, string title, string detail, string? more = null) =>
- 3477: public static AuthoringMessage Plan(IReadOnlyList<BuildTask> tasks) =>
- 3481: public static AuthoringMessage PlanText(string text) => new(KindPlanText, text);
- 3483: public static AuthoringMessage FilesChanged(IReadOnlyList<FileChangeSummary> changes) =>
- 3489: public CodegenRole Role { get; }
- 3490: public bool IsSystem { get; }
- 3491: public string Kind { get; }
- 3492: public bool IsUser => !IsSystem && Role == CodegenRole.User;
- 3493: public bool IsAssistant => !IsSystem && Role == CodegenRole.Assistant;
- 3495: public string? ToolState { get; private init; }
- 3496: public string? ToolTitle { get; private init; }
- 3497: public string? ToolDetail { get; private init; }
- 3498: public string? ToolMore { get; private init; }
- 3499: public bool HasMore => !string.IsNullOrEmpty(ToolMore);
- 3501: public IReadOnlyList<BuildTask>? PlanTasks { get; private init; }
- 3502: public IReadOnlyList<FileChangeSummary>? FileChanges { get; private init; }
- 3505: public string PlanSnapshotText() => PlanTasks is null
- 3518: public DateTime TimestampLocal { get; } = DateTime.Now;
- 3522: public sealed record StrategyCandidateGroupRow(
- 3529: public string Location => Depth == 0 ? Kind : $"{new string('·', Depth)} {Kind}";
- 3533: public sealed record StrategyBuildSupportRow(
- 3540: public sealed partial class StrategyGenerationCandidateOption : ObservableObject
- 3542: public StrategyGenerationCandidateOption(StrategyGenerationLaneResultV1 result) => Result = result;
- 3544: public StrategyGenerationLaneResultV1 Result { get; }
- 3551: public StrategyGenerationCandidateV1? Candidate => Result.Candidate;
- 3552: public string? CandidateHashSha256 => Result.CandidateHashSha256;
- 3553: public bool IsGenerated => Result.Generated;
- 3554: public bool IsFailed => Result.Readiness is StrategyGenerationReadinessV1.Invalid
- 3557: public bool PackageValidationAvailable => Result.PackageValidationAvailable;
- 3558: public string LaneName => StrategyGenerationLaneCatalogV1.DisplayName(Result.Lane);
- 3559: public string Representation => Result.Lane switch
- 3567: public string ContractVersion => Candidate?.PackageBinding.ArtifactContractVersion ?? "no contract";
- 3568: public string ContractAuthority => Candidate?.PackageBinding.Authority.AuthorityId ?? "no authority";
- 3569: public string ContractRole => Candidate?.PackageBinding.Authority.SemanticRole switch
- 3575: public string LoweringBoundary => Candidate?.PackageBinding.Authority.LoweringMode switch
- 3583: public string CompatibilityBoundary => Candidate?.PackageBinding.Authority.ExternalCompatibility switch
- 3589: public string SpecificationReference =>
- 3591: public string StatusText => Result.Readiness switch
- 3600: public string FailureHeading => Result.Readiness switch
- 3607: public string ArtifactName => Candidate?.Artifact.FileName ?? "no artifact";
- 3608: public string Summary => Candidate?.Interpretation ?? ErrorText;
- 3609: public StrategyCandidateGenerationIssueV1? FirstIssue =>
- 3613: public string FirstIssueCode => FirstIssue?.Code ?? "No issue code reported";
- 3614: public string FirstIssuePath => FirstIssue?.Path ?? "No issue path reported";
- 3615: public string FirstIssueMessage => FirstIssue?.Message
- 3618: public string ErrorText => string.Join(Environment.NewLine, Result.Issues.Select(issue =>
- 3620: public string RecoveryText => FirstIssueCode switch
- 3632: public string ArtifactPreview => Candidate?.Artifact.Source
- 3636: public string InspectablePreview => !string.IsNullOrWhiteSpace(ArtifactPreview)
- 3641: public string PreviewHeading => !string.IsNullOrWhiteSpace(ArtifactPreview) && Candidate?.Artifact is { } artifact
- 3646: public string PreviewStateText => IsChosen
- 3649: public string FlexibilityText => Candidate is null
- 3655: public sealed partial class StrategyGenerationLaneProgressRow : ObservableObject
- 3657: public StrategyGenerationLaneProgressRow(StrategyGenerationLaneV1 lane) => Lane = lane;
- 3659: public StrategyGenerationLaneV1 Lane { get; }
- 3660: public string LaneName => StrategyGenerationLaneCatalogV1.DisplayName(Lane);
- 3661: public string AgentName => Lane switch
- 3669: public string ArtifactName => Lane switch
- 3677: public string PurposeText => Lane switch
- 3685: public string ValidationPlanText => Lane switch
- 3712: public bool HasResult => ResultOption is not null;
- 3713: public string InspectablePreview => ResultOption?.InspectablePreview ?? string.Empty;
- 3714: public string PreviewHeading => ResultOption?.PreviewHeading ?? $"{ArtifactName} · waiting for result";
- 3716: public void Apply(StrategyGenerationLaneProgressV1 progress)
- 3747: public string StateLabel => State switch
- 3760: public string StateDetail => State switch
- 3776: public string PipelineText => State switch
- 3817: public sealed record CandidateReadinessStageRow(
- 3824: public sealed record FileChangeSummary(string Name, int Added, int Removed)
- 3826: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
- 3829: public static string Pack(IReadOnlyList<FileChangeSummary> changes) =>
- 3832: public static IReadOnlyList<FileChangeSummary>? Unpack(string? packed)
- 3850: public sealed class ReviewFileEntry(string name, IReadOnlyList<DiffLine> lines)
- 3852: public string Name { get; } = name;
- 3853: public IReadOnlyList<DiffLine> Lines { get; } = lines;
- 3854: public int Added { get; } = lines.Count(l => l.Kind == "add");
- 3855: public int Removed { get; } = lines.Count(l => l.Kind == "del");
- 3856: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
- 3861: public sealed class AiProviderChoice(IStrategyCodegenClient client)
- 3863: public IStrategyCodegenClient Client { get; } = client;
- 3864: public string ProviderId => Client.ProviderId;
- 3865: public string DisplayName => Client.DisplayName;
- 3866: public bool IsAvailable => Client.IsAvailable;
- 3867: public string Label => IsAvailable ? DisplayName : $"{DisplayName} — not set up";
- 3871: public enum BuildTaskState
- 3881: public sealed partial class BuildTask(string title) : ObservableObject
- 3883: public string Title { get; } = title;
+   39: public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposable
+   81: public StrategyAuthoringViewModel(
+  176: public bool AiEnabled => _ai is not null;
+  177: public bool AiHasProvider => AiProviders.Any(p => p.IsAvailable);
+  181: public bool HasConversation => Messages.Count > 0;
+  194: public IReadOnlyList<StrategyStarterBrief> AllStarterBriefs { get; }
+  195: public ObservableCollection<StrategyStarterBrief> VisibleStarterBriefs { get; }
+  196: public IReadOnlyList<string> StarterFamilyOptions { get; }
+  197: public IReadOnlyList<string> StarterHorizonOptions { get; }
+  198: public IReadOnlyList<string> StarterDataOptions { get; }
+  205: public string StarterResultText =>
+  285: public ObservableCollection<StrategyCandidateGroupRow> CandidateGroups { get; }
+  286: public ObservableCollection<StrategyCandidateStatementV1> CandidateOpenQuestions { get; }
+  287: public ObservableCollection<StrategyBuildSupportRow> CandidateBuildSupport { get; }
+  288: public ObservableCollection<StrategyCandidateIssueV1> CandidateIssues { get; }
+  289: public ObservableCollection<StrategyGenerationCandidateOption> GeneratedCandidateOptions { get; }
+  290: public ObservableCollection<StrategyGenerationLaneProgressRow> GenerationLaneProgressRows { get; }
+  292: public bool HasCandidate => CurrentCandidate is not null;
+  293: public bool HasGeneratedCandidates => GeneratedCandidateOptions.Count > 0;
+  294: public bool HasCandidateContent => HasCandidate || HasGeneratedCandidates;
+  295: public bool HasCandidateRestoreWarning => !string.IsNullOrWhiteSpace(CandidateRestoreWarning);
+  296: public int SelectableGeneratedCandidateCount =>
+  298: public int BlockedGeneratedCandidateCount =>
+  300: public bool HasBlockedGeneratedCandidates => BlockedGeneratedCandidateCount > 0;
+  301: public StrategyGenerationCandidateOption? FirstBlockedGeneratedCandidateOption =>
+  303: public string CandidateBatchHeadline
+  315: public bool HasSelectedGeneratedCandidate => SelectedGeneratedCandidateOption?.Candidate is not null;
+  316: public bool HasChosenGeneratedCandidate => ChosenGeneratedCandidateOption is not null;
+  317: public bool HasPendingFourLanePrompt => !string.IsNullOrWhiteSpace(_pendingFourLanePrompt);
+  318: public bool IsGeneratingCandidates => IsGenerating && GenerateCandidateFirst && !IsSynthesizingTradeIr;
+  319: public bool HasRetainedCandidateBatchDuringGeneration => IsGeneratingCandidates && HasGeneratedCandidates;
+  320: public bool CanChooseGeneratedCandidate =>
+  332: public bool CanRevalidateGeneratedCandidate =>
+  341: public bool CanConfirmCandidate => CurrentCandidate is not null && CandidateContentHash is not null &&
+  343: public string GenerationModeLabel => GenerateCandidateFirst ? "STRATEGY RESEARCH" : "EXPERT C#";
+  344: public string GenerationModeActionText => GenerateCandidateFirst
+  347: public string GenerationLaneText => GenerateCandidateFirst ? "Research, confirm, then implement" : "Expert code";
+  348: public string SendButtonText => GenerateCandidateFirst ? "Check strategy  ⌘↵" : "Generate code  ⌘↵";
+  349: public string AuthoringBoundaryText => GenerateCandidateFirst
+  354: public bool HasExpertCSharpFiles =>
+  358: public bool HasNonCSharpExpertArtifact =>
+  361: public string CandidateActionText => SelectedGeneratedCandidateOption is { CandidateHashSha256: { } selectedHash } &&
+  367: public string ChosenGeneratedCandidateSummary => ChosenGeneratedCandidateOption is { } chosen
+  370: public string GenerationProgressSummary
+  542: public ObservableCollection<StrategyDiagnostic> Diagnostics { get; }
+  557: public ObservableCollection<AuthoredFile> Files { get; }
+  590: public ObservableCollection<AiProviderChoice> AiProviders { get; }
+  596: public ObservableCollection<string> Models { get; } = [];
+  603: public IReadOnlyList<CodegenEffort> Efforts { get; } =
+  610: public bool EffortSupported => SelectedAiProvider is { } choice && AiModelCatalog.SupportsEffort(choice.ProviderId);
+  646: public string ModelPillText =>
+  671: public ObservableCollection<AiModelChoice> AllModels { get; }
+  739: public IReadOnlyList<StrategyBuildEffort> BuildEfforts { get; } =
+  760: public IReadOnlyList<AgentCliAdapter> AvailableClis => _cliLauncher?.AvailableClis() ?? [];
+  829: public ObservableCollection<AuthoringMessage> Messages { get; }
+  833: public ObservableCollection<string> Activity { get; }
+  842: public ObservableCollection<BuildTask> Tasks { get; }
+ 1055: public string UsageText => InputTokens + OutputTokens == 0
+ 1114: public bool CanGenerateFourCandidates =>
+ 2349: public ObservableCollection<AuthoringSessionSnapshot> SavedSessions { get; } = [];
+ 2764: public ObservableCollection<ReviewFileEntry> ReviewFiles { get; } = [];
+ 3358: public void Dispose()
+ 3382: public sealed class MyStrategy : IBacktestStrategy
+ 3384: public static StrategyParameterSchema Schema { get; } = new(
+ 3388: public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
+ 3395: public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
+ 3397: public MyStrategy(Contract contract, int lookback, double threshold)
+ 3404: public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+ 3407: public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
+ 3415: public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+ 3417: public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+ 3425: public sealed partial class AuthoredFile(string name, string content) : ObservableObject
+ 3439: public sealed partial class AuthoringMessage : ObservableObject
+ 3441: public const string KindUser = "User";
+ 3442: public const string KindAssistant = "Assistant";
+ 3443: public const string KindNote = "Note";
+ 3444: public const string KindTool = "Tool";
+ 3445: public const string KindPlan = "Plan";
+ 3446: public const string KindPlanText = "PlanText";
+ 3447: public const string KindFiles = "Files";
+ 3449: public AuthoringMessage(CodegenRole role, string text)
+ 3465: public static AuthoringMessage System(string? text) => new(KindNote, text ?? string.Empty);
+ 3470: public static AuthoringMessage Tool(string state, string title, string detail, string? more = null) =>
+ 3481: public static AuthoringMessage Plan(IReadOnlyList<BuildTask> tasks) =>
+ 3485: public static AuthoringMessage PlanText(string text) => new(KindPlanText, text);
+ 3487: public static AuthoringMessage FilesChanged(IReadOnlyList<FileChangeSummary> changes) =>
+ 3493: public CodegenRole Role { get; }
+ 3494: public bool IsSystem { get; }
+ 3495: public string Kind { get; }
+ 3496: public bool IsUser => !IsSystem && Role == CodegenRole.User;
+ 3497: public bool IsAssistant => !IsSystem && Role == CodegenRole.Assistant;
+ 3499: public string? ToolState { get; private init; }
+ 3500: public string? ToolTitle { get; private init; }
+ 3501: public string? ToolDetail { get; private init; }
+ 3502: public string? ToolMore { get; private init; }
+ 3503: public bool HasMore => !string.IsNullOrEmpty(ToolMore);
+ 3505: public IReadOnlyList<BuildTask>? PlanTasks { get; private init; }
+ 3506: public IReadOnlyList<FileChangeSummary>? FileChanges { get; private init; }
+ 3509: public string PlanSnapshotText() => PlanTasks is null
+ 3522: public DateTime TimestampLocal { get; } = DateTime.Now;
+ 3526: public sealed record StrategyCandidateGroupRow(
+ 3533: public string Location => Depth == 0 ? Kind : $"{new string('·', Depth)} {Kind}";
+ 3537: public sealed record StrategyBuildSupportRow(
+ 3544: public sealed partial class StrategyGenerationCandidateOption : ObservableObject
+ 3546: public StrategyGenerationCandidateOption(StrategyGenerationLaneResultV1 result) => Result = result;
+ 3548: public StrategyGenerationLaneResultV1 Result { get; }
+ 3555: public StrategyGenerationCandidateV1? Candidate => Result.Candidate;
+ 3556: public string? CandidateHashSha256 => Result.CandidateHashSha256;
+ 3557: public bool IsGenerated => Result.Generated;
+ 3558: public bool IsFailed => Result.Readiness is StrategyGenerationReadinessV1.Invalid
+ 3561: public bool PackageValidationAvailable => Result.PackageValidationAvailable;
+ 3562: public string LaneName => StrategyGenerationLaneCatalogV1.DisplayName(Result.Lane);
+ 3563: public string Representation => Result.Lane switch
+ 3571: public string ContractVersion => Candidate?.PackageBinding.ArtifactContractVersion ?? "no contract";
+ 3572: public string ContractAuthority => Candidate?.PackageBinding.Authority.AuthorityId ?? "no authority";
+ 3573: public string ContractRole => Candidate?.PackageBinding.Authority.SemanticRole switch
+ 3579: public string LoweringBoundary => Candidate?.PackageBinding.Authority.LoweringMode switch
+ 3587: public string CompatibilityBoundary => Candidate?.PackageBinding.Authority.ExternalCompatibility switch
+ 3593: public string SpecificationReference =>
+ 3595: public string StatusText => Result.Readiness switch
+ 3604: public string FailureHeading => Result.Readiness switch
+ 3611: public string ArtifactName => Candidate?.Artifact.FileName ?? "no artifact";
+ 3612: public string Summary => Candidate?.Interpretation ?? ErrorText;
+ 3613: public StrategyCandidateGenerationIssueV1? FirstIssue =>
+ 3617: public string FirstIssueCode => FirstIssue?.Code ?? "No issue code reported";
+ 3618: public string FirstIssuePath => FirstIssue?.Path ?? "No issue path reported";
+ 3619: public string FirstIssueMessage => FirstIssue?.Message
+ 3622: public string ErrorText => string.Join(Environment.NewLine, Result.Issues.Select(issue =>
+ 3624: public string RecoveryText => FirstIssueCode switch
+ 3636: public string ArtifactPreview => Candidate?.Artifact.Source
+ 3640: public string InspectablePreview => !string.IsNullOrWhiteSpace(ArtifactPreview)
+ 3645: public string PreviewHeading => !string.IsNullOrWhiteSpace(ArtifactPreview) && Candidate?.Artifact is { } artifact
+ 3650: public string PreviewStateText => IsChosen
+ 3653: public string FlexibilityText => Candidate is null
+ 3659: public sealed partial class StrategyGenerationLaneProgressRow : ObservableObject
+ 3661: public StrategyGenerationLaneProgressRow(StrategyGenerationLaneV1 lane) => Lane = lane;
+ 3663: public StrategyGenerationLaneV1 Lane { get; }
+ 3664: public string LaneName => StrategyGenerationLaneCatalogV1.DisplayName(Lane);
+ 3665: public string AgentName => Lane switch
+ 3673: public string ArtifactName => Lane switch
+ 3681: public string PurposeText => Lane switch
+ 3689: public string ValidationPlanText => Lane switch
+ 3716: public bool HasResult => ResultOption is not null;
+ 3717: public string InspectablePreview => ResultOption?.InspectablePreview ?? string.Empty;
+ 3718: public string PreviewHeading => ResultOption?.PreviewHeading ?? $"{ArtifactName} · waiting for result";
+ 3720: public void Apply(StrategyGenerationLaneProgressV1 progress)
+ 3751: public string StateLabel => State switch
+ 3764: public string StateDetail => State switch
+ 3780: public string PipelineText => State switch
+ 3821: public sealed record CandidateReadinessStageRow(
+ 3828: public sealed record FileChangeSummary(string Name, int Added, int Removed)
+ 3830: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
+ 3833: public static string Pack(IReadOnlyList<FileChangeSummary> changes) =>
+ 3836: public static IReadOnlyList<FileChangeSummary>? Unpack(string? packed)
+ 3854: public sealed class ReviewFileEntry(string name, IReadOnlyList<DiffLine> lines)
+ 3856: public string Name { get; } = name;
+ 3857: public IReadOnlyList<DiffLine> Lines { get; } = lines;
+ 3858: public int Added { get; } = lines.Count(l => l.Kind == "add");
+ 3859: public int Removed { get; } = lines.Count(l => l.Kind == "del");
+ 3860: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
+ 3865: public sealed class AiProviderChoice(IStrategyCodegenClient client)
+ 3867: public IStrategyCodegenClient Client { get; } = client;
+ 3868: public string ProviderId => Client.ProviderId;
+ 3869: public string DisplayName => Client.DisplayName;
+ 3870: public bool IsAvailable => Client.IsAvailable;
+ 3871: public string Label => IsAvailable ? DisplayName : $"{DisplayName} — not set up";
+ 3875: public enum BuildTaskState
+ 3885: public sealed partial class BuildTask(string title) : ObservableObject
+ 3887: public string Title { get; } = title;
 ```
 
 ## src/linux/UI/TradingTerminal.Settings/Authoring/StrategyStarterCatalog.cs

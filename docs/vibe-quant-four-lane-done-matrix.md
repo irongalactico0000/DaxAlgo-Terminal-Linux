@@ -1,12 +1,14 @@
-# Vibe Quant four-lane Done / Not Done matrix
+# Legacy Vibe Quant four-representation Done / Not Done matrix
 
 Evidence date: 2026-08-08. “Done” means implemented and covered by the named local validation path;
 it does not mean semantic correctness, profitability, historical readiness, or live safety.
 
-This matrix describes the existing four-representation subsystem. The approved next runtime product
-does not pretend these are four equivalent execution engines: it uses one research QueryEngine,
-one native akquant market-backtest worker, and one native CSP event-graph worker. See
-[DaxAlgo quant strategy agent architecture](quant-strategy-agent-architecture.md).
+This matrix describes the legacy four-representation subsystem only. It is not evidence for the
+native strategy-agent workflow and must not appear under the native Research / VibeQuant / CSP /
+Comparison readiness labels. The native product uses one research QueryEngine, one
+transcend-0/VibeQuant worker that reaches AKQuant, and one Point72 CSP worker. See the maintained
+[native architecture](quant-strategy-agent-architecture.md) and
+[native Done / Not Done matrix](native-strategy-agent-done-matrix.md).
 
 | Lane | Inspectable artifact | Native validation/test path | First actionable stop | Status |
 |---|---|---|---|---|

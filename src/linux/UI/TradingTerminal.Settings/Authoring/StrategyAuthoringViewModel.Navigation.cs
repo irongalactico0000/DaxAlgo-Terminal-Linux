@@ -25,7 +25,9 @@ public sealed partial class StrategyAuthoringViewModel
     public bool ShowImplementationTabs => IsBuildScreen || !GenerateCandidateFirst;
     public bool ShowScreenNavigation => GenerateCandidateFirst;
     public bool ShowDesignRequestHeader => IsDesignScreen && GenerateCandidateFirst;
-    public bool ShowImplementationHeader => IsBuildScreen || !GenerateCandidateFirst;
+    public bool ShowImplementationHeader =>
+        (IsBuildScreen && !ShowNativeStrategyRunPanel) || !GenerateCandidateFirst;
+    public bool ShowNativeImplementationHeader => ShowNativeStrategyRunPanel;
     public bool CanCompileCurrentSource =>
         HasExpertCSharpFiles &&
         !HasDetachedImplementationSource &&
@@ -34,21 +36,26 @@ public sealed partial class StrategyAuthoringViewModel
     public bool CanOpenDesignScreen => GenerateCandidateFirst && IsBuildScreen && !IsGenerating;
     public bool CanOpenBuildScreen =>
         IsDesignScreen &&
-        CanEnterFourLaneConformance &&
+        (IsNativeStrategyAgentWired || CanEnterFourLaneConformance) &&
         !IsGenerating;
 
     public bool ShowDesignCandidateReview => IsDesignScreen && HasCandidate;
-    public bool ShowBuildGenerationProgress => IsBuildScreen && IsGeneratingCandidates;
-    public bool ShowBuildBusyStop => IsBuildScreen && IsGenerating && !IsGeneratingCandidates;
-    public bool ShowBuildCandidateResults => IsBuildScreen && HasGeneratedCandidates;
+    public bool ShowBuildGenerationProgress =>
+        IsBuildScreen && !ShowNativeStrategyRunPanel && IsGeneratingCandidates;
+    public bool ShowBuildBusyStop =>
+        IsBuildScreen && !ShowNativeStrategyRunPanel && IsGenerating && !IsGeneratingCandidates;
+    public bool ShowBuildCandidateResults =>
+        IsBuildScreen && !ShowNativeStrategyRunPanel && HasGeneratedCandidates;
     public bool ShowCandidateEmptyState => IsDesignScreen
         ? !HasCandidate
-        : !HasGeneratedCandidates && !IsGeneratingCandidates;
+        : !ShowNativeStrategyRunPanel && !HasGeneratedCandidates && !IsGeneratingCandidates;
     public bool ShowStartImplementationAction =>
         IsBuildScreen &&
+        !ShowNativeStrategyRunPanel &&
         !HasGeneratedCandidates &&
         !IsGeneratingCandidates;
-    public bool ShowCliWorkspaceFooter => IsBuildScreen && AvailableClis.Count > 0;
+    public bool ShowCliWorkspaceFooter =>
+        IsBuildScreen && !ShowNativeStrategyRunPanel && AvailableClis.Count > 0;
 
     public string ActiveScreenTitle => !GenerateCandidateFirst
         ? "Expert Code"
@@ -60,6 +67,8 @@ public sealed partial class StrategyAuthoringViewModel
         ? "Direct C# authoring is a separate legacy path; it does not inherit the confirmed Strategy Builder request or its lane results."
         : IsDesignScreen
             ? "Define the strategy in chat, review every material decision, then confirm the request."
+            : ShowNativeStrategyRunPanel
+                ? "Load one confirmed native run and inspect its retained Research, VibeQuant/AKQuant, CSP, and comparison evidence."
             : "Inspect generated artifacts, the validation actually available for each lane, exact failures, and any available test results.";
 
     public string CandidateTabHeader => IsDesignScreen ? "Request" : "Compare";
@@ -77,15 +86,19 @@ public sealed partial class StrategyAuthoringViewModel
     {
         if (!CanOpenBuildScreen)
         {
-            Status = "Confirm the complete strategy request before opening Build, Test & Compare.";
+            Status = IsNativeStrategyAgentWired
+                ? "Stop the active task before opening Build, Test & Compare."
+                : "Confirm the complete strategy request before opening Build, Test & Compare.";
             return;
         }
 
         ActiveScreen = StrategyAuthoringScreen.Build;
         WorkbenchTab = 3;
-        Status = HasGeneratedCandidates
-            ? "Build, Test & Compare is open on the retained implementation results."
-            : "Build, Test & Compare is ready. Start implementation generation when you are ready.";
+        Status = ShowNativeStrategyRunPanel
+            ? "Build, Test & Compare is ready to load a retained native run ID. Chart-to-run creation is not connected here yet."
+            : HasGeneratedCandidates
+                ? "Build, Test & Compare is open on the retained implementation results."
+                : "Build, Test & Compare is ready. Start implementation generation when you are ready.";
     }
 
     private bool CanOpenBuildScreenAction() => CanOpenBuildScreen;
@@ -113,7 +126,10 @@ public sealed partial class StrategyAuthoringViewModel
 
     private void RefreshAuthoringScreenGate()
     {
-        if (GenerateCandidateFirst && IsBuildScreen && !CanEnterFourLaneConformance)
+        if (GenerateCandidateFirst &&
+            IsBuildScreen &&
+            !IsNativeStrategyAgentWired &&
+            !CanEnterFourLaneConformance)
         {
             ActiveScreen = StrategyAuthoringScreen.Design;
             Status = "The strategy request changed or lost confirmation. Review it again before implementation.";
@@ -133,6 +149,7 @@ public sealed partial class StrategyAuthoringViewModel
         OnPropertyChanged(nameof(ShowScreenNavigation));
         OnPropertyChanged(nameof(ShowDesignRequestHeader));
         OnPropertyChanged(nameof(ShowImplementationHeader));
+        OnPropertyChanged(nameof(ShowNativeImplementationHeader));
         OnPropertyChanged(nameof(CanCompileCurrentSource));
         OnPropertyChanged(nameof(CanOpenDesignScreen));
         OnPropertyChanged(nameof(CanOpenBuildScreen));
@@ -143,6 +160,8 @@ public sealed partial class StrategyAuthoringViewModel
         OnPropertyChanged(nameof(ShowCandidateEmptyState));
         OnPropertyChanged(nameof(ShowStartImplementationAction));
         OnPropertyChanged(nameof(ShowCliWorkspaceFooter));
+        OnPropertyChanged(nameof(ShowNativeStrategyRunPanel));
+        OnPropertyChanged(nameof(ShowLegacyCandidateBoundary));
         OnPropertyChanged(nameof(ActiveScreenTitle));
         OnPropertyChanged(nameof(ActiveScreenDescription));
         OnPropertyChanged(nameof(CandidateTabHeader));

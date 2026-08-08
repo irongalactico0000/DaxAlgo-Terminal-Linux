@@ -84,5 +84,9 @@ test/
 __pycache__/
 *.pyc
 
+# Local native-strategy runtimes and retained runs
+/tools/strategy-agent/.runtime/
+/tools/strategy-agent/.runs/
+
 # Claude agent worktrees (temporary)
 .claude/worktrees/

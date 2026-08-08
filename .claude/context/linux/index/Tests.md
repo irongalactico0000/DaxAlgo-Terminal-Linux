@@ -1,6 +1,6 @@
 # macOS index / Tests
 
-Generated from source fingerprint `3026999d8534`. macOS/Avalonia source only.
+Generated from source fingerprint `330db91800ba`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
@@ -30,6 +30,7 @@ Generated from source fingerprint `3026999d8534`. macOS/Avalonia source only.
 | `tests/linux/TradingTerminal.App.Avalonia.Tests/CandidateAuthoringUxContractTests.cs` | 539 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
 | `tests/linux/TradingTerminal.App.Avalonia.Tests/CandidateRestoreRecoveryTests.cs` | 1053 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
 | `tests/linux/TradingTerminal.App.Avalonia.Tests/MacPackagingConfigurationTests.cs` | 285 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
+| `tests/linux/TradingTerminal.App.Avalonia.Tests/NativeStrategyRunAuthoringTests.cs` | 485 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
 | `tests/linux/TradingTerminal.App.Avalonia.Tests/StrategyAuthoringFreshSessionTests.cs` | 312 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
 | `tests/linux/TradingTerminal.App.Avalonia.Tests/StrategyIntentAuthoringTests.cs` | 1019 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
 | `tests/linux/TradingTerminal.App.Avalonia.Tests/StrategyStarterCatalogTests.cs` | 219 | linux | TradingTerminal.App.Avalonia.Tests | test | Y |  |
@@ -80,6 +81,8 @@ Generated from source fingerprint `3026999d8534`. macOS/Avalonia source only.
 | `tests/linux/TradingTerminal.Tests.Headless/Infrastructure/LondonStrategicEdgeParsingTests.cs` | 185 | linux | TradingTerminal.Tests.Headless | test | Y | Offline tests for the London Strategic Edge WebSocket/REST JSON parsers and symbol |
 | `tests/linux/TradingTerminal.Tests.Headless/Infrastructure/RuntimeHelperResolverTests.cs` | 192 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Infrastructure/SimulatedBrokerClientTests.cs` | 138 | linux | TradingTerminal.Tests.Headless | test | Y | Base test store: writes are swallowed and reads return empty unless a |
+| `tests/linux/TradingTerminal.Tests.Headless/Infrastructure/StrategyAgentHostTests.cs` | 194 | linux | TradingTerminal.Tests.Headless | test | Y |  |
+| `tests/linux/TradingTerminal.Tests.Headless/Infrastructure/StrategyAgentHttpClientTests.cs` | 253 | linux | TradingTerminal.Tests.Headless | test | Y |  |
 | `tests/linux/TradingTerminal.Tests.Headless/Infrastructure/UpstoxParsingTests.cs` | 148 | linux | TradingTerminal.Tests.Headless | test | Y | Tests for the Upstox parsing helpers. The protobuf test encodes a FeedResponse |
 | `tests/linux/TradingTerminal.Tests.Headless/MarketData/ArchiveDepthRoundTripTests.cs` | 178 | linux | TradingTerminal.Tests.Headless | test | Y | In-memory |
 | `tests/linux/TradingTerminal.Tests.Headless/MarketData/IndicatorsTests.cs` | 70 | linux | TradingTerminal.Tests.Headless | test | Y |  |

@@ -2,92 +2,120 @@
 
 ## Goal
 
-Prove one complete FDAX chart-to-native-results situation headlessly, then connect its existing
-run/event API to the Strategy Builder. The runtime uses a narrow DaxAlgo-owned LangGraph graph,
-real `akquant.run_backtest`, and real Point72 `csp.run`. FinanceManus is explicitly excluded.
+Connect one frozen chart-shaped research case to the real local FinanceManus QueryEngine backbone,
+genuine transcend-0/VibeQuant -> AKQuant execution, and genuine Point72 CSP execution. Retain every
+native artifact and exact failure, then connect the proven API to DaxAlgo's existing two-screen
+Strategy Builder without introducing a replacement DSL, validator, simulator, or backtester.
 
-## Plan
+## Correct architecture
 
-1. Finish and verify the canonical C# research/confirmed-intent handoff.
-2. Pin a locally resolvable LangGraph/checkpoint set, `akquant==0.3.36`, and `csp==0.18.0`.
-3. Implement frozen chart/scenario contracts and hash-bound worker inputs.
-4. Implement the headless LangGraph research/confirmation/fan-out/join state machine.
-5. Run the FDAX/FESX/ES/VDAX situation through genuine akquant and CSP APIs.
-6. Expose monotonic CLI events and exact artifacts/failures.
-7. Connect the same API to the existing Design & Confirm and Build, Test & Compare screens.
+```text
+frozen chart evidence
+-> research QueryEngine (no execution tools)
+-> explicit readable confirmation
+-> hash-bound immutable job
+-> FinanceManus Coordinator
+     -> VibeQuant QueryEngine (submit_vibequant_task_spec only)
+        -> TaskSpec.from_dict -> make_plan -> run_task -> AKQuant
+     -> CSP QueryEngine (submit_csp_source only)
+        -> @csp.node/@csp.graph -> csp.run
+-> deterministic comparison of retained native evidence
+```
 
-## Architecture decision
+HKUDS/Vibe-Trading is research guidance and a design reference only. RD-Agent/Qlib,
+TradingAgents, ai-hedge-fund, LEAN, and NautilusTrader are benchmark references, not additional
+runtime lanes.
 
-- LangGraph supplies the actual graph runtime: `StateGraph`, `create_react_agent`, `interrupt`,
-  `Command`, `Send`, durable checkpoints, parallel joins, and streaming.
-- DaxAlgo owns only finance-specific graph state, explicit tools, canonical contracts, adapters,
-  isolation policy, and result taxonomy.
-- Vibe-Trading commit `46465ac3cd8d0a35208f974704c5e801a1107a13` is an audited reference for
-  memory, traces, manifests, cancellation, contained workspaces, and tool restrictions. Its broad
-  product runtime is not imported.
-- VibeQuant commit `1f5442d88ec97b6075ac73a3c4d0b42d1c00a640` is an audited reference for
-  deterministic execution and a thin genuine akquant adapter. Its `TaskSpec` DSL and in-process
-  unsandboxed generated-code execution are not adopted.
-- akquant is the native portfolio backtester. CSP is a typed graph runner and is never presented as
-  a market backtest.
+## Implemented backend
 
-## Concrete situation
+- Python 3.12 service under `tools/strategy-agent`.
+- Exact FinanceManus source-revision and interpreter gate.
+- Fixed research, VibeQuant, and CSP QueryEngine profiles.
+- Exactly one host-owned submission tool for each native worker.
+- Real FinanceManus `Coordinator` fan-out with opaque single-use dispatch tokens.
+- Hash-bound manifest, confirmed intent, research context, files, provider/model identity, and
+  source revisions.
+- Independent contained VibeQuant and CSP workspaces and native child processes.
+- VibeQuant public path `TaskSpec.from_dict -> make_plan -> run_task`; no direct AKQuant bypass.
+- Point72 CSP source-file path through real graph construction and `csp.run`.
+- Append-only session/run events, terminal result retention, paged event replay, and hash-checked
+  artifact retrieval.
+- Deterministic comparison that treats VibeQuant exact scenarios as `unproven` when its public
+  result lacks order/fill timestamps and requires the complete ordered CSP intent stream to match.
+- Exact per-worker `agent_timeout` reporting even when FinanceManus retains rather than raises the
+  timeout.
+- Process custody preserved until bounded native child cleanup completes.
+- Dedicated .NET process host and typed loopback client on port 8766.
+- Partial Screen 2 bridge for retained Research, VibeQuant/AKQuant, CSP, and Compare evidence,
+  including exact errors, bounded event replay, hashes, and hash-checked artifact viewing.
 
-- primary: five-minute FDAX;
-- comparisons: FESX, ES, and inverse VDAX, each timestamped and provenance-bound;
-- trigger: FDAX `+/-0.80%`;
-- confirmation: at least two fresh comparisons—FESX `+/-0.35%`, ES `+/-0.25%`, inverse VDAX
-  `-/+2.00%`—with five-minute staleness cutoff;
-- fewer than two confirmations: `no_trade`;
-- risk: 0.5% equity, 20% notional cap, 40/60 tranches;
-- execution: confirmed market/limit/TIF, one-bar timeout, cancel then distinct residual order,
-  partial-fill-driven remaining size;
-- lifecycle: 0.6% stop, 1.2% target, six-bar time exit, evidence-loss invalidation,
-  exit-fill-before-reverse, and final unwind.
+## Fresh native proof
 
-The shared scenarios cover upward/downward continuation, unconfirmed movement, stale/missing data,
-unfilled and partial-filled limits, cancellation/new residual order, stop, target, time exit,
-invalidation, reversal, OCO sibling cancellation, and final unwind. Atomic replace/reverse remain
-explicit native capability failures.
+Run A12 (`.runtime/live-proof-20260808-a12`) completed through the provider-backed production
+composition with structured FDAX/FESX/ES/VDAX OHLCV and causal indicator context.
 
-## Existing evidence
+| Evidence | Result |
+|---|---|
+| Research QueryEngine used structured bars, returns, volume ratios, EMAs, and stale VDAX gap | passed |
+| VibeQuant native stages | passed |
+| AKQuant public closed-trade aggregate | expected 1, observed 1 |
+| CSP native graph/run | passed |
+| Complete CSP intent stream | host-wrapper-observed `09:05 no_trade -> 10:00 target 0.10 -> 10:30 close`; not security-attested |
+| Overall evidence | `partially_proven` because VibeQuant public exact timestamps are unavailable |
+| Confirmation mode | scripted headless fixture, not a human UI confirmation |
 
-- `akquant==0.3.36`: native probes exercised `akquant.Strategy`, `akquant.run_backtest`, staged
-  limits, partial fills, cancellation plus a distinct new order, exit-then-opposite-entry, OCO, and
-  an FDAX futures bracket with explicit multiplier/margin configuration.
-- `csp==0.18.0`: native probes exercised `@csp.node`, `@csp.graph`, `csp.curve`, and `csp.run` with
-  timestamped outputs. CSP produced no fills, positions, equity, or P&L.
-- VibeQuant's `src/adapters/akquant_engine.py` calls the genuine `aq.run_backtest`; its upstream
-  pipeline tests passed during the audit.
-- The C# canonical-intent and authoring review suites are tracked in
-  `tasks/2026-08-08-1013-quant-research-intent-v1.md`.
+The proof report hash is
+`0506301ff3266cc8e8e8c7626f3b755bd16fcf4cea841affccd598dd74a4eb99`.
 
-## Blast radius
+## Verification
 
-- future `tools/strategy-agent/` Python package and contained native-worker images;
-- frozen chart-context and scenario contracts;
-- CLI/run-event service and client;
-- existing Strategy Builder view-model/presentation only after headless proof;
-- focused Python and C# tests and architecture documentation.
+- Python suite without optional native configuration: 96 passed, 10 skipped.
+- Python suite with QueryEngine, VibeQuant/AKQuant, and CSP paths configured: 106 passed.
+- Ruff 0.12.7 over `daxalgo_strategy_agent` and `tests`: clean.
+- Focused .NET StrategyAgent tests after timeout alignment: 12 passed.
+- Focused retained-run UI tests: 5 passed; full Avalonia UI test project: 105 passed.
+- Avalonia app build after UI wiring: passed with 0 warnings and 0 errors.
+- Earlier full headless .NET run: 826 passed, 2 unrelated existing macOS reparse-path failures,
+  6 skipped.
+- Earlier app and macOS solution builds: passed; two existing nullable warnings remained in the
+  full solution build.
+- Manual app launch attempt: blocked before window creation by Avalonia Native render-timer error
+  `-6661`; no manual Screen 2 interaction is claimed.
 
-No broker, credential, live-order, Windows, or Professional-overlay path is in scope.
+## Honest Done / Not Done
 
-## Verification status
+Done:
 
-Architecture and native capability audit complete. The connected LangGraph/akquant/CSP headless
-vertical slice is pending and must not be described as implemented.
+- real QueryEngine research and fixed native-worker coordination;
+- genuine VibeQuant-to-AKQuant long backtest path;
+- genuine Point72 CSP graph execution;
+- immutable same-job fan-out, artifacts, exact stages, and comparison;
+- structured headless FDAX proof; and
+- registered .NET service host and typed client; and
+- an honest retained-run Screen 2 viewer for an already confirmed run.
 
-## Risks and deferred work
+Not Done:
 
-- Lock only package versions resolvable and tested in the target Python environment.
-- Generated code requires rootless OCI or equivalent OS isolation; a virtual environment is not a
-  security boundary.
-- Comparison is limited to decisions and order intents common to both engines. Native fills,
-  trades, positions, equity, and P&L belong only to akquant.
-- RD-Agent/Qlib experimentation, multi-agent research debate, paper/live promotion, and monitoring
-  are later milestones.
+- chart drag/range selection and up-to-three comparison capture in the app;
+- byte-identical chart-to-Strategy-Builder handoff;
+- explicit human confirmation through the UI;
+- Screen 1 creation of the backend research session and confirmed run;
+- a successful manual macOS Screen 2 run (current launch stops at Avalonia `RenderTimer` `-6661`);
+- release packaging of the pinned Python/runtime dependency closure;
+- per-launch loopback authentication and explicit development opt-in for an externally managed
+  service (the current fixed-port health identity is not sufficient for trusted release evidence);
+- immediate cancellation of an active provider/native child (current cancellation is cooperative);
+- in-flight research/run resumption after process restart;
+- short execution through the unmodified VibeQuant adapter;
+- market/limit selection, staged entries, partial fills, stops, targets, and reversal proof; and
+- exact VibeQuant per-scenario timestamps or raw orders/fills through its public result.
 
-## Documentation
+## Product completion boundary
 
-The authoritative architecture, diagrams, API, and acceptance boundary are in
-`docs/quant-strategy-agent-architecture.md`.
+Do not call the product complete until a real macOS app run performs chart selection, frozen
+context transfer, provider-backed research, explicit human confirmation, the immutable two-worker
+run, and four inspectable Research / VibeQuant / CSP / Comparison panels. Until then the accurate
+status is: native backend proven for one long-only case; complete DaxAlgo workflow Not Done.
+
+See `docs/quant-strategy-agent-architecture.md` and
+`docs/native-strategy-agent-done-matrix.md` for the maintained product boundary.

@@ -3,7 +3,7 @@
 Primary source map for `src/linux/` and `tests/linux/`. This repository has no Windows tree.
 Paths are relative to the repository root.
 
-Generated from source fingerprint `3026999d8534`: **56 projects / 1104 files / 180967 LOC**.
+Generated from source fingerprint `330db91800ba`: **56 projects / 1115 files / 183736 LOC**.
 Indexed extensions: `.cs`, `.xaml`, `.axaml`. Regenerate with `bash .claude/context/gen-context-linux.sh`.
 
 ## Groups
@@ -14,28 +14,28 @@ Indexed extensions: `.cs`, `.xaml`, `.axaml`. Regenerate with `bash .claude/cont
 | [Backtest](index/Backtest.md) | 57 | TradingTerminal.Backtest.Cli, TradingTerminal.Backtest.Client, TradingTerminal.Backtest.Engine, TradingTerminal.Backtest.Protocol, TradingTerminal.Backtest.Worker, TradingTerminal.TradeIr.Runtime |
 | [Charts](index/Charts.md) | 44 | TradingTerminal.BubbleChart, TradingTerminal.Charts, TradingTerminal.Heatmap, TradingTerminal.OrderBook, TradingTerminal.SurfaceLab, TradingTerminal.VolumeFootprint |
 | [Core](index/Core.md) | 286 | TradingTerminal.Core |
-| [Pipeline](index/Pipeline.md) | 160 | TradingTerminal.Infrastructure, TradingTerminal.MarketData |
+| [Pipeline](index/Pipeline.md) | 167 | TradingTerminal.Infrastructure, TradingTerminal.MarketData |
 | [Sdk](index/Sdk.md) | 20 | DaxAlgo.Sdk, DaxAlgo.Strategy.Bundle |
 | [Shell](index/Shell.md) | 130 | TradingTerminal.Accounts, TradingTerminal.App.Avalonia, TradingTerminal.Login |
-| [Tests](index/Tests.md) | 143 | DaxAlgo.Daxq.Compiler.Tests, DaxAlgo.Daxq.Contracts.Tests, DaxAlgo.Daxq.Host.Tests, DaxAlgo.Daxq.Vm.Tests, DaxAlgo.SamplePlugin, TradingTerminal.App.Avalonia.Tests, TradingTerminal.Tests.Headless |
+| [Tests](index/Tests.md) | 146 | DaxAlgo.Daxq.Compiler.Tests, DaxAlgo.Daxq.Contracts.Tests, DaxAlgo.Daxq.Host.Tests, DaxAlgo.Daxq.Vm.Tests, DaxAlgo.SamplePlugin, TradingTerminal.App.Avalonia.Tests, TradingTerminal.Tests.Headless |
 | [Tools](index/Tools.md) | 117 | DaxAlgo.Codegen, DaxAlgo.Coordinator.Cli, DaxAlgo.Daxq.Compiler, DaxAlgo.Strategy.BundleTool, DaxAlgo.StrategyTool, TradingTerminal.AdvancedMarketRegime, TradingTerminal.Backtest, TradingTerminal.BacktestStudio, TradingTerminal.Correlation, TradingTerminal.LseBacktest, TradingTerminal.QuantConnect, TradingTerminal.Recording |
-| [UI](index/UI.md) | 59 | TradingTerminal.Settings, TradingTerminal.StrategyComposer, TradingTerminal.UI.Avalonia, TradingTerminal.UI.Core |
+| [UI](index/UI.md) | 60 | TradingTerminal.Settings, TradingTerminal.StrategyComposer, TradingTerminal.UI.Avalonia, TradingTerminal.UI.Core |
 
 ## Project rollup
 
 | Project | Group | Role | LOC | Files |
 |---|---|---|---:|---:|
 | TradingTerminal.Core | Core | product | 27730 | 286 |
-| TradingTerminal.Tests.Headless | Tests | test | 21224 | 112 |
-| TradingTerminal.Infrastructure | Pipeline | product | 19180 | 122 |
-| TradingTerminal.App.Avalonia | Shell | product | 9258 | 71 |
-| TradingTerminal.Settings | UI | product | 9170 | 20 |
+| TradingTerminal.Tests.Headless | Tests | test | 21671 | 114 |
+| TradingTerminal.Infrastructure | Pipeline | product | 20245 | 129 |
+| TradingTerminal.Settings | UI | product | 9740 | 21 |
+| TradingTerminal.App.Avalonia | Shell | product | 9460 | 71 |
 | DaxAlgo.Codegen | Tools | product | 8528 | 25 |
 | TradingTerminal.Ai.Coordinator | AI | product | 6087 | 18 |
 | TradingTerminal.MarketData | Pipeline | product | 5929 | 38 |
 | DaxAlgo.Daxq.Host | AI | product | 5348 | 15 |
 | DaxAlgo.Daxq.Compiler | Tools | product | 4860 | 17 |
-| TradingTerminal.App.Avalonia.Tests | Tests | test | 4328 | 9 |
+| TradingTerminal.App.Avalonia.Tests | Tests | test | 4813 | 10 |
 | TradingTerminal.Backtest.Engine | Backtest | product | 4091 | 31 |
 | DaxAlgo.Strategy.Bundle | Sdk | product | 4055 | 15 |
 | TradingTerminal.Login | Shell | product | 3949 | 49 |

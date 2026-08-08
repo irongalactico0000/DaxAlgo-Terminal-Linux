@@ -1,6 +1,6 @@
 # TradingTerminal.Login — public API surface (macOS/Avalonia)
 
-Generated from source fingerprint `3026999d8534`. Declaration lines only;
+Generated from source fingerprint `330db91800ba`. Declaration lines only;
 multi-line signatures show their first line. `[ObservableProperty]` generated properties are not listed.
 
 ## src/linux/Shell/TradingTerminal.Login/AiKeyStore.cs

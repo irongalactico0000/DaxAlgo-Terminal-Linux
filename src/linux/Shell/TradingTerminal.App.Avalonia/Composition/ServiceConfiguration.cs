@@ -32,6 +32,7 @@ using TradingTerminal.Infrastructure.Plugins.Feed;
 using TradingTerminal.Infrastructure.Research;
 using TradingTerminal.Infrastructure.Regime;
 using TradingTerminal.Infrastructure.Sidecar;
+using TradingTerminal.Infrastructure.StrategyAgent;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.BacktestStudio;
 using TradingTerminal.Backtest.Engine.TradeIr;
@@ -139,6 +140,9 @@ public static class ServiceConfiguration
         // Paper Lab research/repro seams (IPaperIngestClient/IReproOrchestrator Null defaults).
         services.AddPaperResearch(configuration);
         services.AddSidecar(configuration);
+        // Dedicated QueryEngine -> VibeQuant/AKQuant + CSP backend. It remains disabled by default;
+        // the Strategy Builder can inspect/start an already confirmed retained run when configured.
+        services.AddStrategyAgent(configuration);
         // Market-data archive (offloader + manifest store + Telegram transport), with native
         // Avalonia prompting and macOS-protected credential post-configuration layered on top.
         services.AddMarketDataArchive(configuration);

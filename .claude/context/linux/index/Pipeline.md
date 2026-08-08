@@ -1,6 +1,6 @@
 # macOS index / Pipeline
 
-Generated from source fingerprint `3026999d8534`. macOS/Avalonia source only.
+Generated from source fingerprint `330db91800ba`. macOS/Avalonia source only.
 
 | File | LOC | Tree | Project | Role | Public surface | Purpose |
 |---|---:|---|---|---|---|---|
@@ -121,6 +121,13 @@ Generated from source fingerprint `3026999d8534`. macOS/Avalonia source only.
 | `src/linux/Pipeline/TradingTerminal.Infrastructure/Simulation/SimulatedBrokerClient.cs` | 446 | linux | TradingTerminal.Infrastructure | product | Y | Find the stored |
 | `src/linux/Pipeline/TradingTerminal.Infrastructure/Strategies/Authoring/AuthoredStrategyInstaller.cs` | 182 | linux | TradingTerminal.Infrastructure | product | Y | What an install did, in the terms the user cares about: is |
 | `src/linux/Pipeline/TradingTerminal.Infrastructure/Strategies/Authoring/RoslynStrategyCompiler.cs` | 369 | linux | TradingTerminal.Infrastructure | product | Y | Ambient namespaces every script gets for free (kept in a dedicated tree |
+| `src/linux/Pipeline/TradingTerminal.Infrastructure/StrategyAgent/IStrategyAgentClient.cs` | 56 | linux | TradingTerminal.Infrastructure | product | Y | Typed client for the existing native-strategy session and run lifecycle. |
+| `src/linux/Pipeline/TradingTerminal.Infrastructure/StrategyAgent/IStrategyAgentHost.cs` | 11 | linux | TradingTerminal.Infrastructure | product | Y | Owns the dedicated local Python strategy-agent process. |
+| `src/linux/Pipeline/TradingTerminal.Infrastructure/StrategyAgent/StrategyAgentContracts.cs` | 115 | linux | TradingTerminal.Infrastructure | product | Y | An exact actionable error returned by the native-strategy service. |
+| `src/linux/Pipeline/TradingTerminal.Infrastructure/StrategyAgent/StrategyAgentHostService.cs` | 517 | linux | TradingTerminal.Infrastructure | product | Y | Manages the native-strategy Python service as a dedicated child process. It accepts |
+| `src/linux/Pipeline/TradingTerminal.Infrastructure/StrategyAgent/StrategyAgentHttpClient.cs` | 257 | linux | TradingTerminal.Infrastructure | product | Y |  |
+| `src/linux/Pipeline/TradingTerminal.Infrastructure/StrategyAgent/StrategyAgentOptions.cs` | 61 | linux | TradingTerminal.Infrastructure | product | Y | Enables process launch and client use. A reachable externally managed service is |
+| `src/linux/Pipeline/TradingTerminal.Infrastructure/StrategyAgent/StrategyAgentServiceCollectionExtensions.cs` | 48 | linux | TradingTerminal.Infrastructure | product | Y | Registers the dedicated managed process and typed loopback client for the native |
 | `src/linux/Pipeline/TradingTerminal.Infrastructure/Threading/WpfDispatcher.cs` | 26 | linux | TradingTerminal.Infrastructure | product | Y | WPF-backed dispatcher. Posts onto |
 | `src/linux/Pipeline/TradingTerminal.Infrastructure/Time/SystemClock.cs` | 9 | linux | TradingTerminal.Infrastructure | product | Y | Production |
 | `src/linux/Pipeline/TradingTerminal.Infrastructure/Upstox/RealUpstoxClient.cs` | 588 | linux | TradingTerminal.Infrastructure | product | Y | Parses |
